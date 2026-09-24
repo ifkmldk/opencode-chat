@@ -563,7 +563,7 @@ export function ComposerAttachments(props: {
                   </AttachmentCard>
                   <button
                     type="button"
-                    onClick={() => props.onContextRemove?.(item as never)}
+                    onClick={() => props.onContextRemove?.(item)}
                     class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     aria-label={props.removeLabel}
                   >
