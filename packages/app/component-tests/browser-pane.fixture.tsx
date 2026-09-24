@@ -49,6 +49,7 @@ export function mountBrowserPane() {
       ]),
     )
     const browser: ReturnType<typeof createSessionBrowser> = {
+      onSelection: () => () => undefined,
       available: () => true,
       attached: () => !!registrations.get(store.session),
       opened: () => !!registrations.get(store.session),

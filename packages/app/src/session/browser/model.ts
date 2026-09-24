@@ -105,6 +105,11 @@ export function createSessionBrowser(session: SessionModel) {
     ),
   )
   return {
+    onSelection(listener: (value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void) {
+      const sessionID = session.identity.sessionID()
+      if (!sessionID) return () => undefined
+      return attachments.onSelection(server, sessionID, listener)
+    },
     available,
     attached,
     opened: () => attached() && browserTabs().length > 0,

@@ -42,6 +42,7 @@ export function createBrowserPage(
     partition: string
     network: BrowserNetwork | null
     publish: (error?: string) => void
+    selection?: (value: { text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void
     fail: () => void
     popup: (options: Electron.BrowserWindowConstructorOptions) => WebContents
     initialize?: boolean
@@ -72,8 +73,26 @@ export function createBrowserPage(
     },
   })
   const contents = view.webContents
+  let selectionTimer: ReturnType<typeof setTimeout> | undefined
+  const publishSelection = () => {
+    clearTimeout(selectionTimer)
+    selectionTimer = setTimeout(() => {
+      void contents
+        .executeJavaScript(`(() => { const s = getSelection(); if (!s || s.isCollapsed || !s.rangeCount) return null; const text = s.toString().trim(); if (!text || text.length > 100000) return null; const ranges = Array.from(s.getRangeAt(0).getClientRects()).filter(r => r.width > 0 && r.height > 0); if (!ranges.length) return null; const left = Math.min(...ranges.map(r => r.left)); const top = Math.min(...ranges.map(r => r.top)); const right = Math.max(...ranges.map(r => r.right)); const bottom = Math.max(...ranges.map(r => r.bottom)); return { text, url: location.href, rect: { x: left, y: top, width: right-left, height: bottom-top } } })()`)
+        .then((value) => {
+          if (value && typeof value === "object") options.selection?.(value as Parameters<NonNullable<typeof options.selection>>[0])
+        })
+        .catch(() => undefined)
+    }, 80)
+  }
+  const detachSelection = contents.on("did-stop-loading", () => {
+    clearTimeout(selectionTimer)
+    selectionTimer = setTimeout(publishSelection, 120)
+  })
+  const selectionPoll = setInterval(publishSelection, 700)
   const detachNetwork = options.network?.attach(contents)
   contents.on("before-input-event", (event, input) => {
+    if (input.type === "mouseUp") return publishSelection()
     if (input.type !== "keyDown") return
     if (input.key === "F5" && !input.meta && !input.control && !input.alt && !input.shift) {
       event.preventDefault()
@@ -424,6 +443,8 @@ export function createBrowserPage(
     async dispose() {
       if (closed) return
       closed = true
+      clearTimeout(selectionTimer)
+      clearInterval(selectionPoll)
       detachNetwork?.()
       contents.session.off("will-download", download)
       await profiling.dispose()

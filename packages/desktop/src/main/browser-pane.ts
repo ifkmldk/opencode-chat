@@ -416,6 +416,7 @@ export function createBrowserPane(storage: StateStore) {
       publish: (error) => {
         if (entry.pages.has(id)) publishState(entry, error)
       },
+      selection: (value) => report(entry, { type: "selection", tabID: id, ...value }),
       popup: (popupOptions) => {
         const popup = create(entry, false, popupOptions)
         focus(entry, popup.state().id)

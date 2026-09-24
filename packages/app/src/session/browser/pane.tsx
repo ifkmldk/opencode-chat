@@ -8,6 +8,7 @@ import { createEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createEffect, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useComposerState } from "@/composer/persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useCommand } from "@/shell/commands/command"
@@ -18,6 +19,7 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
   const language = useLanguage()
   const dialog = useDialog()
   const command = useCommand()
+  const prompt = useComposerState()
   const state = props.browser.active
   const address = () => (state()?.url === "about:blank" ? "" : (state()?.url ?? ""))
   const failed = () => !!state()?.loadError
@@ -30,6 +32,9 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     // A submitted navigation the browser has not reported yet; keeps the empty state hidden meanwhile.
     navigating: false,
     visible: typeof document === "undefined" || document.visibilityState === "visible",
+    selection: undefined as
+      | { tabID: string; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }
+      | undefined,
   })
   const empty = () => !address() && !state()?.loading && !store.navigating
   let surface: HTMLDivElement | undefined
@@ -63,6 +68,36 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
       const r = el.getBoundingClientRect()
       return r.width > 0 && r.left < rect.right && r.right > rect.left && r.top < rect.bottom && r.bottom > rect.top
     })
+  createEffect(() => {
+    const dispose = props.browser.onSelection((value) => {
+      if (value.tabID === state()?.id) setStore("selection", value)
+    })
+    onCleanup(dispose)
+  })
+
+  const addSelection = (comment?: string) => {
+    const selection = store.selection
+    if (!selection) return
+    prompt.context.add({
+      type: "page-text-annotation",
+      sourceURL: selection.url,
+      text: selection.text,
+      ...(comment?.trim() ? { comment: comment.trim() } : {}),
+    })
+    setStore("selection", undefined)
+    schedule(100)
+  }
+
+  const selectionStyle = () => {
+    const selection = store.selection
+    if (!selection || !surface) return undefined
+    const bounds = surface.getBoundingClientRect()
+    const zoom = platform.webviewZoom?.() ?? 1
+    const x = selection.rect.x / zoom
+    const y = selection.rect.y / zoom
+    return { left: `${Math.max(4, Math.min(bounds.width - 220, x))}px`, top: `${Math.max(4, y - 42)}px` }
+  }
+
   const measure = () => {
     if (!surface) return
     const tab = state()
@@ -78,7 +113,7 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     const bottom = Math.round(rect.bottom * zoom)
     // The desktop page hides blank and loading documents itself; only hide here
     // while the pane shows its own empty or failed state over the surface.
-    const visible = props.visible && store.visible && !empty() && !failed() && !dialog.active && !covered(rect)
+    const visible = props.visible && store.visible && !empty() && !failed() && !dialog.active && !store.selection && !covered(rect)
     // The cutout exposes the app backdrop outside the rounded Review card,
     // not the browser surface inside it.
     const color = getComputedStyle(
@@ -287,6 +322,43 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
         </div>
       </Show>
       <div ref={surface} class="min-h-0 flex-1 bg-v2-background-bg-base flex items-center justify-center">
+        <Show when={store.selection}>
+          {(selection) => (
+            <div
+              data-component="browser-selection-bar"
+              class="absolute z-20 flex -translate-y-full items-center gap-1 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-1 shadow-lg"
+              style={selectionStyle()}
+            >
+              <button
+                type="button"
+                class="rounded px-2 py-1 text-12-regular text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => addSelection()}
+              >
+                Quote
+              </button>
+              <button
+                type="button"
+                class="rounded px-2 py-1 text-12-regular text-v2-text-text-weak hover:bg-v2-overlay-simple-overlay-hover"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  const note = window.prompt("Add a note about this selection")
+                  if (note) addSelection(note)
+                }}
+              >
+                Note
+              </button>
+              <IconButton
+                icon={<Icon name="outline-xmark" size="small" />}
+                size="small"
+                variant="ghost"
+                aria-label="Cancel browser selection"
+                onClick={() => setStore("selection", undefined)}
+              />
+              <span class="sr-only">{selection().text}</span>
+            </div>
+          )}
+        </Show>
         <Show when={(empty() || failed()) && !props.browser.suspended()}>
           {/* Add the 40px toolbar to the file empty state's 160px bottom padding to align their centers. */}
           <div

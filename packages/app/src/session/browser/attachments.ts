@@ -2,6 +2,7 @@ import { batch, createEffect, createMemo, createRoot, getOwner, on, onCleanup, r
 import { createStore, reconcile } from "solid-js/store"
 import { createSimpleContext } from "@opencode/ui/context"
 import { useLanguage } from "@/runtime/i18n/language"
+import type { Browser } from "@opencode/plugin-browser/rpc"
 import type { BrowserPaneCommand } from "@/runtime/platform/browser-pane"
 import { usePlatform } from "@/runtime/platform/platform"
 import type { useServer } from "@/runtime/server/current"
@@ -44,6 +45,10 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
     const [unsupported, setUnsupported] = createStore<Record<string, true | undefined>>({})
     const live = new Map<string, Live>()
     const preview = new Map<string, Set<(path: string) => void>>()
+    const selections = new Map<
+      string,
+      Set<(value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void>
+    >()
     const key = (server: Server, sessionID: string) => `${server.key}\n${sessionID}`
     const enabled = createMemo(
       () => !!platform.browserPane && settings.ready() && settings.general.experimentalBrowser(),
@@ -114,6 +119,7 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
             })
           },
           preview: (path) => preview.get(id)?.forEach((listener) => listener(path)),
+          selection: (value) => selections.get(id)?.forEach((listener) => listener(value)),
           change: (state) => {
             if (state.error === "browser.pane.unsupported") {
               setUnsupported(server.key, true)
@@ -163,6 +169,20 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
         return () => {
           listeners.delete(listener)
           if (!listeners.size) preview.delete(id)
+        }
+      },
+      onSelection(
+        server: Server,
+        sessionID: string,
+        listener: (value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void,
+      ) {
+        const id = key(server, sessionID)
+        const listeners = selections.get(id) ?? new Set()
+        listeners.add(listener)
+        selections.set(id, listeners)
+        return () => {
+          listeners.delete(listener)
+          if (!listeners.size) selections.delete(id)
         }
       },
       command(server: Server, sessionID: string, command: BrowserPaneCommand) {

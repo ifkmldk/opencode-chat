@@ -29,11 +29,13 @@ function fixture() {
   }[] = []
   const endpoint = { url: "http://localhost:4096" }
   const previews: string[] = []
+  const selections: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }[] = []
   const connection = createBrowserConnection({
     target: () => ({ serverKey: "browser-test", sessionID: "ses_browser", endpoint: { ...endpoint } }),
     change: (state) => states.push(state),
     focus: () => {},
     preview: (path) => previews.push(path),
+    selection: (value) => selections.push(value),
     pane: {
       register(target, emit) {
         const call = { target, emit, closed: false, commands: [] as Browser.Action[] }
@@ -52,7 +54,7 @@ function fixture() {
   })
   connection.wake()
   calls[0].emit({ type: "state", state: browser })
-  return { connection, calls, states, endpoint, previews }
+  return { connection, calls, states, endpoint, previews, selections }
 }
 
 test("preview requests reach the session without touching connection state", () => {
@@ -62,6 +64,17 @@ test("preview requests reach the session without touching connection state", () 
     app.calls[0].emit({ type: "preview", path: "docs/report.pdf" })
     expect(app.previews).toEqual(["docs/report.pdf"])
     expect(app.states).toHaveLength(before)
+  } finally {
+    app.connection.dispose()
+  }
+})
+
+test("selection events reach the session", () => {
+  const app = fixture()
+  try {
+    const value = { tabID, text: "selected", url: "http://localhost:4173/", rect: { x: 10, y: 20, width: 30, height: 40 } }
+    app.calls[0].emit({ type: "selection", ...value })
+    expect(app.selections).toEqual([value])
   } finally {
     app.connection.dispose()
   }
