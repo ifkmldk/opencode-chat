@@ -23,11 +23,9 @@ test("browser input bounds and optional fields survive the wire", () => {
   expect(() => decode({ type: "click", tabID: "another-tab", ref: "e1" })).toThrow()
   expect(() => decode({ type: "network.list", tabID, resourceType: "imaginary" })).toThrow()
   expect(() => decode({ type: "screenshot", tabID, region: { x: 1, y: 2, width: 0, height: 10 } })).toThrow()
-  expect(decode({ type: "screenshot", tabID, region: { x: 1, y: 2, width: 20, height: 10 } }).region).toEqual({
-    x: 1,
-    y: 2,
-    width: 20,
-    height: 10,
+  expect(decode({ type: "screenshot", tabID, region: { x: 1, y: 2, width: 20, height: 10 } })).toMatchObject({
+    type: "screenshot",
+    region: { x: 1, y: 2, width: 20, height: 10 },
   })
 })
 
