@@ -482,6 +482,15 @@ function composerCursor(editor: HTMLDivElement) {
   return range.toString().length
 }
 
+function ContextAnnotationImage(props: { annotation: Extract<ComposerContextItem, { type: "media-annotation" }> }) {
+  const [url] = createResource(() => props.annotation.blob, resolveBlobUrl)
+  return (
+    <Show when={url()} fallback={<span>Annotation</span>}>
+      {(src) => <img src={src()} alt="" class="size-4 rounded-[3px] object-cover" />}
+    </Show>
+  )
+}
+
 export function ComposerAttachments(props: {
   attachments: ComposerAttachment[]
   uploads?: Upload[]
@@ -545,7 +554,12 @@ export function ComposerAttachments(props: {
               <Show when={item.type !== "file"}>
                 <div class="relative shrink-0">
                   <AttachmentCard title={item.type === "message-quote" ? item.quotedText : item.comment || "Annotation"}>
-                    <span>{item.type === "message-quote" ? "Message quote" : item.type === "media-annotation" ? "Annotation" : "Page text"}</span>
+                    <Show when={item.type === "media-annotation" ? item : undefined}>
+                      {(annotation) => <ContextAnnotationImage annotation={annotation()} />}
+                    </Show>
+                    <Show when={item.type !== "media-annotation"}>
+                      <span>{item.type === "message-quote" ? "Message quote" : item.type === "media-annotation" ? "Annotation" : "Page text"}</span>
+                    </Show>
                   </AttachmentCard>
                   <button
                     type="button"
