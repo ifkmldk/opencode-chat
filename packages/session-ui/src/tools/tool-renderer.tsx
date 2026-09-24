@@ -434,11 +434,24 @@ function taskSession(
     .sort((a, b) => (b.time.created ?? 0) - (a.time.created ?? 0))[0]?.id
 }
 
+export type WebCitation = { url: string; domain: string; title: string }
+
+export function webCitations(text: string | undefined): WebCitation[] {
+  return urls(text).map((url) => {
+    try {
+      const parsed = new URL(url)
+      return { url, domain: parsed.hostname.replace(/^www\./, ""), title: parsed.pathname === "/" ? parsed.hostname : parsed.pathname }
+    } catch {
+      return { url, domain: "Source", title: url }
+    }
+  })
+}
+
 function ExaOutput(props: { output?: string }) {
   const i18n = useI18n()
   const [showAll, setShowAll] = createSignal(false)
   let firstRevealedRef: HTMLAnchorElement | undefined
-  const links = createMemo(() => urls(props.output))
+  const links = createMemo(() => webCitations(props.output))
   const visibleLinks = createMemo(() => {
     const all = links()
     if (showAll() || all.length <= 10) return all
@@ -459,19 +472,24 @@ function ExaOutput(props: { output?: string }) {
       <div data-component="exa-tool-output">
         <div data-slot="exa-tool-links">
           <For each={visibleLinks()}>
-            {(url, index) => (
+            {(citation, index) => (
               <a
                 ref={(el) => {
                   if (index() === 10) firstRevealedRef = el
                 }}
                 data-slot="exa-tool-link"
+                data-component="exa-tool-citation"
                 class="webfetch-link"
-                href={url}
+                href={citation.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}
               >
-                <span data-slot="webfetch-link-text">{url}</span>
+                <span data-slot="exa-tool-citation-icon" aria-hidden="true">{citation.domain.slice(0, 1).toUpperCase()}</span>
+                <span data-slot="exa-tool-citation-copy">
+                  <span data-slot="exa-tool-citation-title">{citation.title}</span>
+                  <span data-slot="exa-tool-citation-domain">{citation.domain}</span>
+                </span>
                 <Icon name="outline-square-arrow" class="webfetch-link-icon" />
               </a>
             )}

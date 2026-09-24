@@ -388,6 +388,53 @@
   }
 }
 
+[data-component="exa-tool-citation"] {
+  min-width: 0;
+  max-width: min(100%, 360px);
+  padding: 7px 9px;
+  border: 0.5px solid var(--v2-border-border-base);
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+}
+
+[data-slot="exa-tool-citation-icon"] {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-strong);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+[data-slot="exa-tool-citation-copy"] {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+[data-slot="exa-tool-citation-title"],
+[data-slot="exa-tool-citation-domain"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-slot="exa-tool-citation-title"] {
+  color: var(--v2-text-text-base);
+  font-size: 12px;
+  font-weight: 530;
+}
+
+[data-slot="exa-tool-citation-domain"] {
+  color: var(--v2-text-text-muted);
+  font-size: 11px;
+}
+
 .webfetch-link,
 [data-slot="basic-tool-tool-subtitle"].webfetch-link,
 [data-slot="exa-tool-link"].webfetch-link,
