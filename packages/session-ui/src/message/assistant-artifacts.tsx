@@ -20,12 +20,11 @@ export function AssistantArtifacts(props: { text: string; onOpen: (path: string)
     },
     (path) => (path ? markdown?.readImage?.(path, new AbortController().signal) : Promise.resolve(undefined)),
   )
+  const imagePath = createMemo(() => artifacts().find((item) => item.kind === "image")?.path)
   const imageURL = createMemo(() => {
     const source = image()
     if (!source) return undefined
-    const url = URL.createObjectURL(source)
-    queueMicrotask(() => URL.revokeObjectURL(url))
-    return url
+    return URL.createObjectURL(source)
   })
   const preview = () => {
     const url = imageURL()
