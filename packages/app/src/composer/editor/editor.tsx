@@ -21,6 +21,7 @@ import { Skill } from "@opencode/schema/skill"
 import type {
   ComposerAttachment,
   ComposerComment,
+  ComposerContextItem,
   ComposerOption,
   ComposerPersistedState,
   ComposerPrompt,
@@ -154,6 +155,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
             attachments={props.controller.attachments()}
             uploads={props.controller.uploads()}
             comments={props.controller.comments()}
+            contextItems={props.controller.contextItems()}
             activeCommentID={state.activeContextID}
             removeLabel={i18n.t("ui.promptInput.removeAttachment")}
             onAttachmentClick={props.controller.openAttachment}
@@ -161,6 +163,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
             onUploadCancel={(upload) => props.controller.cancelUpload(upload.id)}
             onCommentClick={(comment) => props.controller.toggleContext(comment.key)}
             onCommentRemove={(comment) => props.controller.removeContext(comment.key)}
+            onContextRemove={(item) => props.controller.removeContext(item.key)}
           />
         </Show>
 
@@ -483,6 +486,7 @@ export function ComposerAttachments(props: {
   attachments: ComposerAttachment[]
   uploads?: Upload[]
   comments?: ComposerComment[]
+  contextItems?: ComposerContextItem[]
   activeCommentID?: string
   removeLabel: string
   onAttachmentClick?: (attachment: ComposerAttachment) => void
@@ -490,12 +494,18 @@ export function ComposerAttachments(props: {
   onUploadCancel?: (upload: Upload) => void
   onCommentClick?: (comment: ComposerComment) => void
   onCommentRemove?: (comment: ComposerComment) => void
+  onContextRemove?: (item: ComposerContextItem) => void
 }) {
   const i18n = useI18n()
   const percent = (upload: Upload) => (upload.size === 0 ? 100 : Math.floor((upload.loaded / upload.size) * 100))
   return (
     <Show
-      when={props.attachments.length > 0 || (props.uploads?.length ?? 0) > 0 || (props.comments?.length ?? 0) > 0}
+      when={
+        props.attachments.length > 0 ||
+        (props.uploads?.length ?? 0) > 0 ||
+        (props.comments?.length ?? 0) > 0 ||
+        (props.contextItems?.length ?? 0) > 0
+      }
     >
       <div data-component="composer-attachments" data-slot="composer-attachments" class="relative">
         <div
@@ -528,6 +538,25 @@ export function ComposerAttachments(props: {
                   <Icon name="outline-xmark" class="text-v2-icon-icon-contrast" />
                 </button>
               </div>
+            )}
+          </For>
+          <For each={props.contextItems ?? []}>
+            {(item) => (
+              <Show when={item.type !== "file"}>
+                <div class="relative shrink-0">
+                  <AttachmentCard title={item.type === "message-quote" ? item.quotedText : item.comment || "Annotation"}>
+                    <span>{item.type === "message-quote" ? "Message quote" : item.type === "media-annotation" ? "Annotation" : "Page text"}</span>
+                  </AttachmentCard>
+                  <button
+                    type="button"
+                    onClick={() => props.onContextRemove?.(item as never)}
+                    class="absolute -top-1 -end-1 size-4 rounded-full bg-v2-icon-icon-muted outline-solid outline-1 outline-v2-icon-icon-contrast flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={props.removeLabel}
+                  >
+                    <Icon name="outline-xmark" class="text-v2-icon-icon-contrast" />
+                  </button>
+                </div>
+              </Show>
             )}
           </For>
           <For each={props.attachments}>

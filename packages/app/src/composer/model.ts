@@ -84,7 +84,7 @@ export function createComposerModel(
   const attachments = createMemo(() => prompt.current().filter(isAttachment))
   const commentCount = createMemo(() => {
     if (mode() === "shell") return 0
-    return prompt.context.items().filter((item) => !!item.comment?.trim()).length
+    return prompt.context.items().filter((item) => item.type === "file" && !!item.comment?.trim()).length
   })
   const blank = createMemo(() => {
     const text = prompt
@@ -105,7 +105,7 @@ export function createComposerModel(
     const byID = new Map(comments.all().map((item) => [`${item.file}\n${item.id}`, item] as const))
     return prompt.context.items().flatMap((item) => {
       const comment = item.comment?.trim()
-      if (!comment) return []
+      if (!comment || item.type !== "file") return []
       const selection = item.commentID ? byID.get(`${item.path}\n${item.commentID}`)?.selection : undefined
       const nextSelection =
         selection ??
@@ -332,7 +332,7 @@ export function createComposerModel(
         mention: { type: "file", path, content: `@${path}`, start: 0, end: 0 },
       })),
     onContextRemove(item) {
-      if (item?.commentID) comments.remove(item.path, item.commentID)
+      if (item && item.type === "file" && item.commentID) comments.remove(item.path, item.commentID)
     },
     openAttachment: (attachment) => {
       if (attachment.type !== "image") return
@@ -342,7 +342,7 @@ export function createComposerModel(
     },
     openContext(key) {
       const item = controller.contextItem(key)
-      if (item) openComment(item, adapter.controls(), layout, files, comments)
+      if (item?.type === "file") openComment(item, adapter.controls(), layout, files, comments)
     },
     onEditor(element) {
       editor = element as HTMLDivElement
@@ -463,13 +463,13 @@ function composerErrorMessage(language: ReturnType<typeof useLanguage>, error: u
 }
 
 function openComment(
-  item: { path: string; commentID?: string; commentOrigin?: "review" | "file" },
+  item: { type: "file"; path: string; commentID?: string; commentOrigin?: "review" | "file" },
   controls: ComposerControls,
   layout: ReturnType<typeof useLayout>,
   files: ReturnType<typeof useFile>,
   comments: ReturnType<typeof useComments>,
 ) {
-  if (!item.commentID) return
+  if (item.type !== "file" || !item.commentID) return
   const focus = { file: item.path, id: item.commentID }
   comments.setActive(focus)
   const queueFocus = (attempts = 6) => {

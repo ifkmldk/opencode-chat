@@ -13,7 +13,8 @@ export type ComposerAgentPart = AgentPart
 export type ComposerSkillPart = SkillPart
 export type ComposerAttachment = ImageAttachmentPart | PathAttachmentPart
 export type ComposerPrompt = Prompt
-export type ComposerComment = ComposerStore["context"]["items"][number]
+export type ComposerComment = Extract<ComposerStore["context"]["items"][number], { type: "file" }>
+export type ComposerContextItem = ComposerStore["context"]["items"][number]
 export type ComposerPersistedState = ComposerStore
 
 export type ComposerHistoryEntry = {

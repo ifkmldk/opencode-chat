@@ -309,11 +309,14 @@ export function createComposerEditor(input: {
     parts() {
       return draft.state.prompt
     },
+    contextItems() {
+      return draft.state.context.items
+    },
     contextItem(id: string) {
       return draft.state.context.items.find((item) => item.key === id)
     },
     comments() {
-      return draft.state.context.items.filter((item) => !!item.comment?.trim())
+      return draft.state.context.items.filter((item): item is ComposerComment => item.type === "file" && !!item.comment?.trim())
     },
     attachments(): ComposerAttachment[] {
       return draft.state.prompt.filter(isAttachment)
@@ -330,7 +333,7 @@ export function createComposerEditor(input: {
     },
     removeContext(id: string) {
       const item = draft.state.context.items.find((entry) => entry.key === id)
-      if (item) input.onContextRemove?.(item)
+      if (item?.type === "file") input.onContextRemove?.(item)
       draft.removeContext(id)
       if (state.activeContextID === id) dispatch({ type: "context.active", id })
     },

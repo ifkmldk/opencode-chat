@@ -134,9 +134,51 @@ export const FileContextItem = Persistence.struct({
   preview: Persistence.optional(Schema.String),
 })
 export type FileContextItem = typeof FileContextItem.Type
-export type ContextItem = FileContextItem
+
+export const MessageQuoteContextItem = Persistence.struct({
+  type: Schema.Literal("message-quote"),
+  messageID: Schema.String,
+  partID: Persistence.optional(Schema.String),
+  quotedText: Schema.String,
+  comment: Persistence.optional(Schema.String),
+  role: Persistence.optional(Schema.Literals(["user", "assistant"])),
+})
+export type MessageQuoteContextItem = typeof MessageQuoteContextItem.Type
+
+export const MediaAnnotationContextItem = Persistence.struct({
+  type: Schema.Literal("media-annotation"),
+  surface: Schema.Literals(["canvas", "browser", "file-preview"]),
+  imageID: Schema.String,
+  blob: Schema.Struct({ id: Schema.String, url: Persistence.optional(Schema.String) }),
+  mime: Schema.String,
+  comment: Persistence.optional(Schema.String),
+  sourceURL: Persistence.optional(Schema.String),
+  sourcePath: Persistence.optional(Schema.String),
+})
+export type MediaAnnotationContextItem = typeof MediaAnnotationContextItem.Type
+
+export const PageTextAnnotationContextItem = Persistence.struct({
+  type: Schema.Literal("page-text-annotation"),
+  sourceURL: Persistence.optional(Schema.String),
+  sourcePath: Persistence.optional(Schema.String),
+  text: Schema.String,
+  html: Persistence.optional(Schema.String),
+  comment: Persistence.optional(Schema.String),
+})
+export type PageTextAnnotationContextItem = typeof PageTextAnnotationContextItem.Type
+
+export const ContextItem = Schema.Union([
+  FileContextItem,
+  MessageQuoteContextItem,
+  MediaAnnotationContextItem,
+  PageTextAnnotationContextItem,
+])
+export type ContextItem = typeof ContextItem.Type
 
 export function contextItemKey(item: ContextItem) {
+  if (item.type === "message-quote") return `${item.type}:${item.messageID}:${item.partID ?? ""}:${item.quotedText}`
+  if (item.type === "media-annotation") return `${item.type}:${item.imageID}`
+  if (item.type === "page-text-annotation") return `${item.type}:${item.sourceURL ?? ""}:${item.sourcePath ?? ""}:${item.text}`
   const key = `${item.type}:${item.path}:${item.selection?.startLine}:${item.selection?.endLine}`
   if (item.commentID) return `${key}:c=${item.commentID}`
   const comment = item.comment?.trim()
@@ -145,11 +187,24 @@ export function contextItemKey(item: ContextItem) {
   return `${key}:c=${digest.slice(0, 8)}`
 }
 
-const ContextEntry = Schema.Struct({ ...FileContextItem.fields, key: Persistence.optional(Schema.String) }).pipe(
-  Schema.decodeTo(Persistence.struct({ ...FileContextItem.fields, key: Schema.String }).pipe(Schema.toType), {
-    decode: SchemaGetter.transform((item) => ({ ...item, key: contextItemKey(item) })),
-    encode: SchemaGetter.transform((item) => item),
-  }),
+const ContextEntry = Schema.Union([
+  Schema.Struct({ ...FileContextItem.fields, key: Persistence.optional(Schema.String) }),
+  Schema.Struct({ ...MessageQuoteContextItem.fields, key: Persistence.optional(Schema.String) }),
+  Schema.Struct({ ...MediaAnnotationContextItem.fields, key: Persistence.optional(Schema.String) }),
+  Schema.Struct({ ...PageTextAnnotationContextItem.fields, key: Persistence.optional(Schema.String) }),
+]).pipe(
+  Schema.decodeTo(
+    Schema.Union([
+      Persistence.struct({ ...FileContextItem.fields, key: Schema.String }),
+      Persistence.struct({ ...MessageQuoteContextItem.fields, key: Schema.String }),
+      Persistence.struct({ ...MediaAnnotationContextItem.fields, key: Schema.String }),
+      Persistence.struct({ ...PageTextAnnotationContextItem.fields, key: Schema.String }),
+    ]).pipe(Schema.toType),
+    {
+      decode: SchemaGetter.transform((item) => ({ ...item, key: contextItemKey(item) })),
+      encode: SchemaGetter.transform((item) => item),
+    },
+  ),
 )
 
 export const DEFAULT_PROMPT: Prompt = [{ type: "text", content: "", start: 0, end: 0 }]

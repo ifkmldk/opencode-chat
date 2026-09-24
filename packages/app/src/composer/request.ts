@@ -1,7 +1,7 @@
 import { getFilename } from "@opencode/util/path"
 import type { FileSelection } from "@/workspaces/files/model"
 import { encodeFilePath } from "@/workspaces/files/path"
-import type { AgentPart, FileAttachmentPart, ImageAttachmentPart, PathAttachmentPart, Prompt, SkillPart } from "@/composer/state"
+import type { ContextItem, AgentPart, FileAttachmentPart, ImageAttachmentPart, PathAttachmentPart, Prompt, SkillPart } from "@/composer/state"
 import {
   formatAttachmentReference,
   formatCommentNote,
@@ -20,20 +20,11 @@ type PromptRequest = {
   attachments: PromptAttachmentReference[]
 }
 
-type ContextFile = {
-  key: string
-  type: "file"
-  path: string
-  selection?: FileSelection
-  comment?: string
-  commentID?: string
-  commentOrigin?: "review" | "file"
-  preview?: string
-}
+type ContextFile = Extract<ContextItem, { type: "file" }> & { key?: string }
 
 type BuildPromptRequestInput = {
   prompt: Prompt
-  context: ContextFile[]
+  context: (ContextItem & { key?: string; dataUrl?: string })[]
   images: (Omit<ImageAttachmentPart, "blob"> & { dataUrl: string })[]
   text: string
   sessionDirectory: string
@@ -87,23 +78,36 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
 
   const used = new Set(files.map((file) => file.uri))
   const comments: PromptComment[] = []
+  const annotationText: string[] = []
   const context = input.context.flatMap((item) => {
+    if (item.type === "message-quote") {
+      const quotedText = item.quotedText.trim()
+      if (!quotedText) return []
+      annotationText.push(`Quoted message${item.role ? ` (${item.role})` : ""}: ${quotedText}`)
+      if (item.comment?.trim()) annotationText.push(`Note: ${item.comment.trim()}`)
+      return []
+    }
+    if (item.type === "media-annotation") {
+      const source = item.surface === "browser" ? item.sourceURL ?? "the browser" : item.sourcePath ?? "the selected surface"
+      annotationText.push(
+        `${item.surface === "browser" ? "Browser" : item.surface === "canvas" ? "Canvas" : "File"} annotation (${source})${item.comment?.trim() ? `: ${item.comment.trim()}` : "."}`,
+      )
+      return []
+    }
+    if (item.type === "page-text-annotation") {
+      const source = item.sourceURL ?? item.sourcePath ?? "selected page"
+      annotationText.push(`Selected page text (${source}): ${item.text}`)
+      if (item.comment?.trim()) annotationText.push(`Note: ${item.comment.trim()}`)
+      return []
+    }
     const path = absolute(input.sessionDirectory, item.path)
     const uri = `file://${encodeFilePath(path)}${fileQuery(item.selection)}`
     const comment = item.comment?.trim()
     if (!comment && used.has(uri)) return []
     used.add(uri)
-
     const file = { uri, mime: "text/plain", name: getFilename(item.path) }
     if (!comment) return [file]
-
-    comments.push({
-      path: item.path,
-      selection: item.selection,
-      comment,
-      preview: item.preview,
-      origin: item.commentOrigin,
-    })
+    comments.push({ path: item.path, selection: item.selection, comment, preview: item.preview, origin: item.commentOrigin })
     const mentions = parseCommentMentions(comment).flatMap((path) => {
       const uri = `file://${encodeFilePath(absolute(input.sessionDirectory, path))}`
       if (used.has(uri)) return []
@@ -118,6 +122,10 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
     mime: attachment.mime,
     name: attachment.sourcePath ?? attachment.filename,
   }))
+  const annotationImages = input.context.flatMap((item) => {
+    if (item.type !== "media-annotation" || !item.dataUrl) return []
+    return [{ uri: item.dataUrl, mime: item.mime, name: `${item.surface}-annotation-${item.imageID}.png` }]
+  })
   // Like comments, path references reach the model as text and the message UI through metadata.
   const attachments = input.prompt
     .filter(isPathAttachment)
@@ -128,9 +136,10 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
       ...(input.text.trim() ? [input.text] : []),
       ...attachments.map(formatAttachmentReference),
       ...comments.map(formatCommentNote),
+      ...annotationText,
     ].join("\n"),
     displayText: input.text,
-    files: [...files, ...context, ...inline],
+    files: [...files, ...context, ...inline, ...annotationImages],
     agents,
     skills,
     comments,

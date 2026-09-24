@@ -73,10 +73,11 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
     const submission = createComposerSubmission({
       target: input.adapter.state,
       prompt,
-      context: input.adapter.state.context.items().map((item) => ({
-        ...item,
-        selection: item.selection ? { ...item.selection } : undefined,
-      })),
+      context: input.adapter.state.context.items().map((item) =>
+        item.type === "file"
+          ? { ...item, selection: item.selection ? { ...item.selection } : undefined }
+          : item,
+      ),
     })
     const read = readSubmission(input, submission.prompt, submission.context, text, options?.alternate ?? false)
     if (!read) {
@@ -196,7 +197,7 @@ function handoffMessage(value: ComposerSubmission): SessionMessageUser {
         part.type === "path" ? [{ name: part.filename, mime: part.mime, path: part.path }] : [],
       ),
       comments: value.context.flatMap((item) =>
-        item.comment?.trim()
+        item.type === "file" && item.comment?.trim()
           ? [
               {
                 path: item.path,
@@ -286,7 +287,7 @@ function restoreSubmission(
   restored.target.mode.set(value.mode)
   restored.target.context.replaceComments(
     restored.context
-      .filter((item) => !!item.comment?.trim())
+      .filter((item): item is Extract<(typeof restored.context)[number], { type: "file" }> => item.type === "file" && !!item.comment?.trim())
       .map((item) => ({
         type: "file",
         path: item.path,
@@ -421,9 +422,16 @@ async function buildSubmissionRequest(session: ComposerSession, value: ComposerS
       dataUrl: await blobDataUrl(attachment.blob, attachment.mime),
     })),
   )
+  const context = await Promise.all(
+    value.context.map(async (item) =>
+      item.type === "media-annotation"
+        ? { ...item, dataUrl: await blobDataUrl({ ...item.blob, url: item.blob.url ?? "" }, item.mime) }
+        : item,
+    ),
+  )
   return buildPromptRequest({
     prompt: value.prompt,
-    context: value.context,
+    context,
     images,
     text: value.text,
     sessionDirectory: session.directory,
