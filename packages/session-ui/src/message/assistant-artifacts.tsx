@@ -1,4 +1,4 @@
-import { createMemo, createResource, For, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { ImagePreview } from "@opencode/ui/image-preview"
 import { FileIcon } from "@opencode/ui/file-icon"
 import { Tooltip } from "@opencode/ui/tooltip"
@@ -21,10 +21,16 @@ export function AssistantArtifacts(props: { text: string; onOpen: (path: string)
     (path) => (path ? markdown?.readImage?.(path, new AbortController().signal) : Promise.resolve(undefined)),
   )
   const imagePath = createMemo(() => artifacts().find((item) => item.kind === "image")?.path)
-  const imageURL = createMemo(() => {
+  const [imageURL, setImageURL] = createSignal<string>()
+  createEffect(() => {
     const source = image()
-    if (!source) return undefined
-    return URL.createObjectURL(source)
+    if (!source) {
+      setImageURL(undefined)
+      return
+    }
+    const url = URL.createObjectURL(source)
+    setImageURL(url)
+    onCleanup(() => URL.revokeObjectURL(url))
   })
   const preview = () => {
     const url = imageURL()
