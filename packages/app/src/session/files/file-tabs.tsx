@@ -13,7 +13,7 @@ import { Tabs } from "@opencode/ui/tabs"
 import { ScrollView } from "@opencode/ui/scroll-view"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/workspaces/files/model"
 import { artifactKind } from "@/workspaces/files/artifact"
-import { ArtifactView } from "@/session/files/artifact-view"
+import { ArtifactView, type ArtifactAnnotation } from "@/session/files/artifact-view"
 import { useComments } from "@/composer/comments"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useComposerState } from "@/composer/persistence"
@@ -233,6 +233,17 @@ export function SessionFileView(props: SessionFileViewProps) {
     const source = filePath === path() ? contents() : file.get(filePath)?.content?.content
     if (!source) return undefined
     return selectionPreview(source, selectionFromLines(lines))
+  }
+
+  const addArtifactAnnotation = (annotation: ArtifactAnnotation) => {
+    const filePath = path()
+    if (!filePath || !annotation.text.trim()) return
+    prompt.context.add({
+      type: "page-text-annotation",
+      sourcePath: filePath,
+      text: annotation.text,
+      comment: annotation.comment,
+    })
   }
 
   const addCommentToContext = (input: {
@@ -463,6 +474,7 @@ export function SessionFileView(props: SessionFileViewProps) {
                 content={value()}
                 cacheKey={cacheKey()}
                 source={codeView(value().content)}
+                onAnnotate={addArtifactAnnotation}
               />
             </Show>
           )}

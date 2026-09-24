@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Tabs } from "@opencode/ui/tabs"
 import { sanitizeMarkdown } from "@opencode/session-ui/markdown-cache"
@@ -47,18 +47,21 @@ const previewableKinds = new Set<ArtifactKind>(["svg", "html", "markdown", "merm
  * Renders a loaded non-text file: media, documents, and data get a dedicated viewer with a toolbar;
  * previewable text kinds can switch to `source`, which the host supplies (its code view).
  */
-export function ArtifactView(props: { path: string; content: FileContent; cacheKey?: string; source: JSX.Element }) {
+export type ArtifactAnnotation = { text: string; html?: string; comment?: string }
+
+export function ArtifactView(props: { path: string; content: FileContent; cacheKey?: string; source: JSX.Element; onAnnotate?: (annotation: ArtifactAnnotation) => void }) {
   const language = useLanguage()
   const [state, setState] = createStore({
     mode: "preview" as ArtifactMode,
     info: {} as ArtifactInfo,
     // Media the browser could not decode falls back to the binary placeholder.
     undecodable: false,
+    annotation: undefined as ArtifactAnnotation | undefined,
   })
   createEffect(
     on(
       () => props.content,
-      () => setState({ mode: "preview", info: {}, undecodable: false }),
+      () => setState({ mode: "preview", info: {}, undecodable: false, annotation: undefined }),
       { defer: true },
     ),
   )
@@ -95,6 +98,26 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
     </ScrollView>
   )
 
+  const annotate = (comment?: string) => {
+    const selection = window.getSelection()
+    const text = selection?.toString().trim() ?? ""
+    if (!text || !props.onAnnotate) return
+    props.onAnnotate({ text, comment })
+    setState("annotation", undefined)
+    selection?.removeAllRanges()
+  }
+  const actions = (
+    <Show when={props.onAnnotate}>
+      <Button
+        size="small"
+        variant="ghost"
+        onClick={() => annotate()}
+        title="Add selected text to context"
+      >
+        Add selection
+      </Button>
+    </Show>
+  )
   return (
     <>
       <ArtifactToolbar
@@ -102,9 +125,12 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
         onModeChange={previewable() ? (mode) => setState("mode", mode) : undefined}
         meta={meta()}
         actions={
-          <Show when={kind() === "html"}>
-            <OpenInBrowserButton path={props.path} />
-          </Show>
+          <>
+            <Show when={kind() === "html"}>
+              <OpenInBrowserButton path={props.path} />
+            </Show>
+            {actions}
+          </>
         }
       />
       <Show when={!previewable() || state.mode === "preview"} fallback={props.source}>
