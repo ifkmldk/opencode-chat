@@ -48,9 +48,9 @@ export function AssistantArtifacts(props: { text: string; onOpen: (path: string)
                 type="button"
                 data-component="assistant-artifact"
                 data-kind={artifact.kind}
-                onClick={() => (artifact.kind === "image" && image() ? preview() : props.onOpen(artifact.path))}
+                onClick={() => (artifact.kind === "image" && artifact.path === imagePath() && image() ? preview() : props.onOpen(artifact.path))}
               >
-                <Show when={artifact.kind === "image" && image()}>
+                <Show when={artifact.kind === "image" && artifact.path === imagePath() && image()}>
                   <img
                     data-slot="assistant-artifact-image"
                     src={imageURL()!}
@@ -61,7 +61,7 @@ export function AssistantArtifacts(props: { text: string; onOpen: (path: string)
                     }}
                   />
                 </Show>
-                <Show when={artifact.kind !== "image" || !image()}>
+                <Show when={artifact.kind !== "image" || artifact.path !== imagePath() || !image()}>
                   <span data-slot="assistant-artifact-icon">
                     <FileIcon node={{ path: artifact.path, type: "file" }} />
                   </span>
