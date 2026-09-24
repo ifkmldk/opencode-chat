@@ -83,6 +83,14 @@ const server = Bun.serve({
   },
 })
 
+async function shutdown(signal?: NodeJS.Signals) {
+  if (signal !== undefined) await writeFile(registration + ".signal", signal)
+  server.stop(true)
+  process.exit()
+}
+process.on("SIGTERM", () => void shutdown("SIGTERM"))
+process.on("SIGINT", () => void shutdown("SIGINT"))
+
 await writeFile(
   registration + ".tmp",
   JSON.stringify({
@@ -95,11 +103,3 @@ await writeFile(
   { mode: 0o600 },
 )
 await rename(registration + ".tmp", registration)
-
-async function shutdown(signal?: NodeJS.Signals) {
-  if (signal !== undefined) await writeFile(registration + ".signal", signal)
-  server.stop(true)
-  process.exit()
-}
-process.on("SIGTERM", () => void shutdown("SIGTERM"))
-process.on("SIGINT", () => void shutdown("SIGINT"))

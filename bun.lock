@@ -114,12 +114,14 @@
       "name": "@opencode/cli",
       "version": "2.0.15",
       "bin": {
+        "opencode": "./bin/opencode.cjs",
         "opencode2": "./bin/opencode2.cjs",
       },
       "dependencies": {
         "@agentclientprotocol/sdk": "1.2.1",
         "@clack/prompts": "1.0.0-alpha.1",
         "@effect/platform-node": "catalog:",
+        "@effect/platform-node-shared": "catalog:",
         "@opencode-ai/pty": "0.1.13",
         "@opencode/client": "workspace:*",
         "@opencode/plugin": "workspace:*",

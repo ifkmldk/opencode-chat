@@ -49,6 +49,8 @@ import { SessionExecution } from "@opencode/core/session/execution"
 import { SessionRunCoordinator } from "@opencode/core/session/run-coordinator"
 import { SessionRunner } from "@opencode/core/session/runner/index"
 import { SessionRunnerLLM } from "@opencode/core/session/runner/llm"
+import { COMPLETION_MARKER, CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "@opencode/core/session/runner/completion"
+
 import { SessionRunnerModel } from "@opencode/core/session/runner/model"
 import { SessionUsage } from "@opencode/core/session/usage"
 import { PluginSupervisor } from "@opencode/core/plugin/supervisor"
@@ -1053,6 +1055,38 @@ describe("SessionRunnerLLM", () => {
     expect(s.requests[2]?.messages).toContainEqual(Message.user("First prompt"))
     expect(s.requests[4]?.messages).toContainEqual(Message.user("First prompt"))
     expect((yield* s.session.get(sessionID)).title).toBe("Generated title")
+  })
+
+  scenario("continues an opted-in agent until its final text includes the completion marker", function* (s) {
+    const agents = yield* Agent.Service
+    yield* agents.transform((editor) =>
+      editor.update(Agent.defaultID, (agent) => {
+        agent.requireCompletionMarker = true
+      }),
+    )
+    yield* s.admit("Finish every item")
+    yield* s.llm.push(
+      TestLLM.text("I am still working", "text-unconfirmed"),
+      TestLLM.text(`Everything is verified ${COMPLETION_MARKER}`, "text-complete"),
+    )
+
+    yield* s.resume
+
+    expect(s.requests).toHaveLength(2)
+    expect(s.requests[0]?.system.map((part) => part.text)).toContainEqual(
+      expect.stringContaining(COMPLETION_MARKER),
+    )
+    expect(messageRoles(s.requests[1])).toEqual(["user", "assistant", "user"])
+    expect(userTexts(s.requests[1]!)).toContain(CONTINUE_AFTER_UNCONFIRMED_COMPLETION)
+    expect(yield* s.context).toMatchObject([
+      Expected.user("Finish every item"),
+      Expected.assistant({ finish: "stop" }, [Expected.text("I am still working")]),
+      { type: "synthetic", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION },
+      Expected.assistant(
+        { finish: "stop" },
+        [Expected.text(`Everything is verified ${COMPLETION_MARKER}`)],
+      ),
+    ])
   })
 
   scenario("advertises and executes a location registered tool", function* (s) {
@@ -5267,6 +5301,53 @@ describe("SessionRunnerLLM", () => {
     expect(yield* recordedEventTypes(sessionID)).toContain("session.retry.scheduled.1")
     yield* replaySessionProjection(sessionID)
     expect(yield* s.context).toMatchObject(context)
+  })
+
+  scenario("continues a stream that ends after text without any finish event", function* (s) {
+    const agents = yield* Agent.Service
+    yield* agents.transform((editor) =>
+      editor.update(Agent.defaultID, (agent) => {
+        agent.requireCompletionMarker = true
+      }),
+    )
+    yield* s.admit("Continue missing finish")
+    yield* s.llm.push([
+      LLMEvent.stepStart({ index: 0 }),
+      LLMEvent.textStart({ id: "missing-finish-partial" }),
+      LLMEvent.textDelta({ id: "missing-finish-partial", text: "Partial" }),
+      LLMEvent.textEnd({ id: "missing-finish-partial" }),
+    ])
+    yield* s.llm.push(
+      TestLLM.text(" continuation", "missing-finish-continuation"),
+      TestLLM.text(` verified ${COMPLETION_MARKER}`, "missing-finish-complete"),
+    )
+
+    const scheduled = yield* subscribeRetries(s)
+    const run = yield* s.resume.pipe(Effect.forkChild)
+    yield* Queue.take(scheduled)
+    yield* TestClock.adjust("2400 millis")
+    yield* Fiber.join(run)
+
+    expect(s.requests).toHaveLength(3)
+    expect(s.requests[1]?.messages.at(-1)).toMatchObject({
+      role: "user",
+      content: [{ type: "text", text: INCOMPLETE_STREAM_CONTINUATION }],
+    })
+    expect(s.requests[2]?.messages.at(-1)).toMatchObject({
+      role: "user",
+      content: [{ type: "text", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION }],
+    })
+    expect(yield* s.context).toMatchObject([
+      { type: "user" },
+      Expected.assistant({ finish: "error" }, [Expected.text("Partial")]),
+      { type: "synthetic", text: INCOMPLETE_STREAM_CONTINUATION },
+      Expected.assistant({ finish: "stop" }, [Expected.text(" continuation")]),
+      { type: "synthetic", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION },
+      Expected.assistant(
+        { finish: "stop" },
+        [Expected.text(` verified ${COMPLETION_MARKER}`)],
+      ),
+    ])
   })
 
   scenario("continues an unknown finish after observable text", function* (s) {

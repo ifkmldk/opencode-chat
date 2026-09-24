@@ -52,12 +52,14 @@ test("keeps schema fields and name out of legacy agent options", () => {
     options: { existing: true },
     color: "#112233",
     steps: 10,
+    requireCompletionMarker: true,
     maxSteps: 20,
     permission: { read: "allow" },
     custom: "preserved",
   })
 
   expect(agent.options).toEqual({ existing: true, custom: "preserved" })
+  expect(agent.requireCompletionMarker).toBe(true)
 })
 
 describe("ConfigAgentPlugin.Plugin", () => {
@@ -270,6 +272,8 @@ permissions:
             permissions: [{ action: "bash", resource: "*", effect: "ask" }],
             agents: {
               build: {
+                steps: 1000,
+                requireCompletionMarker: true,
                 permissions: [{ action: "bash", resource: "git *", effect: "allow" }],
               },
               reviewer: {
@@ -306,6 +310,7 @@ permissions:
 
       const buildAgent = yield* agents.get(build)
       if (!buildAgent) throw new Error("expected configured build agent")
+      expect(buildAgent).toMatchObject({ steps: 1000, requireCompletionMarker: true })
       expect(buildAgent.permissions).toEqual([
         ...defaultPermissions(global),
         { action: "bash", resource: "*", effect: "allow" },

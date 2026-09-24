@@ -44,12 +44,16 @@ function segment(value: string) {
   return value
 }
 
+function storageChannelSegment(channel: string) {
+  return segment(channel.replace(/[^a-zA-Z0-9._-]/g, "-"))
+}
+
 function createStorage(root: string, channel: string) {
   const entries = new Map<string, { readonly value: Entry<object>; readonly reload: () => void }>()
   const memories = new Map<string, MemoryEntry<object>>()
   const pending = new Set<Promise<void>>()
-  const directory = path.join(root, segment(channel), "tui")
-  const locks = path.join(root, segment(channel), "locks")
+  const directory = path.join(root, storageChannelSegment(channel), "tui")
+  const locks = path.join(root, storageChannelSegment(channel), "locks")
   mkdirSync(directory, { recursive: true })
 
   const storage: Storage = {

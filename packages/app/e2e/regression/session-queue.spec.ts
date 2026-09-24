@@ -29,7 +29,7 @@ function createQueueMock(seed: string[], messages: SessionMessageInfo[] = []) {
   }))
   const events: OpenCodeEvent[] = []
   const prompts: Record<string, unknown>[] = []
-  const changes: { inboxID: string; action: "cancel" | "steer" }[] = []
+  const changes: { inboxID: string; action: "cancel" | "steer" | "queue" }[] = []
   const log: string[] = []
   let sequence = 0
   const emit = <Type extends OpenCodeEvent["type"]>(

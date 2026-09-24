@@ -262,7 +262,17 @@ describe("Project.resolve", () => {
         Effect.forkScoped({ startImmediately: true }),
       )
 
-      yield* Effect.promise(() => fs.rename(before, after))
+      yield* Effect.promise(async () => {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await fs.rename(before, after)
+            return
+          } catch (error) {
+            if (attempt >= 5 || (error as NodeJS.ErrnoException).code !== "EBUSY") throw error
+            await Bun.sleep(100)
+          }
+        }
+      })
       const renamed = yield* project.resolve(abs(after))
       yield* Effect.yieldNow
 

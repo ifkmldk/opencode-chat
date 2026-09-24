@@ -9,6 +9,19 @@ import { startServer } from "./fixture/server"
 import { OpenCode } from "@opencode/client"
 import { initRepo } from "../../core/test/fixture/git"
 
+const remove = async (directory: string, attempts = 20) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rm(directory, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined
+      if (attempt >= attempts || (code !== "EBUSY" && code !== "EPERM")) throw error
+      await Bun.sleep(100)
+    }
+  }
+}
+
 it.live("list reads saved inventory even when its checkout is missing, without booting a location", () =>
   Effect.gen(function* () {
     const tmp = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencode-worktree-list-")))
@@ -22,7 +35,7 @@ it.live("list reads saved inventory even when its checkout is missing, without b
     yield* Effect.promise(async () => {
       const session = await api.session.create({ location: { directory } })
       const loaded = await api.debug.location.list()
-      await fs.rm(directory, { recursive: true })
+      await remove(directory)
       expect(await api.worktree.list({ projectID: session.projectID })).toEqual([{ directory }])
       await expect(api.worktree.create({ projectID: session.projectID })).rejects.toMatchObject({
         name: "WorktreeError",
@@ -76,7 +89,7 @@ it.live("refresh discovers both clones while list alone never discovers external
           { directory: b, strategy: "git" },
         ]),
       )
-      await fs.rm(second, { recursive: true })
+      await remove(second)
       await $`git worktree remove ${a}`.cwd(first).quiet()
       await api.worktree.refresh({ projectID })
       const rows = await api.worktree.list({ projectID })

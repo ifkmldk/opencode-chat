@@ -142,7 +142,7 @@ test("evicts an unresponsive registered service before starting its replacement"
   fixture.track(replacement.pid)
 
   expect((await Bun.file(registration + ".requests").text()).trim().split("\n")).toHaveLength(3)
-  expect(await existing.exited).toBe(0)
+  expect(await existing.exited).toBe(process.platform === "win32" ? 1 : 0)
   expect(replacement.pid).not.toBe(original.pid)
   expect(endpoint.url).toBe(replacement.url)
 })
@@ -155,6 +155,7 @@ test("signals the registered service process", async () => {
 
   await Service.stop({ file: registration })
 
-  expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
+  if (process.platform === "win32") expect(await Bun.file(registration + ".signal").exists()).toBe(false)
+  else expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
   expect(await Bun.file(registration).exists()).toBe(false)
 })

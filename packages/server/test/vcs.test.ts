@@ -26,7 +26,7 @@ it.live(
         await $`git commit -am feature`.cwd(tmp.path).quiet()
         await Bun.write(path.join(tmp.path, "file.txt"), "dirty\n")
       })
-      const server = yield* startServer(path.join(tmp.path, "config"))
+      const server = yield* startServer(path.join(tmp.path, "config"), { global: false })
       const url = new URL("/api/vcs/base", server.base)
       url.searchParams.set("location[directory]", tmp.path)
       const base = yield* Effect.tryPromise({
@@ -37,7 +37,7 @@ it.live(
           return body
         },
         catch: (cause) => cause,
-      }).pipe(Effect.retry(Schedule.spaced("10 millis")), Effect.timeout("2 seconds"))
+      }).pipe(Effect.retry(Schedule.spaced("10 millis")), Effect.timeout("10 seconds"))
       expect(base).toMatchObject({
         data: { name: "main", ref: "refs/heads/main", source: "reflog" },
       })

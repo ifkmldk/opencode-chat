@@ -32,6 +32,7 @@ import { PluginHooks } from "../plugin/hooks.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import { Tool } from "../tool.js"
 import { SessionModelTransport } from "./model-transport.js"
+import { COMPLETION_CONTRACT } from "./runner/completion.js"
 import { SessionProviderContext } from "./provider-context.js"
 import { SessionRunnerModel } from "./runner/model.js"
 import { SessionSchema } from "./schema.js"
@@ -86,6 +87,7 @@ export const baseTranscript = (input: {
         ? input.agent.system
         : SessionSystemPrompt.make(input.tools.definitions.map((tool) => tool.name)),
       input.initial,
+      ...(input.agent.requireCompletionMarker ? [COMPLETION_CONTRACT] : []),
     ]
       .filter((part) => part.length > 0)
       .map(SystemPart.make),

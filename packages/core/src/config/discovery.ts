@@ -1,6 +1,7 @@
 export * as ConfigDiscovery from "./discovery.js"
 
 import path from "path"
+import { homedir } from "node:os"
 import { Effect } from "effect"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
@@ -27,9 +28,14 @@ export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options
   const globalDirectory = AbsolutePath.make(global.config)
   const globalAgentsDirectory = AbsolutePath.make(path.join(global.home, ".agents"))
   const globalClaudeDirectory = AbsolutePath.make(path.join(global.home, ".claude"))
-  const globalRoots = yield* Effect.forEach([globalDirectory, globalClaudeDirectory, globalAgentsDirectory], (item) =>
-    fs.resolve(item),
-  )
+  const hostHome = path.resolve(homedir())
+  const ecosystemRoots = [
+    globalAgentsDirectory,
+    globalClaudeDirectory,
+    path.join(hostHome, ".agents"),
+    path.join(hostHome, ".claude"),
+  ]
+  const globalRoots = yield* Effect.forEach([globalDirectory, ...ecosystemRoots], (item) => fs.resolve(item))
   const directories =
     (yield* fs.resolve(location.directory)) === globalRoots[0] || options?.project === false
       ? []

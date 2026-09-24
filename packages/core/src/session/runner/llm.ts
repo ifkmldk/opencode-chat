@@ -30,6 +30,7 @@ import { SessionStep } from "./step.js"
 import { ToolOutput } from "../../tool-output.js"
 import { Plugin } from "../../plugin.js"
 import { MAX_STEPS_PROMPT } from "./max-steps.js"
+import { CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "./completion.js"
 
 const CONTINUE_AFTER_INCOMPLETE_STREAM =
   "The previous response was interrupted. Continue from where you left off without repeating completed content."
@@ -269,9 +270,19 @@ const layer = Layer.effect(
                   .pipe(Effect.map((result) => result.status === "completed"))
               : Effect.succeed(false),
           ),
+          requireCompletionMarker: loaded.agent.info.requireCompletionMarker,
         })
         const completed = yield* SessionStep.Outcome.$match(outcome, {
-          Completed: (outcome) => Effect.succeed(outcome.needsContinuation),
+          Completed: Effect.fnUntraced(function* (outcome) {
+            if (outcome.completionRequired) {
+              yield* bus.publish(SessionEvent.Synthetic, {
+                sessionID,
+                text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION,
+              })
+              assistantMessageID = SessionMessage.ID.create()
+            }
+            return outcome.needsContinuation
+          }),
           Retry: (outcome) =>
             retry.wait({
               decision: outcome.decision,

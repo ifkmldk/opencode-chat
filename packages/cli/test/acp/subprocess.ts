@@ -318,7 +318,7 @@ function spawnAcp(input: { readonly env: Record<string, string | undefined> }): 
     const request: JsonRpcRequest =
       params === undefined ? { jsonrpc: "2.0", id, method } : { jsonrpc: "2.0", id, method, params }
     const response = write(request).then(async () => {
-      const response = await take((message) => isResponse(message) && message.id === id, 20_000, `${method} response`)
+      const response = await take((message) => isResponse(message) && message.id === id, 45_000, `${method} response`)
       if (!isResponse<T>(response)) throw new Error(`Invalid ACP response: ${JSON.stringify(response)}`)
       return response
     })

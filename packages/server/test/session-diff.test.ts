@@ -56,6 +56,7 @@ it.live("serves turn diffs by user message with range validation", () =>
       {
         app: { version: "test-version" },
         database: { path: ":memory:" },
+        config: { global: false },
         fs: { filewatcher: false },
         models: { fetch: false },
       },

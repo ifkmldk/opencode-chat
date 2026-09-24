@@ -17,6 +17,7 @@ export class Info extends Schema.Class<Info>("Config.Agent")({
   hidden: Schema.Boolean.pipe(optional),
   color: Color.pipe(optional),
   steps: PositiveInt.pipe(optional),
+  requireCompletionMarker: Schema.Boolean.pipe(optional),
   disabled: Schema.Boolean.pipe(optional),
   permissions: Permission.Ruleset.pipe(optional),
 }) {}

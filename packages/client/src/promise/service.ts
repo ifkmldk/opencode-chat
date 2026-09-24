@@ -163,15 +163,23 @@ async function probeResult(info: Info, timeout = defaultEnsureTiming.requestTime
         : { type: "basic" as const, username: "opencode", password: info.password },
   } satisfies Endpoint
   const signal = AbortSignal.timeout(timeout)
-  const result = await fetch(new URL("/api/info", info.url), { headers: headers(endpoint), signal })
-    .then(async (response) => ({
-      response,
-      body: response.status === 404 ? undefined : ((await response.json()) as unknown),
-    }))
-    .then(
-      (value) => ({ value }),
-      (cause: unknown) => ({ cause }),
-    )
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const result = await Promise.race([
+    fetch(new URL("/api/info", info.url), { headers: headers(endpoint), signal })
+      .then(async (response) => ({
+        response,
+        body: response.status === 404 ? undefined : ((await response.json()) as unknown),
+      }))
+      .then(
+        (value) => ({ value } as const),
+        (cause: unknown) => ({ cause } as const),
+      ),
+    new Promise<{ readonly timedOut: true }>((resolve) => {
+      timer = setTimeout(() => resolve({ timedOut: true }), timeout)
+    }),
+  ])
+  if (timer !== undefined) clearTimeout(timer)
+  if ("timedOut" in result) return { service: undefined, timedOut: true }
   if ("cause" in result) return { service: undefined, timedOut: signal.aborted }
   const response = result.value.response
   // The previous V2 service exposes /api/status instead. Its authenticated 404 is enough

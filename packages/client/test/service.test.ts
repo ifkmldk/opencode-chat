@@ -94,7 +94,7 @@ test("replaces an incompatible registered service", async () => {
   const replacement = await Bun.file(registration).json()
   fixture.track(replacement.pid)
 
-  expect(await existing.exited).toBe(0)
+  expect(await existing.exited).toBe(process.platform === "win32" ? 1 : 0)
   expect(replacement.version).toBe("2.1.0-next.1")
   expect(endpoint.url).toBe(replacement.url)
   expect(starts).toEqual(["version-mismatch"])
@@ -143,7 +143,7 @@ test("evicts an unresponsive registered service before starting its replacement"
   fixture.track(replacement.pid)
 
   expect((await Bun.file(registration + ".requests").text()).trim().split("\n")).toHaveLength(3)
-  expect(await existing.exited).toBe(0)
+  expect(await existing.exited).toBe(process.platform === "win32" ? 1 : 0)
   expect(replacement.pid).not.toBe(original.pid)
   expect(endpoint.url).toBe(replacement.url)
   expect(await status(endpoint.url)).toMatchObject({ version: "test", pid: replacement.pid })
@@ -157,7 +157,8 @@ test("signals an unresponsive registered service process", async () => {
 
   await run(Service.stop({ file: registration }))
   await process.exited
-  expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
+  if (globalThis.process.platform === "win32") expect(await Bun.file(registration + ".signal").exists()).toBe(false)
+  else expect(await Bun.file(registration + ".signal").text()).toBe("SIGTERM")
   expect(await Bun.file(registration).exists()).toBe(false)
 })
 
@@ -176,7 +177,7 @@ test("signals an incompatible service before starting its replacement", async ()
   const replacement = await Bun.file(registration).json()
   fixture.track(replacement.pid)
 
-  expect(await existing.exited).toBe(0)
+  expect(await existing.exited).toBe(process.platform === "win32" ? 1 : 0)
   expect(endpoint.url).toBe(replacement.url)
 })
 

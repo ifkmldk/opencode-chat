@@ -296,6 +296,7 @@ interface PendingToolDelta {
 
 export interface ParserState {
   readonly providerMetadataKey: string
+  readonly route: string
   readonly tools: ToolStream.State<number>
   readonly pendingTools: Partial<Record<number, PendingToolDelta>>
   readonly toolCallEvents: ReadonlyArray<LLMEvent>
@@ -311,6 +312,8 @@ export interface ParserState {
   readonly latestToolIndex?: number
   readonly nextToolIndex: number
   readonly requireFinishReason: boolean
+  /** Reject explicit empty stops from the 9Router OpenAI-compatible combo route. */
+  readonly rejectEmptyStop: boolean
 }
 
 // =============================================================================
@@ -1175,6 +1178,7 @@ const step = (state: ParserState, event: OpenAIChatEvent) =>
     return [
       {
         providerMetadataKey: state.providerMetadataKey,
+        route: state.route,
         tools: finished?.tools ?? tools,
         pendingTools,
         toolCallEvents: finished?.events ?? state.toolCallEvents,
@@ -1189,6 +1193,7 @@ const step = (state: ParserState, event: OpenAIChatEvent) =>
         latestToolIndex,
         nextToolIndex,
         requireFinishReason: state.requireFinishReason,
+        rejectEmptyStop: state.rejectEmptyStop,
       },
       events,
     ] as const
@@ -1200,7 +1205,19 @@ const finishEvents = Effect.fn("OpenAIChat.finishEvents")(function* (state: Pars
       reason: new InvalidProviderOutputError({
         message: "OpenAI Chat stream ended without finish_reason",
         classification: "incomplete-stream",
-        route: ADAPTER,
+        route: state.route,
+      }),
+    })
+  if (
+    state.rejectEmptyStop &&
+    state.finishReason?.normalized === "stop" &&
+    !state.lifecycle.stepStarted
+  )
+    return yield* new AIError({
+      reason: new InvalidProviderOutputError({
+        message: "OpenAI-compatible Chat returned an empty stop response",
+        classification: "incomplete-stream",
+        route: state.route,
       }),
     })
   const events: LLMEvent[] = []
@@ -1258,6 +1275,7 @@ export const protocol = Protocol.make({
     event: OpenAIChatStreamEvent,
     initial: (request) => ({
       providerMetadataKey: request.model.route.providerMetadataKey ?? String(request.model.provider),
+      route: request.model.route.id,
       tools: ToolStream.empty<number>(),
       pendingTools: {},
       toolCallEvents: [],
@@ -1269,6 +1287,8 @@ export const protocol = Protocol.make({
       reasoningEmitted: false,
       nextToolIndex: 0,
       requireFinishReason: request.model.compatibility?.requireFinishReason ?? true,
+      rejectEmptyStop:
+        request.model.provider === "9router" && request.model.route.id === "openai-compatible-chat",
     }),
     step: (state: ParserState, event) => (event === DONE ? Effect.succeed([state, []] as const) : step(state, event)),
     terminal: (event) => event === DONE,

@@ -485,6 +485,35 @@ describe("OpenAI-compatible Chat route", () => {
     }),
   )
 
+  it.effect("rejects an empty stop response from the 9Router combo as an incomplete stream", () =>
+    Effect.gen(function* () {
+      const routerRequest = LLMRequest.update(request, {
+        model: OpenAICompatibleChat.route
+          .with({ provider: "9router", endpoint: { baseURL: "https://api.9router.test/v1" } })
+          .model({ id: "opencode-9router" }),
+      })
+      const error = yield* LLMClient.generate(routerRequest).pipe(
+        Effect.provide(fixedResponse(sseEvents(deltaChunk({}, "stop")))),
+        Effect.flip,
+      )
+
+      expect(error).toMatchObject({
+        reason: { _tag: "InvalidProviderOutput", classification: "incomplete-stream" },
+        message: "OpenAI-compatible Chat returned an empty stop response",
+      })
+    }),
+  )
+
+  it.effect("preserves empty stops for other OpenAI-compatible providers", () =>
+    Effect.gen(function* () {
+      const response = yield* LLMClient.generate(request).pipe(
+        Effect.provide(fixedResponse(sseEvents(deltaChunk({}, "stop")))),
+      )
+
+      expect(response.finishReason).toEqual({ normalized: "stop", raw: "stop" })
+    }),
+  )
+
   it.effect("infers stop when finish reasons are optional", () =>
     Effect.gen(function* () {
       const compatible = OpenAICompatibleChat.route

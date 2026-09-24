@@ -28,9 +28,10 @@ import { SessionUsage } from "../usage.js"
 import { SessionRunnerModel } from "./model.js"
 import { createLLMEventPublisher } from "./publish-llm-event.js"
 import { SessionRunnerRetry } from "./retry.js"
+import { COMPLETION_MARKER } from "./completion.js"
 
 export type Outcome = Data.TaggedEnum<{
-  Completed: { readonly needsContinuation: boolean }
+  Completed: { readonly needsContinuation: boolean; readonly completionRequired?: boolean }
   Retry: { readonly error: SessionError.Error; readonly decision: SessionRunnerRetry.Decision }
   Continue: {
     readonly error: SessionError.Error
@@ -56,6 +57,7 @@ interface Input {
   readonly recoverContinuation: boolean
   /** The runner owns compaction policy; the attempt invokes it only before durable output. */
   readonly recoverOverflow: Effect.Effect<boolean>
+  readonly requireCompletionMarker?: boolean
 }
 
 const TOOLS_INTERRUPTED = { type: "aborted", message: "Tool execution interrupted" } as const
@@ -154,10 +156,14 @@ export const make = Effect.gen(function* () {
         if (overflowFailure) yield* publisher.publish(overflowFailure)
         const recorded = publisher.record()
         const unknownFinish =
-          Exit.isSuccess(stream) && recorded.finish?.finish === "unknown"
+          Exit.isSuccess(stream) &&
+          (recorded.finish?.finish === "unknown" ||
+            (input.requireCompletionMarker === true && recorded.finish === undefined))
             ? new AIError({
                 reason: new InvalidProviderOutputError({
-                  message: "The provider response ended with an unknown finish reason.",
+                  message: recorded.finish
+                    ? "The provider response ended with an unknown finish reason."
+                    : "The provider response ended without a finish reason.",
                   classification: "incomplete-stream",
                 }),
               })
@@ -261,8 +267,16 @@ export const make = Effect.gen(function* () {
         if (tools.interrupted && tools.failure) return yield* Effect.failCause(tools.failure)
         if (tools.interrupted && Exit.isFailure(joined)) return yield* Effect.failCause(joined.cause)
         if (record.failure) return yield* new StepFailedError({ error: record.failure })
+        const completionRequired = Boolean(
+          input.requireCompletionMarker &&
+            input.prepared.request.toolChoice?.type !== "none" &&
+            record.finish?.finish === "stop" &&
+            !record.text.includes(COMPLETION_MARKER),
+        )
         return Outcome.Completed({
-          needsContinuation: input.prepared.request.toolChoice?.type !== "none" && record.needsContinuation,
+          needsContinuation:
+            input.prepared.request.toolChoice?.type !== "none" && (record.needsContinuation || completionRequired),
+          ...(completionRequired ? { completionRequired: true } : {}),
         })
       }),
     )

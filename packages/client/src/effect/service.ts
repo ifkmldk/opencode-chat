@@ -224,9 +224,10 @@ const probeResult = Effect.fnUntraced(function* (
         (value) => ({ value }),
         (cause: unknown) => ({ cause }),
       ),
-  )
-  if ("cause" in result) return { service: undefined, timedOut: signal.aborted }
-  const response = result.value.response
+  ).pipe(Effect.timeoutOption(timeout))
+  if (Option.isNone(result)) return { service: undefined, timedOut: true }
+  if ("cause" in result.value) return { service: undefined, timedOut: signal.aborted }
+  const response = result.value.value.response
   // The previous V2 service exposes /api/status instead. Its authenticated 404 is enough
   // to recognize the registered daemon as incompatible and route it through replacement.
   if (response.status === 404)
@@ -240,7 +241,7 @@ const probeResult = Effect.fnUntraced(function* (
       } satisfies LocalService,
       timedOut: false,
     }
-  const body = result.value.body
+  const body = result.value.value.body
   const serverInfo = decodeInfo(body)
   if (Option.isSome(serverInfo)) {
     if (serverInfo.value.pid !== info.pid) return { service: undefined, timedOut: false }
