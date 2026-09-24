@@ -649,6 +649,8 @@ export function createBrowserPage(
           throw new Error(
             "Choose either ref for an element screenshot or fullPage:true for the whole page. Remove the other argument before retrying.",
           )
+        if (action.region && (action.ref || action.fullPage))
+          throw new Error("Choose region by itself, or choose ref/fullPage without a region.")
         await waitFor(() => view.getVisible() && win.isVisible() && !win.isMinimized(), signal, 3_000).catch(
           (error) => {
             if (signal.aborted) throw error
@@ -659,20 +661,32 @@ export function createBrowserPage(
         )
         const element = action.ref ? await rect(target(action.ref), true) : undefined
         const metrics = await cdp.send("Page.getLayoutMetrics")
-        const bounds = element
-          ? {
-              ...element,
-              x: element.x + metrics.cssVisualViewport.pageX,
-              y: element.y + metrics.cssVisualViewport.pageY,
-            }
-          : action.fullPage
-            ? metrics.cssContentSize
-            : {
-                x: metrics.cssVisualViewport.pageX,
-                y: metrics.cssVisualViewport.pageY,
-                width: metrics.cssVisualViewport.clientWidth,
-                height: metrics.cssVisualViewport.clientHeight,
+        const bounds = action.region
+          ? (() => {
+              const viewport = metrics.cssVisualViewport
+              const x = Math.max(0, Math.min(viewport.clientWidth - 1, action.region.x))
+              const y = Math.max(0, Math.min(viewport.clientHeight - 1, action.region.y))
+              return {
+                x: viewport.pageX + x,
+                y: viewport.pageY + y,
+                width: Math.max(1, Math.min(viewport.clientWidth - x, action.region.width)),
+                height: Math.max(1, Math.min(viewport.clientHeight - y, action.region.height)),
               }
+            })()
+          : element
+            ? {
+                ...element,
+                x: element.x + metrics.cssVisualViewport.pageX,
+                y: element.y + metrics.cssVisualViewport.pageY,
+              }
+            : action.fullPage
+              ? metrics.cssContentSize
+              : {
+                  x: metrics.cssVisualViewport.pageX,
+                  y: metrics.cssVisualViewport.pageY,
+                  width: metrics.cssVisualViewport.clientWidth,
+                  height: metrics.cssVisualViewport.clientHeight,
+                }
         const pixelRatio = contents.getZoomFactor() * electron.screen.getDisplayMatching(win.getBounds()).scaleFactor
         const scale = Math.min(1, (action.maxWidth ?? 2000) / (bounds.width * pixelRatio))
         if (bounds.width <= 0 || bounds.height <= 0)
