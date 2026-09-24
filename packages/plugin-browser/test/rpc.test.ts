@@ -22,6 +22,13 @@ test("browser input bounds and optional fields survive the wire", () => {
   expect(() => decode({ type: "wait", tabID, condition: "load", timeoutMs: -1 })).toThrow()
   expect(() => decode({ type: "click", tabID: "another-tab", ref: "e1" })).toThrow()
   expect(() => decode({ type: "network.list", tabID, resourceType: "imaginary" })).toThrow()
+  expect(() => decode({ type: "screenshot", tabID, region: { x: 1, y: 2, width: 0, height: 10 } })).toThrow()
+  expect(decode({ type: "screenshot", tabID, region: { x: 1, y: 2, width: 20, height: 10 } }).region).toEqual({
+    x: 1,
+    y: 2,
+    width: 20,
+    height: 10,
+  })
 })
 
 test("browser files are bounded bytes, not remote filesystem paths", () => {
