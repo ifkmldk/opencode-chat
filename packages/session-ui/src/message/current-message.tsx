@@ -49,6 +49,7 @@ export function SessionAssistantContent(props: {
   onToolOpenChange?: (open: boolean) => void
   onContentRendered?: () => void
   openArtifact?: (path: string) => void
+  downloadArtifact?: (path: string) => void
 }) {
   return (
     <Switch>
@@ -61,6 +62,7 @@ export function SessionAssistantContent(props: {
             showCopy={props.showAssistantCopyPartID === props.contentID}
             turnDurationMs={props.turnDurationMs}
             openArtifact={props.openArtifact}
+            downloadArtifact={props.downloadArtifact}
           />
         )}
       </Match>

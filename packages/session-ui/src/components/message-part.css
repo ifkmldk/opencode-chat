@@ -85,6 +85,25 @@
   color: var(--v2-green-600);
 }
 
+[data-slot="assistant-artifact-download"] {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  color: var(--v2-text-text-muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+[data-slot="assistant-artifact-download"]:hover,
+[data-slot="assistant-artifact-download"]:focus-visible {
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-text-text-base);
+  outline: none;
+}
+
 [data-slot="assistant-artifact-copy"] {
   display: flex;
   min-width: 0;

@@ -19,5 +19,6 @@ export type SessionUserAttachmentReference = {
 export type SessionUserActions = {
   openAttachment?: (file: PromptFileAttachment) => void
   openArtifact?: (path: string) => void
+  downloadArtifact?: (path: string) => void
   revert?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
 }

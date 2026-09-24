@@ -281,6 +281,7 @@ export function createSessionTimelineRowRenderer(input: {
                 onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}
                 onContentRendered={onSizeChange}
                 openArtifact={input.actions?.openArtifact}
+                downloadArtifact={input.actions?.downloadArtifact}
               />
             )}
           </Show>

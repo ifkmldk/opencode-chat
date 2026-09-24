@@ -8,7 +8,7 @@ import { useMarkdown } from "../context/markdown"
 import { typeLabel } from "../components/message-file"
 import { assistantArtifacts } from "./assistant-artifact-model"
 
-export function AssistantArtifacts(props: { text: string; onOpen: (path: string) => void }) {
+export function AssistantArtifacts(props: { text: string; onOpen: (path: string) => void; onDownload?: (path: string) => void }) {
   const i18n = useI18n()
   const dialog = useDialog()
   const markdown = useMarkdown()
@@ -72,6 +72,25 @@ export function AssistantArtifacts(props: { text: string; onOpen: (path: string)
                     {typeLabel(artifact.path, "", i18n.t("ui.common.file"))}
                   </span>
                 </span>
+                <Show when={props.onDownload}>
+                  <span
+                    data-slot="assistant-artifact-download"
+                    role="button"
+                    tabindex="0"
+                    aria-label="Download artifact"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      props.onDownload?.(artifact.path)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return
+                      event.preventDefault()
+                      props.onDownload?.(artifact.path)
+                    }}
+                  >
+                    ↓
+                  </span>
+                </Show>
               </button>
             </Tooltip>
           )}

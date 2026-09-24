@@ -4,7 +4,7 @@ import { MarkdownProvider, useMarkdown } from "@opencode/session-ui/context/mark
 import { useBrowserAttachments } from "@/session/browser/attachments"
 import type { SessionModel } from "@/session/model"
 import { useFile } from "@/workspaces/files/model"
-import { artifactKind, resolveArtifactPath } from "@/workspaces/files/artifact"
+import { artifactKind, blobUrlFromContent, resolveArtifactPath } from "@/workspaces/files/artifact"
 import { encodeFilePath } from "@/workspaces/files/path"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { useServer } from "@/runtime/server/current"
@@ -93,6 +93,21 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
       openTab(path)
     }
 
+    const download = (href: string, base?: string) => {
+      const path = resolve(href, base)
+      if (!path) return
+      void file.load(path).then(() => {
+        const content = file.get(path)?.content
+        if (!content) return
+        const url = blobUrlFromContent(content)
+        const anchor = document.createElement("a")
+        anchor.href = url
+        anchor.download = getFilename(path) || "artifact"
+        anchor.click()
+        setTimeout(() => URL.revokeObjectURL(url), 0)
+      })
+    }
+
     // The agent's browser.preview tool arrives through the desktop browser pane attachment.
     createEffect(() => {
       const sessionID = props.session.identity.sessionID()
@@ -100,6 +115,6 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
       onCleanup(attachments.onPreview(server, sessionID, (path) => open(path)))
     })
 
-    return { canOpenInBrowser, openInBrowser, open }
+    return { canOpenInBrowser, openInBrowser, open, download }
   },
 })

@@ -208,6 +208,7 @@ export function createActiveSessionRegion(input: {
         },
         openAttachment,
         openArtifact: artifacts.open,
+        downloadArtifact: artifacts.download,
       } satisfies SessionUserActions,
     },
     requests: state,

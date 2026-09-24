@@ -480,6 +480,7 @@ export function AssistantTextContent(props: {
   showCopy: boolean
   turnDurationMs?: number | null
   openArtifact?: (path: string) => void
+  downloadArtifact?: (path: string) => void
 }) {
   const data = useData()
   const i18n = useI18n()
@@ -539,7 +540,7 @@ export function AssistantTextContent(props: {
           />
         </div>
         <Show when={props.openArtifact && props.message.time.completed !== undefined}>
-          <AssistantArtifacts text={props.text} onOpen={props.openArtifact!} />
+          <AssistantArtifacts text={props.text} onOpen={props.openArtifact!} onDownload={props.downloadArtifact} />
         </Show>
         <Show when={props.showCopy}>
           <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
