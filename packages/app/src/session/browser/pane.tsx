@@ -93,9 +93,9 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     if (!selection || !surface) return undefined
     const bounds = surface.getBoundingClientRect()
     const zoom = platform.webviewZoom?.() ?? 1
-    const x = selection.rect.x / zoom
-    const y = selection.rect.y / zoom - bounds.top
-    return { left: `${Math.max(4, Math.min(bounds.width - 220, x))}px`, top: `${Math.max(4, y - 42)}px` }
+    const x = bounds.left + selection.rect.x / zoom
+    const y = bounds.top + selection.rect.y / zoom - 42
+    return { left: `${Math.max(4, Math.min(window.innerWidth - 220, x))}px`, top: `${Math.max(4, y)}px` }
   }
 
   const measure = () => {
