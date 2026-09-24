@@ -18,6 +18,7 @@ import { useWorkspaceLocation } from "@/workspaces/location"
 import { requireServerKey, sessionHref } from "@/shell/routes/session"
 import { useComposerCommands } from "@/composer/commands"
 import { useSessionCommands } from "../commands/use-session-commands"
+import { useArtifactOpener } from "../files/open-artifact"
 import type { SessionModel } from "../model"
 import type { SessionScreenLayout } from "../screen-layout"
 import { syncPromptModel, syncSessionModel } from "../session-model-helpers"
@@ -43,6 +44,7 @@ export function createActiveSessionRegion(input: {
   const navigate = useNavigate()
   const platform = usePlatform()
   const prompt = useComposerState()
+  const artifacts = useArtifactOpener()
   const state = createSessionRequestModel()
   const controls = createComposerControls({
     sessionKey: input.session.identity.sessionKey,
@@ -205,6 +207,7 @@ export function createActiveSessionRegion(input: {
           return revertMessage
         },
         openAttachment,
+        openArtifact: artifacts.open,
       } satisfies SessionUserActions,
     },
     requests: state,

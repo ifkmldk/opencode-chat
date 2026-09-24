@@ -26,6 +26,7 @@ import type {
   SessionMessageCompaction,
   SessionMessageUser,
 } from "@opencode/client/promise"
+import { AssistantArtifacts } from "./assistant-artifacts"
 import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
 import { attached, typeLabel } from "../components/message-file"
 
@@ -478,6 +479,7 @@ export function AssistantTextContent(props: {
   message: SessionMessageAssistant
   showCopy: boolean
   turnDurationMs?: number | null
+  openArtifact?: (path: string) => void
 }) {
   const data = useData()
   const i18n = useI18n()
@@ -536,6 +538,9 @@ export function AssistantTextContent(props: {
             streaming={typeof props.message.time.completed !== "number"}
           />
         </div>
+        <Show when={props.openArtifact && props.message.time.completed !== undefined}>
+          <AssistantArtifacts text={props.text} onOpen={props.openArtifact!} />
+        </Show>
         <Show when={props.showCopy}>
           <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
             <MessageActionButton
