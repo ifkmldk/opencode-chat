@@ -183,6 +183,32 @@ const FollowUpBehaviorSetting: Component = () => {
   )
 }
 
+const DefaultViewModeSetting: Component = () => {
+  const language = useLanguage()
+  const settings = useSettings()
+  const options = [
+    { value: "chat" as const, label: language.t("settings.general.row.defaultViewMode.chat") },
+    { value: "code" as const, label: language.t("settings.general.row.defaultViewMode.code") },
+  ]
+  return (
+    <SettingsRow
+      title={language.t("settings.general.row.defaultViewMode.title")}
+      description={language.t("settings.general.row.defaultViewMode.description")}
+    >
+      <Select
+        data-action="settings-default-view-mode"
+        options={options}
+        current={options.find((option) => option.value === settings.general.defaultViewMode())}
+        value={(option) => option.value}
+        label={(option) => option.label}
+        placement="bottom-end"
+        gutter={6}
+        onSelect={(option) => option && settings.general.setDefaultViewMode(option.value)}
+      />
+    </SettingsRow>
+  )
+}
+
 const AppearanceSection: Component<{ controller: AppearanceSettingsController }> = (props) => {
   const language = useLanguage()
   return (
@@ -338,6 +364,7 @@ export const SettingsGeneral: Component = () => {
 
         <TerminalPlacementSetting />
         <FollowUpBehaviorSetting />
+        <DefaultViewModeSetting />
 
         <Show when={desktop()}>
           <SettingsRow

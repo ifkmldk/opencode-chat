@@ -25,6 +25,7 @@ export function createNewSessionComposerAdapter(props: {
   branch: () => string | undefined
   submitted: () => void
   mcp: DraftMcpControls
+  viewMode: { promote: (sessionID: string) => void }
 }) {
   const route = useSessionKey()
   const prompt = useComposerState()
@@ -118,6 +119,7 @@ export function createNewSessionComposerAdapter(props: {
         SessionRouteKey.fromRoute(base64Encode(sessionDirectory), created.id),
       )
       const cleanupReady = startTransition(() => {
+        props.viewMode.promote(created.id)
         if (!pending) tabs.updateDraft(draftID, { worktree: undefined, branch: undefined })
         local.session.promote(sessionDirectory, created.id, {
           agent: selection.agent,

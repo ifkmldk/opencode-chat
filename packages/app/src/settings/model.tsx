@@ -7,6 +7,7 @@ import { persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
 
+export type ConversationViewMode = "chat" | "code"
 export type Settings = typeof settingsSchema.Type
 export type WorkspaceDefaultDestination = Settings["workspaces"]["defaultDestination"]
 export type WorkspaceLastUsed = Settings["workspaces"]["lastUsed"][string]
@@ -81,6 +82,7 @@ const generalSchema = Persistence.struct({
   showSearch: Schema.Boolean,
   showProjectIcon: Schema.Boolean,
   showTerminal: Schema.Boolean,
+  defaultViewMode: Schema.Literals(["chat", "code"]),
   timelineDetail: Persistence.struct({
     shell: activitySchema,
     edit: activitySchema,
@@ -245,6 +247,7 @@ export const defaultSettings: Settings = {
     showSearch: false,
     showProjectIcon: false,
     showTerminal: false,
+    defaultViewMode: "code",
     timelineDetail: { ...timelinePresets[2].value },
     showCustomAgents: false,
     mobileTitlebarPosition: "top",
@@ -328,6 +331,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         showTerminal: withFallback(() => store.general?.showTerminal, defaultSettings.general.showTerminal),
         setShowTerminal(value: boolean) {
           setStore("general", "showTerminal", value)
+        },
+        defaultViewMode: withFallback(
+          () => store.general?.defaultViewMode,
+          defaultSettings.general.defaultViewMode,
+        ) as () => ConversationViewMode,
+        setDefaultViewMode(value: ConversationViewMode) {
+          setStore("general", "defaultViewMode", value)
         },
         timelineDetail: withFallback(() => store.general?.timelineDetail, defaultSettings.general.timelineDetail),
         setTimelineDetail(value: TimelineDetail) {

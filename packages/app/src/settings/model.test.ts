@@ -71,6 +71,7 @@ describe("settings schema", () => {
         showSearch: false,
         showProjectIcon: false,
         showTerminal: false,
+        defaultViewMode: "code",
         timelineDetail: timelinePresets[2].value,
         showCustomAgents: false,
         mobileTitlebarPosition: "top",

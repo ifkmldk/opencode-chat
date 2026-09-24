@@ -263,6 +263,7 @@ function SessionScreenContent(props: { session: SessionModel; browser: ReturnTyp
         active={active()}
         hideHeader={!isDesktop()}
         session={source}
+        viewMode={timeline.viewMode}
         background={composer.requests.background}
         actions={composer.actions.timeline}
         scroll={timeline.scroll}

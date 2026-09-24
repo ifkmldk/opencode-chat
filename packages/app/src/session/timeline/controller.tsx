@@ -46,7 +46,7 @@ export type TimelineSessionSource = {
   history: Pick<SessionModel["history"], "messages">
 }
 
-export function createTimelineController(input: { session: TimelineSessionSource }) {
+export function createTimelineController(input: { session: TimelineSessionSource; viewMode: { current: () => "chat" | "code" } }) {
   const navigate = useNavigate()
   const sdk = useWorkspaceLocation()
   const serverSDK = useServerSDK()
@@ -105,6 +105,16 @@ export function createTimelineController(input: { session: TimelineSessionSource
   })
   const showHeader = createMemo(() => !!input.session.identity.sessionID())
   const timelineDetail = createMemo(() => {
+    if (input.viewMode.current() === "chat") {
+      return {
+        shell: { placement: "hidden", details: "collapsed" },
+        edit: { placement: "hidden", details: "collapsed" },
+        thinking: { placement: "hidden", details: "collapsed" },
+        subagents: { placement: "hidden" },
+        notices: { placement: "grouped" },
+        tools: { placement: "hidden" },
+      } as const
+    }
     const detail = settings.general.timelineDetail()
     return {
       shell: { ...detail.shell },

@@ -28,9 +28,16 @@ import { parseClientSlashCommand } from "./client-slash-command"
 
 export type ComposerModel = ComposerEditorModel & {
   readonly model: ComposerControls["model"]
+  readonly viewMode?: {
+    current: () => "chat" | "code"
+    set: (value: "chat" | "code") => void
+  }
 }
 
-export function createComposerModel(adapter: ComposerAdapter, options?: { queue?: ComposerQueue }): ComposerModel {
+export function createComposerModel(
+  adapter: ComposerAdapter,
+  options?: { queue?: ComposerQueue; viewMode?: ComposerModel["viewMode"] },
+): ComposerModel {
   const sdk = useWorkspaceLocation()
   const data = useData()
   const server = useServer()
@@ -412,6 +419,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
     },
   })
   Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
+  if (options?.viewMode) Object.defineProperty(controller, "viewMode", { value: options.viewMode })
 
   command.register("composer-editor", () => [
     {

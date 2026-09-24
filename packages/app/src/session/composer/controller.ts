@@ -10,6 +10,7 @@ import { createSessionComposerRegionController } from "./session-composer-region
 export function createSessionComposerController(input: {
   sessionID: string
   controls: Accessor<ComposerControls>
+  viewMode: { current: () => "chat" | "code"; set: (value: "chat" | "code") => void }
   dock: Parameters<typeof createSessionComposerRegionController>[0]
 }) {
   const settings = useSettings()
@@ -38,7 +39,7 @@ export function createSessionComposerController(input: {
       })
     },
   })
-  const composer = createComposerModel(adapter, { queue })
+  const composer = createComposerModel(adapter, { queue, viewMode: input.viewMode })
   const editable = createMemo(() => region.showComposer() && !region.child())
   // Requests hide the view without disposing its draft or queue edit.
   createEffect(on(editable, () => composer.onDragLeave()))

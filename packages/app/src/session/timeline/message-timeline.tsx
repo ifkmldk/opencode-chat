@@ -78,6 +78,7 @@ type MessageTimelineProps = {
   hideHeader?: boolean
   active?: boolean
   session: TimelineSessionSource
+  viewMode: { current: () => "chat" | "code" }
   background: SessionBackground
   actions?: SessionUserActions
   scroll: { overflow: boolean; jump: boolean }
@@ -104,7 +105,7 @@ type MessageTimelineProps = {
 }
 
 export function MessageTimeline(props: MessageTimelineProps) {
-  const controller = createTimelineController({ session: props.session })
+  const controller = createTimelineController({ session: props.session, viewMode: props.viewMode })
   const tail = props.pinned ? controller.data.projection.rows().at(-1) : undefined
   if (tail?._tag === "AssistantPart" && tail.group.type === "part") {
     const message = controller.data.projection.messageByID().get(tail.group.ref.messageID)

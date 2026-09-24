@@ -11,6 +11,7 @@ import { NewSessionView } from "./view"
 import { createNewSessionWorkspaceController } from "./workspace/controller"
 import { useNewSessionCommands } from "./commands"
 import { createDraftMcpControls } from "./mcp"
+import { createConversationViewMode } from "@/session/view-mode"
 
 /** The draft-only Session page. Submitting promotes the draft into a real Session. */
 export default function NewSessionPage(props: { draftId: string }) {
@@ -41,14 +42,16 @@ export default function NewSessionPage(props: { draftId: string }) {
     onViewAll: openWorkspaces,
   })
   const mcp = createDraftMcpControls({ draftID: props.draftId, worktree: workspace.selection.value })
+  const viewMode = createConversationViewMode({ sessionID: () => undefined, draftID: () => props.draftId })
   const composer = createNewSessionComposerAdapter({
     draftID: props.draftId,
     worktree: workspace.selection.value,
     branch: workspace.bar.branch,
     submitted: workspace.selection.remember,
     mcp,
+    viewMode,
   })
-  const model = createComposerModel(composer.adapter)
+  const model = createComposerModel(composer.adapter, { viewMode })
   useComposerCommands({ model: composer.model })
   const project = createPromptProjectController({
     controls: composer.project,

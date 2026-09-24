@@ -6,6 +6,7 @@ import { Keybind } from "@opencode/ui/keybind"
 import { ProviderIcon } from "@opencode/ui/provider-icon"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { ComposerEditor } from "./editor/editor"
+import { ComposerViewModeControl } from "./view-mode-control"
 import { ModelSelectorPopover } from "@/providers/models/select-dialog"
 import { DialogSelectModelUnpaid } from "@/providers/models/unpaid"
 import { formatKeybind, useCommand } from "@/shell/commands/command"
@@ -29,17 +30,22 @@ export function Composer(props: { class?: string; model: ComposerModel; borderUn
         alternateKeybind={[formatKeybind("mod", language.t), "↵"]}
         exitShellKeybind={[formatKeybind("esc", language.t)]}
         modelControl={
-          <ComposerModelControl
-            loading={props.model.model.loading}
-            paid={props.model.model.paid}
-            title={language.t("command.model.choose")}
-            keybind={command.keybindParts("model.choose")}
-            model={props.model.model.selection}
-            providerID={props.model.model.selection.current()?.provider?.id}
-            modelName={props.model.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
-            onClose={props.model.restoreFocus}
-            onUnpaidClick={() => dialog.show(() => <DialogSelectModelUnpaid model={props.model.model.selection} />)}
-          />
+          <>
+            <Show when={props.model.viewMode}>
+              {(viewMode) => <ComposerViewModeControl viewMode={viewMode()} />}
+            </Show>
+            <ComposerModelControl
+              loading={props.model.model.loading}
+              paid={props.model.model.paid}
+              title={language.t("command.model.choose")}
+              keybind={command.keybindParts("model.choose")}
+              model={props.model.model.selection}
+              providerID={props.model.model.selection.current()?.provider?.id}
+              modelName={props.model.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
+              onClose={props.model.restoreFocus}
+              onUnpaidClick={() => dialog.show(() => <DialogSelectModelUnpaid model={props.model.model.selection} />)}
+            />
+          </>
         }
       />
     </div>

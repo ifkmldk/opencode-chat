@@ -7,11 +7,13 @@ import { useLayout } from "@/shell/state/layout"
 import type { SessionModel } from "../model"
 import { useSessionHashScroll } from "../use-session-hash-scroll"
 import { createTimelineModel } from "./model"
+import { createConversationViewMode } from "@/session/view-mode"
 
 export function createSessionTimelineInteraction(session: SessionModel) {
   const layout = useLayout()
   const location = useLocation()
   const timeline = createTimelineModel({ session })
+  const viewMode = createConversationViewMode({ sessionID: session.identity.sessionID })
   const [state, setState] = createStore({
     messageID: undefined as string | undefined,
     pendingMessage: undefined as string | undefined,
@@ -297,6 +299,10 @@ export function createSessionTimelineInteraction(session: SessionModel) {
       setActiveMessage,
     },
     lastUserMessage: timeline.lastUserMessage,
+    viewMode: {
+      current: viewMode.current,
+      set: viewMode.set,
+    },
     resource: timeline.resource,
     ready: timeline.ready,
     scroll: state.scroll,
