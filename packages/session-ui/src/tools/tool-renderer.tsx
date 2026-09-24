@@ -437,14 +437,17 @@ function taskSession(
 export type WebCitation = { url: string; domain: string; title: string }
 
 export function webCitations(text: string | undefined): WebCitation[] {
-  return urls(text).map((url) => {
+  const result = new Map<string, WebCitation>()
+  for (const url of urls(text)) {
     try {
       const parsed = new URL(url)
-      return { url, domain: parsed.hostname.replace(/^www\./, ""), title: parsed.pathname === "/" ? parsed.hostname : parsed.pathname }
-    } catch {
-      return { url, domain: "Source", title: url }
-    }
-  })
+      const domain = parsed.hostname.replace(/^www\./, "")
+      const title = parsed.pathname === "/" ? parsed.hostname : parsed.pathname
+      const key = `${domain}${title}`
+      if (!result.has(key)) result.set(key, { url, domain, title })
+    } catch {}
+  }
+  return [...result.values()]
 }
 
 function ExaOutput(props: { output?: string }) {
