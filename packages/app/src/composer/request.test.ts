@@ -8,6 +8,22 @@ function inline(filename: string, mime: string, extra?: Partial<ImageAttachmentP
 }
 
 describe("buildPromptRequest", () => {
+  test("sends media and page annotations as model context", () => {
+    const result = buildPromptRequest({
+      prompt: [],
+      context: [
+        { key: "media", type: "media-annotation", surface: "browser", imageID: "img", blob: { id: "img", url: "" }, mime: "image/png", dataUrl: "data:image/png;base64,AAA", sourceURL: "https://example.com", comment: "Focus here" },
+        { key: "page", type: "page-text-annotation", sourceURL: "https://example.com", text: "Important paragraph" },
+      ],
+      images: [],
+      text: "review this",
+      sessionDirectory: "/repo",
+    })
+    expect(result.text).toContain("Browser annotation")
+    expect(result.text).toContain("Important paragraph")
+    expect(result.files).toEqual(expect.arrayContaining([expect.objectContaining({ name: "browser-annotation-img.png" })]))
+  })
+
   test("builds text, files, and agents from the prompt", () => {
     const prompt: Prompt = [
       { type: "text", content: "hello", start: 0, end: 5 },
