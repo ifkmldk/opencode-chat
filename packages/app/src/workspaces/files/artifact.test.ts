@@ -6,6 +6,8 @@ import {
   fileContentFromBytes,
   MAX_MEDIA_BYTES,
   parseDelimited,
+  parseOfficeWorkbook,
+  powerpointSlide,
   resolveArtifactPath,
 } from "./artifact"
 
@@ -22,6 +24,9 @@ describe("artifactKind", () => {
     ["flow.mmd", "mermaid"],
     ["data.csv", "table"],
     ["data.tsv", "table"],
+    ["brief.docx", "document"],
+    ["book.xlsx", "spreadsheet"],
+    ["deck.pptx", "presentation"],
     ["Inter.woff2", "font"],
     ["src/app.ts", "text"],
     ["Makefile", "text"],
@@ -63,6 +68,26 @@ describe("fileContentFromBytes", () => {
   test("encodes large buffers in chunks", () => {
     const bytes = new Uint8Array(70_000).fill(65)
     expect(bytesToBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"))
+  })
+})
+
+describe("office artifact parsers", () => {
+  test("reads spreadsheet sheets and formatted values", async () => {
+    const XLSX = await import("xlsx")
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([["Name", "Score"], ["Ada", 42]]), "Results")
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer
+    expect(await parseOfficeWorkbook(new Uint8Array(bytes))).toEqual([
+      { name: "Results", rows: [["Name", "Score"], ["Ada", "42"]] },
+    ])
+  })
+
+  test("reads ordered PowerPoint slide text without an external converter", () => {
+    expect(powerpointSlide(2, "<p:spTree><a:t>Second</a:t><a:t>Two &amp; a half</a:t></p:spTree>")).toEqual({
+      index: 2,
+      title: "Second",
+      bullets: ["Two & a half"],
+    })
   })
 })
 

@@ -55,6 +55,12 @@
   cursor: zoom-out;
 }
 
+[data-slot="artifact-office-document"] {
+  max-width: 80ch;
+  margin-inline: auto;
+  line-height: var(--line-height-large);
+}
+
 [data-slot="artifact-table"] {
   border-collapse: separate;
   border-spacing: 0;

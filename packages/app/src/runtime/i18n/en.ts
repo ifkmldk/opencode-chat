@@ -667,6 +667,8 @@ export const dict = {
   "file.view.table.columns.one": "{{count}} column",
   "file.view.table.columns.other": "{{count}} columns",
   "file.view.table.truncated": "Showing the first {{shown}} of {{total}} rows.",
+  "file.view.office.loading": "Preparing document preview…",
+  "file.view.office.unavailable": "Unable to preview this document.",
   "file.view.fontSample": "Sphinx of black quartz, judge my vow.",
 
   "toast.context.noLineSelection.title": "No line selection",

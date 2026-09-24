@@ -10,6 +10,9 @@ export type ArtifactKind =
   | "markdown"
   | "mermaid"
   | "table"
+  | "document"
+  | "spreadsheet"
+  | "presentation"
   | "font"
   | "text"
 
@@ -51,6 +54,9 @@ const mimes = new Map([
   ["mermaid", "text/vnd.mermaid"],
   ["csv", "text/csv"],
   ["tsv", "text/tab-separated-values"],
+  ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
   ["ttf", "font/ttf"],
   ["otf", "font/otf"],
   ["woff", "font/woff"],
@@ -77,14 +83,26 @@ export function artifactKind(path: string): ArtifactKind {
   if (mime === "text/markdown") return "markdown"
   if (mime === "text/vnd.mermaid") return "mermaid"
   if (mime === "text/csv" || mime === "text/tab-separated-values") return "table"
+  if (mime.includes("wordprocessingml.document")) return "document"
+  if (mime.includes("spreadsheetml.sheet")) return "spreadsheet"
+  if (mime.includes("presentationml.presentation")) return "presentation"
   if (mime.startsWith("image/")) return "image"
   if (mime.startsWith("audio/")) return "audio"
   if (mime.startsWith("font/")) return "font"
   return "video"
 }
 
-/** Kinds whose bytes are kept as base64 so media elements can play them without a text round trip. */
-const binaryKinds = new Set<ArtifactKind>(["image", "audio", "video", "pdf", "font"])
+/** Kinds whose bytes are kept as base64 so media and Office elements can render them. */
+const binaryKinds = new Set<ArtifactKind>([
+  "image",
+  "audio",
+  "video",
+  "pdf",
+  "document",
+  "spreadsheet",
+  "presentation",
+  "font",
+])
 
 /** Text files never contain NUL; a NUL in the first 8 KiB marks an unknown binary. */
 function isBinaryBytes(bytes: Uint8Array) {
@@ -113,6 +131,59 @@ export function fileContentFromBytes(path: string, bytes: Uint8Array): FileConte
   if (kind === "text" && isBinaryBytes(bytes)) return { type: "binary", content: "", size: bytes.length }
   return { type: "text", content: new TextDecoder().decode(bytes), mimeType }
 }
+
+export function officeBytes(content: FileContent) {
+  if (content.type !== "binary" || content.encoding !== "base64" || !content.content) return
+  const raw = atob(content.content)
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0))
+}
+
+export const parseOfficeWorkbook = async (bytes: Uint8Array) => {
+  const limit = 1000
+  const XLSX = await import("xlsx")
+  const workbook = XLSX.read(bytes, { type: "array" })
+  return workbook.SheetNames.map((name) => {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name]!, { header: 1, raw: false }) as unknown[][]
+    return { name, rows: rows.slice(0, limit + 1) }
+  })
+}
+
+export const parseOfficeDocument = async (bytes: Uint8Array) => {
+  const mammoth = await import("mammoth")
+  const arrayBuffer = Uint8Array.from(bytes).buffer
+  return (await mammoth.convertToHtml({ arrayBuffer })).value
+}
+
+export const parseOfficeSlides = async (bytes: Uint8Array) => {
+  const { BlobReader, TextWriter, ZipReader } = await import("@zip.js/zip.js")
+  const reader = new ZipReader(new BlobReader(new Blob([Uint8Array.from(bytes)])))
+  try {
+    const entries = await reader.getEntries()
+    const slides = entries
+      .filter((entry) => /^ppt\/slides\/slide\d+\.xml$/.test(entry.filename))
+      .map((entry) => entry.filename)
+      .sort((a, b) => slideNumber(a) - slideNumber(b))
+    return await Promise.all(
+      slides.map(async (filename, index) => {
+        const entry = entries.find((item) => item.filename === filename)!
+        const xml = await entry.getData?.(new TextWriter())
+        const text = typeof xml === "string" ? xml : ""
+        return powerpointSlide(index + 1, text)
+      }),
+    )
+  } finally {
+    await reader.close()
+  }
+}
+
+export function powerpointSlide(index: number, xml: string) {
+  const runs = Array.from(xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g), (match) => decodeXml(match[1] ?? ""))
+  return { index, title: runs[0], bullets: runs.slice(1) }
+}
+
+const slideNumber = (path: string) => Number(path.match(/slide(\d+)\.xml$/)?.[1] ?? 0)
+const decodeXml = (value: string) =>
+  value.replaceAll("&amp;", "&").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&apos;", "'")
 
 /** Approximate on-disk size of loaded content. */
 export function contentBytes(content: FileContent) {

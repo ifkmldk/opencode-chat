@@ -1,5 +1,7 @@
-import { createEffect, createMemo, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
+import { createEffect, createMemo, createResource, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Tabs } from "@opencode/ui/tabs"
+import { sanitizeMarkdown } from "@opencode/session-ui/markdown-cache"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Button } from "@opencode/ui/button"
 import { FileIcon } from "@opencode/ui/file-icon"
@@ -14,6 +16,10 @@ import {
   artifactKind,
   blobUrlFromContent,
   contentBytes,
+  officeBytes,
+  parseOfficeDocument,
+  parseOfficeSlides,
+  parseOfficeWorkbook,
   parseDelimited,
   resolveArtifactPath,
   type ArtifactKind,
@@ -120,6 +126,9 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
           </Match>
           <Match when={kind() === "table"}>
             <ArtifactTable path={props.path} text={props.content.content} onInfo={media.onInfo} />
+          </Match>
+          <Match when={kind() === "document" || kind() === "spreadsheet" || kind() === "presentation"}>
+            <ArtifactOffice path={props.path} content={props.content} onInfo={media.onInfo} />
           </Match>
           <Match when={kind() === "markdown" || kind() === "mermaid"}>{rendered()}</Match>
           <Match when={kind() === "binary"}>
@@ -390,6 +399,80 @@ function ArtifactTable(props: { path: string; text: string; onInfo: (info: Artif
         </div>
       </Show>
     </div>
+  )
+}
+
+function OfficeState(props: { loading: boolean; error?: unknown }) {
+  const language = useLanguage()
+  return (
+    <Show when={props.loading || !!props.error}>
+      <div class="flex min-h-40 items-center justify-center px-6 py-4 text-center text-text-weak">
+        {props.error ? language.t("file.view.office.unavailable") : language.t("file.view.office.loading")}
+      </div>
+    </Show>
+  )
+}
+
+function OfficeTable(props: { rows: unknown[][] }) {
+  const header = () => Array.from({ length: Math.max(0, ...props.rows.map((row) => row.length)) }, (_, index) => props.rows[0]?.[index] ?? "")
+  return (
+    <div class="min-h-0 flex-1 overflow-auto">
+      <table data-slot="artifact-table" class="min-w-full text-13-regular text-text-base">
+        <thead><tr><th data-index /><For each={header()}>{(cell) => <th>{String(cell)}</th>}</For></tr></thead>
+        <tbody>
+          <For each={props.rows.slice(1)}>
+            {(row, index) => <tr><td data-index>{index() + 1}</td><For each={header()}>{(_, column) => <td>{String(row[column()] ?? "")}</td>}</For></tr>}
+          </For>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ArtifactOffice(props: { path: string; content: FileContent; onInfo: (info: ArtifactInfo) => void }) {
+  const bytes = () => officeBytes(props.content)
+  const type = () => artifactKind(props.path)
+  const [workbook] = createResource(() => (type() === "spreadsheet" ? bytes() : undefined), parseOfficeWorkbook)
+  const [document] = createResource(() => (type() === "document" ? bytes() : undefined), parseOfficeDocument)
+  const [slides] = createResource(() => (type() === "presentation" ? bytes() : undefined), parseOfficeSlides)
+  createEffect(() => {
+    if (workbook()) props.onInfo({ rows: workbook()?.reduce((max, sheet) => Math.max(max, sheet.rows.length), 0), columns: 0 })
+    if (slides()) props.onInfo({ rows: slides()?.length })
+  })
+  return (
+    <Switch>
+      <Match when={type() === "spreadsheet"}>
+        <Show
+          when={workbook()}
+          fallback={<OfficeState loading={workbook.loading} error={workbook.error} />}
+        >
+          {(sheets) => (
+            <Show when={sheets().length > 1} fallback={<OfficeTable rows={sheets()[0]!.rows} />}>
+              <Tabs defaultValue={sheets()[0]!.name} variant="line" class="min-h-0 flex-1 flex-col">
+                <Tabs.List><For each={sheets()}>{(sheet) => <Tabs.Trigger value={sheet.name}>{sheet.name}</Tabs.Trigger>}</For></Tabs.List>
+                <For each={sheets()}>{(sheet) => <Tabs.Content value={sheet.name} class="min-h-0 flex-1"><OfficeTable rows={sheet.rows} /></Tabs.Content>}</For>
+              </Tabs>
+            </Show>
+          )}
+        </Show>
+      </Match>
+      <Match when={type() === "document"}>
+        <Show
+          when={document()}
+          fallback={<OfficeState loading={document.loading} error={document.error} />}
+        >
+          {(html) => <div data-slot="artifact-office-document" class="min-h-0 flex-1 overflow-auto px-8 py-6" innerHTML={sanitizeMarkdown(html())} />}
+        </Show>
+      </Match>
+      <Match when={type() === "presentation"}>
+        <Show
+          when={slides()}
+          fallback={<OfficeState loading={slides.loading} error={slides.error} />}
+        >
+          {(items) => <div class="min-h-0 flex-1 overflow-auto p-6"><For each={items()}>{(slide) => <section class="mb-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-5"><h2 class="mb-2 text-15-semibold text-text-strong">Slide {slide.index}{slide.title ? `: ${slide.title}` : ""}</h2><For each={slide.bullets}>{(bullet) => <p class="text-13-regular text-text-base">• {bullet}</p>}</For></section>}</For></div>}
+        </Show>
+      </Match>
+    </Switch>
   )
 }
 
