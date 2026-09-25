@@ -13,10 +13,29 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--v2-background-bg-layer-01);
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--v2-background-bg-layer-01), var(--v2-background-bg-layer-02));
   box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease;
+
+  &:hover {
+    box-shadow: inset 0 0 0 0.5px var(--v2-border-border-strong), 0 8px 24px -18px var(--v2-text-text-base);
+    transform: translateY(-1px);
+  }
+}
+
+[data-slot="assistant-result-icon"] {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  color: var(--v2-blue-600);
+  background: color-mix(in oklch, var(--v2-blue-500) 13%, transparent);
 }
 
 [data-component="assistant-artifacts"] {

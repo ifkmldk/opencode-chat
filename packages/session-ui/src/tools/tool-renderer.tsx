@@ -2150,18 +2150,42 @@ function toolJson(value: string | undefined) {
   }
 }
 
-function ResultCard(props: { title: string; value?: string; href?: string; children?: JSX.Element }) {
+function ResultCard(props: {
+  title: string
+  value?: string
+  href?: string
+  eyebrow?: string
+  meta?: string
+  children?: JSX.Element
+}) {
   return (
-    <div data-component="assistant-result-card">
-      <div class="min-w-0">
-        <div class="truncate text-13-semibold text-text-strong">{props.title}</div>
-        <Show when={props.value}>
-          <div class="mt-1 truncate text-12-regular text-text-weak">{props.value}</div>
-        </Show>
-        {props.children}
+    <div data-component="assistant-result-card" class="group">
+      <div class="flex min-w-0 flex-1 items-start gap-3">
+        <div data-slot="assistant-result-icon" aria-hidden="true">
+          <Icon name={props.href ? "globe" : "sparkles"} size="small" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <Show when={props.eyebrow}>
+            <div class="mb-1 text-10-medium uppercase tracking-[0.12em] text-text-faint">{props.eyebrow}</div>
+          </Show>
+          <div class="truncate text-13-semibold text-text-strong">{props.title}</div>
+          <Show when={props.value}>
+            <div class="mt-1 line-clamp-2 text-12-regular leading-5 text-text-weak">{props.value}</div>
+          </Show>
+          <Show when={props.meta}>
+            <div class="mt-2 text-11-regular text-text-faint">{props.meta}</div>
+          </Show>
+          {props.children}
+        </div>
       </div>
       <Show when={props.href}>
-        <a class="shrink-0 text-12-semibold text-text-strong underline underline-offset-2" href={props.href} target="_blank" rel="noopener noreferrer">
+        <a
+          class="shrink-0 self-center rounded-md px-2 py-1 text-12-semibold text-text-strong opacity-70 transition group-hover:bg-v2-overlay-simple-overlay-hover group-hover:opacity-100 focus-visible:outline-2 focus-visible:outline-v2-border-border-focus"
+          href={props.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${props.title}`}
+        >
           Open
         </a>
       </Show>
@@ -2182,7 +2206,19 @@ function MapsToolOutput(props: ToolProps) {
         <For each={places()}>
           {(place) => {
             const value = place as Record<string, unknown>
-            return <ResultCard title={String(value.name ?? "Place")} value={String(value.address ?? "")} href={typeof value.url === "string" ? value.url : undefined} />
+            return (
+              <ResultCard
+                title={String(value.name ?? "Place")}
+                value={String(value.address ?? "")}
+                href={typeof value.url === "string" ? value.url : undefined}
+                eyebrow="Map result"
+                meta={
+                  typeof value.latitude === "number" && typeof value.longitude === "number"
+                    ? `${value.latitude.toFixed(4)}, ${value.longitude.toFixed(4)}`
+                    : undefined
+                }
+              />
+            )
           }}
         </For>
         <Show when={route()}>
@@ -2205,7 +2241,15 @@ function JobsToolOutput(props: ToolProps) {
         <For each={jobs()}>
           {(job) => {
             const value = job as Record<string, unknown>
-            return <ResultCard title={String(value.title ?? "Job")} value={[value.company, value.location].filter(Boolean).map(String).join(" · ")} href={typeof value.url === "string" ? value.url : undefined} />
+            return (
+              <ResultCard
+                title={String(value.title ?? "Job")}
+                value={[value.company, value.location].filter(Boolean).map(String).join(" · ")}
+                href={typeof value.url === "string" ? value.url : undefined}
+                eyebrow="Opportunity"
+                meta={typeof value.description === "string" ? value.description.slice(0, 180) : undefined}
+              />
+            )
           }}
         </For>
       </div>
@@ -2216,11 +2260,31 @@ function JobsToolOutput(props: ToolProps) {
 function ActionToolOutput(props: ToolProps) {
   const result = createMemo(() => toolJson(props.output)?.action as Record<string, unknown> | undefined)
   const status = createMemo(() => String(result()?.status ?? props.status ?? "pending"))
+  const failed = createMemo(() => status() === "failed" || !!result()?.error)
+  const approved = createMemo(() => ["approved", "running", "completed"].includes(status()))
+  const label = createMemo(() => {
+    if (failed()) return "Action failed"
+    if (status() === "completed") return "Action completed"
+    if (status() === "cancelled" || status() === "rejected") return "Action stopped"
+    if (approved()) return "Action approved"
+    return "Waiting for your approval"
+  })
   return (
-    <BasicTool {...props} icon="shield-check" hasContent trigger={{ title: String(result()?.summary ?? "External action"), subtitle: status() }}>
-      <div class="p-3 text-12-regular text-text-weak">
-        <div>Status: {status()}</div>
-        <Show when={result()?.error}><div class="mt-1 text-text-weak">{String(result()?.error)}</div></Show>
+    <BasicTool {...props} icon={failed() ? "warning" : "shield-check"} hasContent defaultOpen={status() !== "completed"} trigger={{ title: label(), subtitle: String(result()?.summary ?? "External action") }}>
+      <div class="flex flex-col gap-3 p-3">
+        <div class="flex items-center gap-2">
+          <span data-component="action-status-dot" data-status={status()} class="size-2 rounded-full bg-v2-icon-icon-muted" />
+          <span class="text-12-semibold text-text-strong">{label()}</span>
+          <Show when={result()?.id}>
+            <span class="ml-auto text-11-regular text-text-faint">{String(result()?.id)}</span>
+          </Show>
+        </div>
+        <Show when={result()?.error}>
+          <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-12-regular text-text-weak">{String(result()?.error)}</div>
+        </Show>
+        <Show when={!failed() && status() !== "completed"}>
+          <div class="text-12-regular leading-5 text-text-weak">Review the action details before it runs. OpenCode never submits external actions without explicit approval.</div>
+        </Show>
       </div>
     </BasicTool>
   )
