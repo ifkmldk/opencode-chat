@@ -2280,6 +2280,26 @@ function JobsMatchToolOutput(props: ToolProps) {
   )
 }
 
+function ResearchToolOutput(props: ToolProps) {
+  const result = createMemo(() => toolJson(props.output))
+  const candidates = createMemo(() => Array.isArray(result()?.candidates) ? result()!.candidates as Record<string, unknown>[] : [])
+  const rankings = createMemo(() => Array.isArray(result()?.rankings) ? result()!.rankings as Record<string, unknown>[] : [])
+  const providers = createMemo(() => Array.isArray(result()?.providers) ? result()!.providers as Record<string, unknown>[] : [])
+  const shortlist = createMemo(() => Array.isArray(result()?.items) ? result()!.items as Record<string, unknown>[] : [])
+  const title = () => candidates().length || rankings().length ? "Research result" : shortlist().length ? "Research shortlist" : "Research status"
+  return (
+    <BasicTool {...props} icon="sparkles" hasContent defaultOpen trigger={{ title: title(), subtitle: candidates().length ? `${candidates().length} candidates` : rankings().length ? `${rankings().length} ranked` : shortlist().length ? `${shortlist().length} shortlisted` : "No results" }}>
+      <div class="flex flex-col gap-2 p-3">
+        <For each={providers()}>{(provider) => <div class="flex items-center justify-between rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-11-regular text-text-weak"><span>{String(provider.provider ?? "provider")}</span><span class={provider.status === "configured" ? "text-v2-state-fg-success" : "text-text-faint"}>{String(provider.status ?? "unknown")}</span></div>}</For>
+        <For each={candidates()}>{(candidate) => <ResultCard title={String(candidate.title ?? "Candidate")} value={String(candidate.summary ?? "")} href={typeof candidate.url === "string" ? candidate.url : undefined} eyebrow={`${String(candidate.category ?? "research")} option`} meta={[candidate.provider ? String(candidate.provider) : undefined, candidate.price !== undefined ? `${candidate.price}${candidate.currency ? ` ${candidate.currency}` : ""}` : undefined, candidate.rating !== undefined ? `${candidate.rating} rating` : undefined, candidate.location ? String(candidate.location) : undefined].filter(Boolean).join(" · ")} />}</For>
+        <For each={rankings()}>{(ranking) => <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-3"><div class="flex items-center justify-between gap-2"><span class="text-12-semibold text-text-strong">{String(ranking.id ?? "Candidate")}</span><span class="text-12-semibold tabular-nums text-text-strong">{Math.round(Number(ranking.score ?? 0))}%</span></div><div class="mt-1 text-11-regular text-text-weak">{String(ranking.confidence ?? "confidence unavailable")}</div><div class="mt-2 flex flex-wrap gap-1"><For each={Array.isArray(ranking.reasons) ? ranking.reasons as string[] : []}>{(reason) => <span class="rounded-full bg-v2-overlay-simple-overlay-hover px-2 py-0.5 text-10-regular text-text-weak">{reason}</span>}</For></div></div>}</For>
+        <For each={shortlist()}>{(candidate) => <ResultCard title={String(candidate.title ?? "Shortlisted option")} value={String(candidate.summary ?? "")} href={typeof candidate.url === "string" ? candidate.url : undefined} eyebrow="Shortlisted" />}</For>
+        <Show when={!candidates().length && !rankings().length && !shortlist().length}><div class="text-12-regular text-text-weak">No research results yet. Configure a provider or ask Chat to use available web research.</div></Show>
+      </div>
+    </BasicTool>
+  )
+}
+
 function ActionToolOutput(props: ToolProps) {
   const result = createMemo(() => toolJson(props.output)?.action as Record<string, unknown> | undefined)
   const status = createMemo(() => String(result()?.status ?? props.status ?? "pending"))
@@ -2317,6 +2337,9 @@ ToolRegistry.register({ name: "maps_search", render: MapsToolOutput })
 ToolRegistry.register({ name: "maps_route", render: MapsToolOutput })
 ToolRegistry.register({ name: "jobs_search", render: JobsToolOutput })
 ToolRegistry.register({ name: "jobs_match", render: JobsMatchToolOutput })
+ToolRegistry.register({ name: "research_search", render: ResearchToolOutput })
+ToolRegistry.register({ name: "research_classify", render: ResearchToolOutput })
+ToolRegistry.register({ name: "research_shortlist", render: ResearchToolOutput })
 ToolRegistry.register({ name: "action", render: ActionToolOutput })
 
 ToolRegistry.register({
