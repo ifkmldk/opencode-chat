@@ -51,6 +51,7 @@ export function mountBrowserPane() {
     )
     const browser: ReturnType<typeof createSessionBrowser> = {
       onSelection: () => () => undefined,
+      onRegion: () => () => undefined,
       available: () => true,
       attached: () => !!registrations.get(store.session),
       opened: () => !!registrations.get(store.session),
@@ -71,6 +72,7 @@ export function mountBrowserPane() {
       suspended: () => false,
       close: () => undefined,
       open: () => undefined,
+      region: () => Promise.resolve(),
       command: (command) => {
         setStore("error", undefined)
         if (command.type === "navigate" || command.type === "reload") setStore("loadErrors", store.session, undefined)

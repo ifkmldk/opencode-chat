@@ -1,6 +1,7 @@
 import type {
   BrowserPanePlatform,
   BrowserPaneRegistration,
+  BrowserPaneRegion,
   BrowserPaneRegionRequest,
   BrowserPaneState,
   BrowserPaneTarget,
@@ -22,7 +23,7 @@ export function createBrowserConnection(input: {
   focus: (tabID: Browser.TabID) => void
   preview: (path: string) => void
   selection: (value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void
-  region: (value: { requestID: string; tabID: Browser.TabID; data: string; mime: "image/png" | "image/jpeg" | "image/webp"; width: number; height: number; sourceURL: string }) => void
+  region: (value: BrowserPaneRegion) => void
 }) {
   const state: BrowserConnectionState = { browser: null, suspended: false }
   let disposed = false

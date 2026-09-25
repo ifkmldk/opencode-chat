@@ -49,6 +49,7 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
       string,
       Set<(value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void>
     >()
+    const regions = new Map<string, Set<(value: import("@/runtime/platform/browser-pane").BrowserPaneRegion) => void>>()
     const key = (server: Server, sessionID: string) => `${server.key}\n${sessionID}`
     const enabled = createMemo(
       () => !!platform.browserPane && settings.ready() && settings.general.experimentalBrowser(),
@@ -120,7 +121,7 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
           },
           preview: (path) => preview.get(id)?.forEach((listener) => listener(path)),
           selection: (value) => selections.get(id)?.forEach((listener) => listener(value)),
-          region: () => undefined,
+          region: (value) => regions.get(id)?.forEach((listener) => listener(value)),
           change: (state) => {
             if (state.error === "browser.pane.unsupported") {
               setUnsupported(server.key, true)
@@ -185,6 +186,25 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
           listeners.delete(listener)
           if (!listeners.size) selections.delete(id)
         }
+      },
+      onRegion(
+        server: Server,
+        sessionID: string,
+        listener: (value: import("@/runtime/platform/browser-pane").BrowserPaneRegion) => void,
+      ) {
+        const id = key(server, sessionID)
+        const listeners = regions.get(id) ?? new Set()
+        listeners.add(listener)
+        regions.set(id, listeners)
+        return () => {
+          listeners.delete(listener)
+          if (!listeners.size) regions.delete(id)
+        }
+      },
+      region(server: Server, sessionID: string, input: import("@/runtime/platform/browser-pane").BrowserPaneRegionRequest) {
+        const connection = live.get(key(server, sessionID))?.connection
+        if (!connection) return Promise.reject(new Error("browser.pane.unavailable"))
+        return connection.region(input)
       },
       command(server: Server, sessionID: string, command: BrowserPaneCommand) {
         const connection = live.get(key(server, sessionID))?.connection

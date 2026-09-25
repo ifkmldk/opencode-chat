@@ -2,7 +2,7 @@ import { batch, createEffect, createMemo, on } from "solid-js"
 import type { Browser } from "@opencode/plugin-browser/rpc"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
-import type { BrowserPaneCommand } from "@/runtime/platform/browser-pane"
+import type { BrowserPaneCommand, BrowserPaneRegionRequest } from "@/runtime/platform/browser-pane"
 import { useServer } from "@/runtime/server/current"
 import { useCommand } from "@/shell/commands/command"
 import type { SessionModel } from "../model"
@@ -45,6 +45,11 @@ export function createSessionBrowser(session: SessionModel) {
   const open = () => {
     if (!available()) return
     command({ type: "tabs.open" })
+  }
+  const region = (input: BrowserPaneRegionRequest) => {
+    const sessionID = session.identity.sessionID()
+    if (!sessionID) return Promise.reject(new Error("browser.pane.unavailable"))
+    return attachments.region(server, sessionID, input)
   }
   commands.register("session.browser", () => [
     {
@@ -105,6 +110,11 @@ export function createSessionBrowser(session: SessionModel) {
     ),
   )
   return {
+    onRegion(listener: (value: import("@/runtime/platform/browser-pane").BrowserPaneRegion) => void) {
+      const sessionID = session.identity.sessionID()
+      if (!sessionID) return () => undefined
+      return attachments.onRegion(server, sessionID, listener)
+    },
     onSelection(listener: (value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void) {
       const sessionID = session.identity.sessionID()
       if (!sessionID) return () => undefined
@@ -124,6 +134,7 @@ export function createSessionBrowser(session: SessionModel) {
     registration: () => attachment()?.registration,
     close: (tabID: Browser.TabID) => session.layout.tabs().close(sessionBrowserTab(tabID)),
     open,
+    region,
     command,
   }
 }
