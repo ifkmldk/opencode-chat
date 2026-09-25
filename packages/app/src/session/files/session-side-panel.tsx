@@ -498,50 +498,22 @@ export function SessionSidePanel(props: {
                             )}
                           </For>
                           <div class="h-full shrink-0 sticky end-0 z-10 flex items-center justify-center bg-v2-background-bg-base">
-                            {/* With only files to add, the plus stays a one-click "Open file" button. */}
-                            <Show
-                              when={props.browser.available()}
-                              fallback={
-                                <Tooltip
-                                  value={
-                                    <>
-                                      {language.t("command.file.open")}
-                                      <Show when={openFileKeybind().length > 0}>
-                                        <Keybind keys={openFileKeybind()} variant="neutral" />
-                                      </Show>
-                                    </>
-                                  }
-                                  placement="bottom"
-                                  class="flex items-center"
-                                >
-                                  <IconButton
-                                    icon={<Icon name="plus" />}
-                                    variant="ghost-muted"
-                                    size="large"
-                                    onClick={() => openFileBrowser()}
-                                    aria-label={language.t("command.file.open")}
-                                  />
-                                </Tooltip>
-                              }
+                            <Tooltip
+                              value={language.t("session.tab.add")}
+                              placement="bottom"
+                              class="flex items-center"
                             >
-                              <Tooltip
-                                value={language.t("session.tab.add")}
-                                placement="bottom"
-                                class="flex items-center"
-                              >
-                                <Menu appearance="standard" modal={false} placement="bottom-start" gutter={4}>
-                                  <Menu.Trigger
-                                    as={IconButton}
-                                    icon={<Icon name="plus" />}
-                                    variant="ghost-muted"
-                                    size="large"
-                                    aria-label={language.t("session.tab.add")}
-                                    // The tablist redirects focus entering it to the selected
-                                    // tab, which counts as focus-outside and closes the menu.
-                                    onPointerDown={(event: PointerEvent) => event.preventDefault()}
-                                  />
-                                  <Menu.Portal>
-                                    <Menu.Content>
+                              <Menu appearance="standard" modal={false} placement="bottom-start" gutter={4}>
+                                <Menu.Trigger
+                                  as={IconButton}
+                                  icon={<Icon name="plus" />}
+                                  variant="ghost-muted"
+                                  size="large"
+                                  aria-label={language.t("session.tab.add")}
+                                  onPointerDown={(event: PointerEvent) => event.preventDefault()}
+                                />
+                                <Menu.Portal>
+                                  <Menu.Content>
                                        <Menu.Item
                                          class="!gap-6"
                                          onSelect={() => activateTab("research")}
@@ -590,9 +562,8 @@ export function SessionSidePanel(props: {
                                       </Menu.Item>
                                     </Menu.Content>
                                   </Menu.Portal>
-                                </Menu>
-                              </Tooltip>
-                            </Show>
+                              </Menu>
+                            </Tooltip>
                           </div>
                         </Tabs.List>
                         <div
