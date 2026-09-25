@@ -39,6 +39,20 @@ const load = (kv: KV.Interface, id: string) => Effect.gen(function* () {
   return Option.isNone(decoded) ? undefined : decoded.value
 })
 const text = (value: unknown) => JSON.stringify(value).slice(0, 4000)
+const actionWebhook = () => {
+  const value = process.env.OPENCODE_ACTION_WEBHOOK
+  if (!value) return
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error("OPENCODE_ACTION_WEBHOOK must be a valid URL")
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("OPENCODE_ACTION_WEBHOOK must use http or https")
+  if (url.username || url.password) throw new Error("OPENCODE_ACTION_WEBHOOK must not contain credentials")
+  return url
+}
+export const __test = { actionWebhook }
 
 export const Plugin = {
   id: "opencode.tool.action",
@@ -81,7 +95,7 @@ export const Plugin = {
             const response = yield* forms.ask({ sessionID: context.sessionID, title: "Approve external action", metadata: { kind: "action.approval", actionID: action.id, actionKind: input.kind }, fields: [{ key: "decision", title: "Review action", description: `${action.summary}\n\nThis action will not execute until approved.`, type: "string", options: [{ value: "approve", label: "Approve" }, { value: "reject", label: "Reject" }], custom: true }] }).pipe(Effect.orDie)
             if (response.status === "cancelled" || response.answer.decision === "reject") return { output: { action: yield* finish(action, "rejected") }, content: "The user rejected the action." }
             const approved = yield* finish(action, "approved")
-            const webhook = process.env.OPENCODE_ACTION_WEBHOOK
+            const webhook = yield* Effect.try({ try: actionWebhook, catch: (error) => new ToolFailure({ message: error instanceof Error ? error.message : String(error) }) })
             if (!webhook) return { output: { action: approved }, content: "Action approved, but no executor is configured. Set OPENCODE_ACTION_WEBHOOK to enable execution." }
             const result = yield* Effect.tryPromise({ try: () => fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(approved), signal: AbortSignal.timeout(30_000) }).then(async (response) => { const body = await response.text(); if (!response.ok) throw new Error(`executor returned HTTP ${response.status}`); return body }), catch: (error) => error }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Action executor failed: ${error instanceof Error ? error.message : String(error)}`, error })))
             const completed = yield* finish(approved, "completed", result)
