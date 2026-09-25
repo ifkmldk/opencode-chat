@@ -7,6 +7,18 @@
   gap: 12px;
 }
 
+[data-component="assistant-result-card"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+}
+
 [data-component="assistant-artifacts"] {
   display: flex;
   flex-wrap: wrap;

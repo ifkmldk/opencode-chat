@@ -2140,6 +2140,97 @@ ToolRegistry.register({
   },
 })
 
+function toolJson(value: string | undefined) {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function ResultCard(props: { title: string; value?: string; href?: string; children?: JSX.Element }) {
+  return (
+    <div data-component="assistant-result-card">
+      <div class="min-w-0">
+        <div class="truncate text-13-semibold text-text-strong">{props.title}</div>
+        <Show when={props.value}>
+          <div class="mt-1 truncate text-12-regular text-text-weak">{props.value}</div>
+        </Show>
+        {props.children}
+      </div>
+      <Show when={props.href}>
+        <a class="shrink-0 text-12-semibold text-text-strong underline underline-offset-2" href={props.href} target="_blank" rel="noopener noreferrer">
+          Open
+        </a>
+      </Show>
+    </div>
+  )
+}
+
+function MapsToolOutput(props: ToolProps) {
+  const result = createMemo(() => toolJson(props.output))
+  const places = createMemo(() => {
+    const value = result()?.places
+    return Array.isArray(value) ? value : []
+  })
+  const route = createMemo(() => result()?.provider === "osrm" ? result() : undefined)
+  return (
+    <BasicTool {...props} icon="globe" hasContent={places().length > 0 || !!route()} trigger={{ title: route() ? "Route" : `Search places${props.input.query ? `: ${String(props.input.query)}` : ""}`, subtitle: route() ? `${Math.round(Number(route()?.distanceMeters ?? 0) / 100) / 10} km` : `${places().length} places` }}>
+      <div class="flex flex-col gap-2 p-3">
+        <For each={places()}>
+          {(place) => {
+            const value = place as Record<string, unknown>
+            return <ResultCard title={String(value.name ?? "Place")} value={String(value.address ?? "")} href={typeof value.url === "string" ? value.url : undefined} />
+          }}
+        </For>
+        <Show when={route()}>
+          {(value) => <ResultCard title={`${value().mode} route`} value={`${String(value().origin && typeof value().origin === "object" ? (value().origin as Record<string, unknown>).name : "")} → ${String(value().destination && typeof value().destination === "object" ? (value().destination as Record<string, unknown>).name : "")}`} />}
+        </Show>
+      </div>
+    </BasicTool>
+  )
+}
+
+function JobsToolOutput(props: ToolProps) {
+  const result = createMemo(() => toolJson(props.output))
+  const jobs = createMemo(() => {
+    const value = result()?.jobs
+    return Array.isArray(value) ? value : []
+  })
+  return (
+    <BasicTool {...props} icon="bullet-list" hasContent={jobs().length > 0} trigger={{ title: "Job search", subtitle: `${jobs().length} results` }}>
+      <div class="flex flex-col gap-2 p-3">
+        <For each={jobs()}>
+          {(job) => {
+            const value = job as Record<string, unknown>
+            return <ResultCard title={String(value.title ?? "Job")} value={[value.company, value.location].filter(Boolean).map(String).join(" · ")} href={typeof value.url === "string" ? value.url : undefined} />
+          }}
+        </For>
+      </div>
+    </BasicTool>
+  )
+}
+
+function ActionToolOutput(props: ToolProps) {
+  const result = createMemo(() => toolJson(props.output)?.action as Record<string, unknown> | undefined)
+  const status = createMemo(() => String(result()?.status ?? props.status ?? "pending"))
+  return (
+    <BasicTool {...props} icon="shield-check" hasContent trigger={{ title: String(result()?.summary ?? "External action"), subtitle: status() }}>
+      <div class="p-3 text-12-regular text-text-weak">
+        <div>Status: {status()}</div>
+        <Show when={result()?.error}><div class="mt-1 text-text-weak">{String(result()?.error)}</div></Show>
+      </div>
+    </BasicTool>
+  )
+}
+
+ToolRegistry.register({ name: "maps_search", render: MapsToolOutput })
+ToolRegistry.register({ name: "maps_route", render: MapsToolOutput })
+ToolRegistry.register({ name: "jobs_search", render: JobsToolOutput })
+ToolRegistry.register({ name: "action", render: ActionToolOutput })
+
 ToolRegistry.register({
   name: "question",
   render(props) {
