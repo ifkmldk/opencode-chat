@@ -84,6 +84,7 @@ export const Plugin = {
               const action = decoded
               if (input.operation === "status") return { output: { action }, content: text(action) }
               if (action.status === "completed") return yield* new ToolFailure({ message: "Completed actions cannot be cancelled" })
+              yield* permission.assert({ action: `action.${action.kind}`, resources: [action.id], sessionID: context.sessionID, agent: context.agent, source: { type: "tool", messageID: context.messageID, id: context.id }, metadata: { actionID: action.id, operation: "cancel" } }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Action permission denied: ${error.message}`, error })))
               const cancelled = yield* finish(action, "cancelled")
               return { output: { action: cancelled }, content: "Action cancelled." }
             }
