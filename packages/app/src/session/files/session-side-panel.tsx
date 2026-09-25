@@ -49,6 +49,7 @@ import { setSessionHandoff } from "@/session/handoff"
 import { useSessionLayout } from "@/session/session-layout"
 import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/session/files/session-file-browser-tab"
 import { SessionBrowserPane } from "@/session/browser/pane"
+import { SessionResearchPanel } from "@/session/files/session-research-panel"
 import type { createSessionBrowser } from "@/session/browser/model"
 
 type ReviewDiff = FileDiffInfo
@@ -179,6 +180,7 @@ export function SessionSidePanel(props: {
     browser: props.browser.attached,
   })
   const contextOpen = tabState.contextOpen
+  const researchOpen = tabState.researchOpen
   const openFileOpen = tabState.openFileOpen
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
@@ -210,6 +212,11 @@ export function SessionSidePanel(props: {
   }
   const activateTab = (value: string) => {
     const next = normalizeTab(value)
+    if (next === "research") {
+      tabs().open("research")
+      openReviewPanel()
+      return
+    }
     const path = file.pathFromTab(next)
     if (path) void file.load(path)
     openReviewPanel()
@@ -341,6 +348,14 @@ export function SessionSidePanel(props: {
                               {props.hasReview
                                 ? language.t("session.review.filesChanged", { count: props.reviewCount })
                                 : language.t("session.tab.review")}
+                            </Tabs.Trigger>
+                          </Show>
+                          <Show when={researchOpen()}>
+                            <Tabs.Trigger value="research">
+                              <div class="flex items-center gap-2">
+                                <Icon name="sparkles" size="small" />
+                                <div>Research</div>
+                              </div>
                             </Tabs.Trigger>
                           </Show>
                           <Show when={contextOpen()}>
@@ -510,6 +525,15 @@ export function SessionSidePanel(props: {
                                   />
                                   <Menu.Portal>
                                     <Menu.Content>
+                                       <Menu.Item
+                                         class="!gap-6"
+                                         onSelect={() => activateTab("research")}
+                                       >
+                                         <div class="flex items-center gap-2">
+                                           <Icon name="sparkles" size="small" />
+                                           <span>Research workspace</span>
+                                         </div>
+                                       </Menu.Item>
                                       <Menu.Item
                                         class="!gap-6"
                                         onSelect={openFileBrowser}
@@ -582,6 +606,12 @@ export function SessionSidePanel(props: {
                               </div>
                             </div>
                           </div>
+                        </Tabs.Content>
+                      </Show>
+
+                      <Show when={activeTab() === "research"}>
+                        <Tabs.Content value="research" class="flex flex-col h-full overflow-hidden contain-strict">
+                          <SessionResearchPanel />
                         </Tabs.Content>
                       </Show>
 
