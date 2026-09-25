@@ -75,18 +75,56 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     })
     onCleanup(dispose)
   })
+  const [regionCapture, setRegionCapture] = createSignal(false)
   const [region, setRegion] = createSignal<{
     requestID: string
     tabID: Browser.TabID
     region: { x: number; y: number; width: number; height: number }
   }>()
-  const regionCapture = () => {
+  const beginRegion = () => {
     const tab = state()
+    if (!tab || !surface) return
+    setRegionCapture(true)
+    setRegion(undefined)
+  }
+  const cancelRegion = () => {
+    setRegionCapture(false)
+    setRegion(undefined)
+  }
+  const regionPoint = (event: PointerEvent) => {
+    const rect = surface!.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+      y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+    }
+  }
+  const beginRegionPointer = (event: PointerEvent) => {
+    if (!regionCapture() || !surface) return
+    surface.setPointerCapture(event.pointerId)
+    const start = regionPoint(event)
+    setRegion({ requestID: crypto.randomUUID(), tabID: state()!.id, region: { ...start, width: 0, height: 0 } })
+  }
+  const moveRegionPointer = (event: PointerEvent) => {
     const current = region()
-    if (!tab || !current || current.tabID !== tab.id) return
-    void props.browser
-      .region({ ...current, requestID: current.requestID, format: "png" })
-      .catch(() => undefined)
+    if (!current || !surface) return
+    const start = { x: current.region.x, y: current.region.y }
+    const point = regionPoint(event)
+    setRegion({
+      ...current,
+      region: {
+        x: Math.min(start.x, point.x),
+        y: Math.min(start.y, point.y),
+        width: Math.abs(point.x - start.x),
+        height: Math.abs(point.y - start.y),
+      },
+    })
+  }
+  const finishRegionPointer = (event: PointerEvent) => {
+    const current = region()
+    if (!current || current.region.width < 8 || current.region.height < 8) return cancelRegion()
+    surface?.releasePointerCapture(event.pointerId)
+    setRegionCapture(false)
+    void props.browser.region({ ...current, format: "png" }).catch(cancelRegion)
   }
   const onRegion = (value: import("@/runtime/platform/browser-pane").BrowserPaneRegion) => {
     if (value.tabID !== state()?.id) return
@@ -146,7 +184,8 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     const bottom = Math.round(rect.bottom * zoom)
     // The desktop page hides blank and loading documents itself; only hide here
     // while the pane shows its own empty or failed state over the surface.
-    const visible = props.visible && store.visible && !empty() && !failed() && !dialog.active && !store.selection && !covered(rect)
+    const visible =
+      props.visible && store.visible && !empty() && !failed() && !dialog.active && !store.selection && !regionCapture() && !covered(rect)
     // The cutout exposes the app backdrop outside the rounded Review card,
     // not the browser surface inside it.
     const color = getComputedStyle(
@@ -354,7 +393,38 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
           {props.browser.error()}
         </div>
       </Show>
-      <div ref={surface} class="min-h-0 flex-1 bg-v2-background-bg-base flex items-center justify-center">
+      <Show when={regionCapture()}>
+        <div class="absolute inset-x-0 bottom-3 z-30 flex justify-center">
+          <div class="flex items-center gap-2 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-1 shadow-lg">
+            <span class="px-2 text-12-regular text-v2-text-text-weak">Drag to select a region</span>
+            <IconButton icon={<Icon name="outline-xmark" size="small" />} size="small" variant="ghost" aria-label="Cancel region selection" onClick={cancelRegion} />
+          </div>
+        </div>
+      </Show>
+      <div
+        ref={surface}
+        class="relative min-h-0 flex-1 bg-v2-background-bg-base flex items-center justify-center"
+        onPointerDown={beginRegionPointer}
+        onPointerMove={moveRegionPointer}
+        onPointerUp={finishRegionPointer}
+      >
+        <Show when={regionCapture()}>
+          <div class="pointer-events-none absolute inset-0 z-10 cursor-crosshair">
+            <Show when={region()}>
+              {(value) => (
+                <div
+                  class="absolute rounded border-2 border-v2-blue-400 bg-v2-blue-400/15"
+                  style={{
+                    left: `${value().region.x}px`,
+                    top: `${value().region.y}px`,
+                    width: `${value().region.width}px`,
+                    height: `${value().region.height}px`,
+                  }}
+                />
+              )}
+            </Show>
+          </div>
+        </Show>
         <Show when={store.selection}>
           {(selection) => (
             <div
