@@ -19,6 +19,8 @@ import { MessageTimeline } from "@/session/timeline/message-timeline"
 import { useServer } from "@/runtime/server/current"
 import { projectForSession } from "@/shell/layout/helpers"
 import { ComposerDropzone } from "@/composer/dropzone"
+import { useComposerState } from "@/composer/persistence"
+import { ChatSelectionAnnotator } from "@/session/chat-selection"
 import type { SessionModel } from "@/session/model"
 import { SESSION_PANEL_WIDTH_MIN } from "@/session/session-panel-width"
 import { SessionPanelFrame } from "@/session/session-frame"
@@ -197,6 +199,7 @@ function SessionScreenContent(props: { session: SessionModel; browser: ReturnTyp
     visible: conversationVisible,
   })
   useUsageExceededDialogs()
+  const composerPrompt = useComposerState()
 
   const sessionErrorFallback = (error: unknown, reset: () => void) => {
     createEffect(on(session.identity.sessionKey, reset, { defer: true }))
@@ -302,6 +305,19 @@ function SessionScreenContent(props: { session: SessionModel; browser: ReturnTyp
         active={composer.drop.active()}
         input={composer.drop.input()}
         identity={session.layout.tabKey}
+      />
+      {/* Selecting chat text stages a message-quote context item through the shared action bar. */}
+      <ChatSelectionAnnotator
+        onQuote={(item) =>
+          composerPrompt.context.add({
+            type: "message-quote",
+            messageID: item.messageID,
+            partID: item.partID,
+            quotedText: item.quotedText,
+            role: item.role,
+            ...(item.comment ? { comment: item.comment } : {}),
+          })
+        }
       />
       <Show when={!isDesktop() && !!session.identity.params.id}>{mobileTabs()}</Show>
       {/* Surface query errors without suspending session metadata while messages load. */}
