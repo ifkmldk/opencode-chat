@@ -340,6 +340,14 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
             }
           />
         </Tooltip>
+        <button
+          type="button"
+          class="rounded px-2 py-1 text-12-regular text-v2-text-text-weak hover:bg-v2-overlay-simple-overlay-hover disabled:opacity-50"
+          disabled={!state() || !!regionCapture()}
+          onClick={beginRegion}
+        >
+          Capture region
+        </button>
         <form
           dir="ltr"
           class="relative min-w-0 flex-1 h-7 rounded-md hover:bg-v2-overlay-simple-overlay-hover focus-within:bg-v2-overlay-simple-overlay-hover text-12-regular"
