@@ -11,7 +11,7 @@ export type { ConversationViewMode }
 
 const StateSchema = Persistence.struct({
   session: Persistence.record(
-    Schema.mutableKey(Persistence.fallback(Schema.UndefinedOr(Schema.Literals(["chat", "code"])), () => undefined)),
+    Schema.mutableKey(Persistence.fallback(Schema.UndefinedOr(Schema.Literals(["chat", "code", "laya"])), () => undefined)),
   ),
 })
 

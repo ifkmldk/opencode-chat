@@ -78,7 +78,7 @@ type MessageTimelineProps = {
   hideHeader?: boolean
   active?: boolean
   session: TimelineSessionSource
-  viewMode: { current: () => "chat" | "code" }
+  viewMode: { current: () => "chat" | "code" | "laya" }
   background: SessionBackground
   actions?: SessionUserActions
   scroll: { overflow: boolean; jump: boolean }

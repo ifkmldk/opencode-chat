@@ -189,6 +189,7 @@ const DefaultViewModeSetting: Component = () => {
   const options = [
     { value: "chat" as const, label: language.t("settings.general.row.defaultViewMode.chat") },
     { value: "code" as const, label: language.t("settings.general.row.defaultViewMode.code") },
+    { value: "laya" as const, label: language.t("settings.general.row.defaultViewMode.laya") },
   ]
   return (
     <SettingsRow

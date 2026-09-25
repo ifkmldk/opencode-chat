@@ -20,6 +20,15 @@ export function Composer(props: { class?: string; model: ComposerModel; borderUn
 
   return (
     <div class="flex flex-col gap-3">
+        <Show when={props.model.viewMode?.current() === "laya"}>
+          <div
+            data-action="composer-laya-guide"
+            class="flex items-center gap-2 rounded-lg border border-border/60 bg-surface-raised/60 px-3 py-2 text-11-regular text-muted-foreground"
+          >
+            <Icon name="sparkles" class="size-3.5 shrink-0 text-accent" />
+            <span>Laya mode researches options, compares candidates, and explains a decision. Chat can turn a shortlisted option into a draft action.</span>
+          </div>
+        </Show>
       <ComposerEditor
         controller={props.model}
         borderUnderlay={props.borderUnderlay}

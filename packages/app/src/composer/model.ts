@@ -29,8 +29,8 @@ import { parseClientSlashCommand } from "./client-slash-command"
 export type ComposerModel = ComposerEditorModel & {
   readonly model: ComposerControls["model"]
   readonly viewMode?: {
-    current: () => "chat" | "code"
-    set: (value: "chat" | "code") => void
+    current: () => "chat" | "code" | "laya"
+    set: (value: "chat" | "code" | "laya") => void
   }
 }
 

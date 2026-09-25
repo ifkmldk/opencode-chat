@@ -7,7 +7,8 @@ export function ComposerViewModeControl(props: {
   viewMode: { current: () => ConversationViewMode; set: (value: ConversationViewMode) => void }
 }) {
   const language = useLanguage()
-  const next = () => (props.viewMode.current() === "chat" ? "code" : "chat")
+  const next = () => (props.viewMode.current() === "chat" ? "code" : props.viewMode.current() === "code" ? "laya" : "chat")
+  const icon = () => (props.viewMode.current() === "chat" ? "comment" : props.viewMode.current() === "code" ? "code" : "sparkles")
   return (
     <Button
       data-action="composer-view-mode"
@@ -19,11 +20,13 @@ export function ComposerViewModeControl(props: {
       title={language.t("session.viewMode.choose")}
       onClick={() => props.viewMode.set(next())}
     >
-      <Icon name={props.viewMode.current() === "chat" ? "comment" : "code"} class="size-4" />
+      <Icon name={icon()} class="size-4" />
       <span class="text-12-regular">
         {props.viewMode.current() === "chat"
           ? language.t("session.viewMode.chat")
-          : language.t("session.viewMode.code")}
+          : props.viewMode.current() === "code"
+            ? language.t("session.viewMode.code")
+            : language.t("session.viewMode.laya")}
       </span>
     </Button>
   )

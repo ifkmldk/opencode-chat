@@ -10,7 +10,7 @@ import { createSessionComposerRegionController } from "./session-composer-region
 export function createSessionComposerController(input: {
   sessionID: string
   controls: Accessor<ComposerControls>
-  viewMode: { current: () => "chat" | "code"; set: (value: "chat" | "code") => void }
+  viewMode: { current: () => "chat" | "code" | "laya"; set: (value: "chat" | "code" | "laya") => void }
   dock: Parameters<typeof createSessionComposerRegionController>[0]
 }) {
   const settings = useSettings()

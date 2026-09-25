@@ -83,6 +83,8 @@ import { ToolOutput } from "../tool-output.js"
 import { ActionTool } from "../tool/plugin/action.js"
 import { JobsTool } from "../tool/plugin/jobs.js"
 import { MapsTool } from "../tool/plugin/maps.js"
+import { ResearchTool } from "../tool/plugin/research.js"
+import { LayaTool } from "../tool/plugin/laya.js"
 import { WebFetchTool } from "../tool/plugin/webfetch.js"
 import { WebSearchTool } from "../tool/plugin/websearch.js"
 import { WellKnown } from "../wellknown.js"
@@ -245,6 +247,8 @@ const pre = [
   ActionTool.Plugin,
   JobsTool.Plugin,
   MapsTool.Plugin,
+  ResearchTool.Plugin,
+  LayaTool.Plugin,
   WebFetchTool.Plugin,
   WebSearchTool.Plugin,
   WriteTool.Plugin,

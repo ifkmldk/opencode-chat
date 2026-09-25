@@ -7,7 +7,7 @@ import { persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
 
-export type ConversationViewMode = "chat" | "code"
+export type ConversationViewMode = "chat" | "code" | "laya"
 export type Settings = typeof settingsSchema.Type
 export type WorkspaceDefaultDestination = Settings["workspaces"]["defaultDestination"]
 export type WorkspaceLastUsed = Settings["workspaces"]["lastUsed"][string]
@@ -82,7 +82,7 @@ const generalSchema = Persistence.struct({
   showSearch: Schema.Boolean,
   showProjectIcon: Schema.Boolean,
   showTerminal: Schema.Boolean,
-  defaultViewMode: Schema.Literals(["chat", "code"]),
+  defaultViewMode: Schema.Literals(["chat", "code", "laya"]),
   timelineDetail: Persistence.struct({
     shell: activitySchema,
     edit: activitySchema,
