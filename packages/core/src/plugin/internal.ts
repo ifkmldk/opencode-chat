@@ -81,6 +81,7 @@ import { SubagentTool } from "../tool/plugin/subagent.js"
 import { Tool } from "../tool.js"
 import { ToolOutput } from "../tool-output.js"
 import { ActionTool } from "../tool/plugin/action.js"
+import { MapsTool } from "../tool/plugin/maps.js"
 import { WebFetchTool } from "../tool/plugin/webfetch.js"
 import { WebSearchTool } from "../tool/plugin/websearch.js"
 import { WellKnown } from "../wellknown.js"
@@ -241,6 +242,7 @@ const pre = [
   SkillTool.Plugin,
   SubagentTool.Plugin,
   ActionTool.Plugin,
+  MapsTool.Plugin,
   WebFetchTool.Plugin,
   WebSearchTool.Plugin,
   WriteTool.Plugin,
