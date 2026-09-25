@@ -19,4 +19,13 @@ describe("research classifier", () => {
   test("requires candidate input", () => {
     expect(Array.isArray([])).toBe(true)
   })
+
+  test("reports fallback status and web candidates honestly", () => {
+    const status = __test.status()
+    expect(["laya-mlx", "deterministic-fallback"]).toContain(status.laya.engine)
+    expect(status.providers.some((provider) => provider.provider === "hotel")).toBe(true)
+    const candidate = __test.webResult({ url: "https://example.test/hotel", title: "Example Hotel", content: "A source", time: {} }, "hotel")
+    expect(candidate.provider).toBe("web-search")
+    expect(candidate.url).toBe("https://example.test/hotel")
+  })
 })
