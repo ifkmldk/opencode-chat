@@ -1,4 +1,5 @@
 import { getFilename } from "@opencode/util/path"
+import { artifactMime } from "@/workspaces/files/artifact"
 import type { FileSelection } from "@/workspaces/files/model"
 import { encodeFilePath } from "@/workspaces/files/path"
 import type { ContextItem, AgentPart, FileAttachmentPart, ImageAttachmentPart, PathAttachmentPart, Prompt, SkillPart } from "@/composer/state"
@@ -65,7 +66,7 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
     const path = absolute(input.sessionDirectory, attachment.path)
     return {
       uri: attachment.url ?? `file://${encodeFilePath(path)}${fileQuery(attachment.selection)}`,
-      mime: attachment.mime ?? "text/plain",
+      mime: attachment.mime ?? artifactMime(attachment.path) ?? "text/plain",
       name: attachment.filename ?? getFilename(attachment.path),
       mention: { start: attachment.start, end: attachment.end, text: attachment.content },
     }
@@ -105,14 +106,14 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
     const comment = item.comment?.trim()
     if (!comment && used.has(uri)) return []
     used.add(uri)
-    const file = { uri, mime: "text/plain", name: getFilename(item.path) }
+    const file = { uri, mime: artifactMime(item.path) ?? "text/plain", name: getFilename(item.path) }
     if (!comment) return [file]
     comments.push({ path: item.path, selection: item.selection, comment, preview: item.preview, origin: item.commentOrigin })
     const mentions = parseCommentMentions(comment).flatMap((path) => {
       const uri = `file://${encodeFilePath(absolute(input.sessionDirectory, path))}`
       if (used.has(uri)) return []
       used.add(uri)
-      return [{ uri, mime: "text/plain", name: getFilename(path) }]
+      return [{ uri, mime: artifactMime(path) ?? "text/plain", name: getFilename(path) }]
     })
     return [file, ...mentions]
   })

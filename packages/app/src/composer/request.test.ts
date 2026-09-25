@@ -7,6 +7,25 @@ function inline(filename: string, mime: string, extra?: Partial<ImageAttachmentP
   return { type: "image" as const, id: `img_${filename}`, filename, mime, dataUrl: `data:${mime};base64,AAA`, ...extra }
 }
 
+  test("preserves binary MIME types for mentioned office and PDF files", () => {
+    const result = buildPromptRequest({
+      prompt: [
+        { type: "file", path: "docs/report.pdf", content: "@docs/report.pdf", start: 0, end: 16 },
+        { type: "file", path: "docs/book.docx", content: "@docs/book.docx", start: 17, end: 31 },
+        { type: "file", path: "data/sheet.xlsx", content: "@data/sheet.xlsx", start: 32, end: 47 },
+      ],
+      context: [],
+      images: [],
+      text: "@docs/report.pdf @docs/book.docx @data/sheet.xlsx",
+      sessionDirectory: "/repo",
+    })
+
+    expect(result.files.map((file) => file.mime)).toEqual([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ])
+  })
 describe("buildPromptRequest", () => {
   test("sends media and page annotations as model context", () => {
     const result = buildPromptRequest({
