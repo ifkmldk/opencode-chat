@@ -6,12 +6,13 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { createEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import { createEffect, For, on, onCleanup, Show } from "solid-js"
+import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useComposerState } from "@/composer/persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useCommand } from "@/shell/commands/command"
+import type { Browser } from "@opencode/plugin-browser/rpc"
 import type { createSessionBrowser } from "./model"
 
 export function SessionBrowserPane(props: { browser: ReturnType<typeof createSessionBrowser>; visible: boolean }) {
@@ -72,6 +73,38 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     const dispose = props.browser.onSelection((value) => {
       if (value.tabID === state()?.id) setStore("selection", value)
     })
+    onCleanup(dispose)
+  })
+  const [region, setRegion] = createSignal<{
+    requestID: string
+    tabID: Browser.TabID
+    region: { x: number; y: number; width: number; height: number }
+  }>()
+  const regionCapture = () => {
+    const tab = state()
+    const current = region()
+    if (!tab || !current || current.tabID !== tab.id) return
+    void props.browser
+      .region({ ...current, requestID: current.requestID, format: "png" })
+      .catch(() => undefined)
+  }
+  const onRegion = (value: import("@/runtime/platform/browser-pane").BrowserPaneRegion) => {
+    if (value.tabID !== state()?.id) return
+    const data = `data:${value.mime};base64,${value.data}`
+    prompt.context.add({
+      type: "media-annotation",
+      surface: "browser",
+      imageID: value.requestID,
+      blob: { id: data, url: data },
+      mime: value.mime,
+      sourceURL: value.sourceURL,
+    })
+    setRegion(undefined)
+    schedule(100)
+  }
+
+  createEffect(() => {
+    const dispose = props.browser.onRegion(onRegion)
     onCleanup(dispose)
   })
 
