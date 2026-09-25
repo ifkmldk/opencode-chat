@@ -495,10 +495,110 @@ function ArtifactOffice(props: { path: string; content: FileContent; onInfo: (in
           when={slides()}
           fallback={<OfficeState loading={slides.loading} error={slides.error} />}
         >
-          {(items) => <div class="min-h-0 flex-1 overflow-auto p-6"><For each={items()}>{(slide) => <section class="mb-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-5"><h2 class="mb-2 text-15-semibold text-text-strong">Slide {slide.index}{slide.title ? `: ${slide.title}` : ""}</h2><For each={slide.bullets}>{(bullet) => <p class="text-13-regular text-text-base">• {bullet}</p>}</For></section>}</For></div>}
+          {(items) => <ArtifactSlides bytes={bytes()} slides={items()} />}
         </Show>
       </Match>
     </Switch>
+  )
+}
+
+type SlideOutline = { index: number; title?: string; bullets: string[] }
+
+/**
+ * Presentations open as real visual slides rendered client-side; the extracted outline stays
+ * available from the Text toggle, and a renderer failure drops back to it automatically.
+ */
+function ArtifactSlides(props: { bytes?: Uint8Array; slides: SlideOutline[] }) {
+  const [mode, setMode] = createSignal<"visual" | "text">("visual")
+  const [visual, setVisual] = createSignal<"loading" | "ready">("loading")
+  let host: HTMLDivElement | undefined
+  let active: (() => void) | undefined
+  onCleanup(() => active?.())
+
+  createEffect(
+    on(
+      () => (mode() === "visual" ? props.bytes : undefined),
+      (bytes) => {
+        active?.()
+        active = undefined
+        const el = host
+        if (!bytes || !el) return
+        let cancelled = false
+        let previewer: { destroy?: () => void } | undefined
+        setVisual("loading")
+        el.innerHTML = ""
+        active = () => {
+          cancelled = true
+          previewer?.destroy?.()
+          if (el) el.innerHTML = ""
+        }
+        void (async () => {
+          try {
+            const { init } = await import("pptx-preview")
+            const target = host
+            if (cancelled || !target) return
+            const width = Math.max(560, Math.min(1120, Math.floor(target.clientWidth || 960)))
+            const instance = init(target, { width, height: Math.round((width * 9) / 16) })
+            if (cancelled) {
+              instance.destroy?.()
+              return
+            }
+            previewer = instance
+            const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+            await instance.preview(buffer)
+            if (!cancelled) setVisual("ready")
+          } catch {
+            // The visual renderer is best-effort; the outline below is the durable path.
+            if (cancelled) return
+            setMode("text")
+          }
+        })()
+      },
+    ),
+  )
+
+  return (
+    <div class="flex min-h-0 flex-1 flex-col">
+      <div class="flex shrink-0 items-center justify-end border-b border-border-weaker-base px-4 py-2">
+        <SegmentedControl
+          value={mode()}
+          onChange={(value) => {
+            if (value === "visual" || value === "text") setMode(value)
+          }}
+        >
+          <SegmentedControlItem value="visual">Visual</SegmentedControlItem>
+          <SegmentedControlItem value="text">Text</SegmentedControlItem>
+        </SegmentedControl>
+      </div>
+      <Show
+        when={mode() === "visual" && props.bytes}
+        fallback={
+          <div class="min-h-0 flex-1 overflow-auto p-6">
+            <Show when={!props.bytes && mode() === "visual"}>
+              <div class="mb-4 text-13-regular text-text-weak">This presentation is too large to render visually; showing the extracted outline.</div>
+            </Show>
+            <For each={props.slides}>
+              {(slide) => (
+                <section class="mb-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-5">
+                  <h2 class="mb-2 text-15-semibold text-text-strong">
+                    Slide {slide.index}
+                    {slide.title ? `: ${slide.title}` : ""}
+                  </h2>
+                  <For each={slide.bullets}>{(bullet) => <p class="text-13-regular text-text-base">• {bullet}</p>}</For>
+                </section>
+              )}
+            </For>
+          </div>
+        }
+      >
+        <div class="min-h-0 flex-1 overflow-auto p-6">
+          <div ref={(el) => (host = el)} data-slot="artifact-slides-visual" class="mx-auto flex w-full max-w-5xl flex-col items-center" />
+          <Show when={visual() === "loading"}>
+            <div class="mt-3 text-13-regular text-text-weak">Rendering slides…</div>
+          </Show>
+        </div>
+      </Show>
+    </div>
   )
 }
 
