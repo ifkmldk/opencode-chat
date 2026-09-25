@@ -120,6 +120,7 @@ export const { use: useBrowserAttachments, provider: BrowserAttachmentsProvider 
           },
           preview: (path) => preview.get(id)?.forEach((listener) => listener(path)),
           selection: (value) => selections.get(id)?.forEach((listener) => listener(value)),
+          region: () => undefined,
           change: (state) => {
             if (state.error === "browser.pane.unsupported") {
               setUnsupported(server.key, true)

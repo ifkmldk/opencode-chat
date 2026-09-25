@@ -44,6 +44,7 @@ export function mountBrowserPane() {
         {
           setLayout: (layout) => setStore("layouts", tab.title, layout),
           command: async () => undefined,
+          region: async () => undefined,
           close: () => undefined,
         },
       ]),

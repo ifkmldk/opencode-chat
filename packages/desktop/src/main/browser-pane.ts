@@ -1,4 +1,9 @@
-import type { BrowserPaneCommand, BrowserPaneLayout, BrowserPaneTarget } from "@opencode/app/desktop"
+import type {
+  BrowserPaneCommand,
+  BrowserPaneLayout,
+  BrowserPaneRegionRequest,
+  BrowserPaneTarget,
+} from "@opencode/app/desktop"
 import { NodeHttpClient } from "@effect/platform-node"
 import { Browser } from "@opencode/plugin-browser/rpc"
 import { OpenCode } from "@opencode/client/effect"
@@ -287,6 +292,30 @@ export function createBrowserPane(storage: StateStore) {
       })
       page.layout(bounds, value.background, value.radius)
       page.setVisible(true)
+    },
+    async region(win: BrowserWindow, bindingID: string, input: BrowserPaneRegionRequest) {
+      const entry = owned(win, bindingID)
+      const tab = entry.tabs.get(input.tabID)
+      if (!tab) throw new Error("browser.pane.tab-unavailable")
+      const page = entry.pages.get(input.tabID) ?? create(entry, true, undefined, tab)
+      await page.ready
+      const result = await execute(
+        entry,
+        { action: { type: "screenshot", tabID: input.tabID, region: input.region, format: input.format, quality: input.quality }, files: [] },
+        new AbortController().signal,
+      )
+      const file = result.files?.[0]
+      if (!file) throw new Error("browser.pane.capture-failed")
+      report(entry, {
+        type: "region",
+        requestID: input.requestID,
+        tabID: input.tabID,
+        data: Buffer.from(file.data).toString("base64"),
+        mime: file.mime as "image/png" | "image/jpeg" | "image/webp",
+        width: Math.max(1, Math.round(input.region.width)),
+        height: Math.max(1, Math.round(input.region.height)),
+        sourceURL: tab.url,
+      })
     },
     async command(win: BrowserWindow, bindingID: string, command: BrowserPaneCommand) {
       const entry = owned(win, bindingID)

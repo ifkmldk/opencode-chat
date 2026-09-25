@@ -36,6 +36,7 @@ function fixture() {
     focus: () => {},
     preview: (path) => previews.push(path),
     selection: (value) => selections.push(value),
+    region: () => undefined,
     pane: {
       register(target, emit) {
         const call = { target, emit, closed: false, commands: [] as Browser.Action[] }
@@ -45,6 +46,7 @@ function fixture() {
           async command(command) {
             call.commands.push(command)
           },
+          async region() {},
           close() {
             call.closed = true
           },

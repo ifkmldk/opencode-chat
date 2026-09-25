@@ -39,6 +39,7 @@ export const eventHandlers = EventRpcs.toLayer(
           if (request.type === "register") return pane.register(win, request.bindingID, request.target)
           if (request.type === "layout") return pane.layout(win, request.bindingID, request.layout)
           if (request.type === "command") return pane.command(win, request.bindingID, request.command)
+          if (request.type === "region") return pane.region(win, request.bindingID, request.region)
           return pane.close(win, request.bindingID)
         }).pipe(Effect.orDie),
     })

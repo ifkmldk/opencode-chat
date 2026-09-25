@@ -8,6 +8,7 @@ export type {
   BrowserPaneEndpoint,
   BrowserPaneEvent,
   BrowserPaneLayout,
+  BrowserPaneRegionRequest,
   BrowserPanePlatform,
   BrowserPaneRegistration,
   BrowserPaneState,

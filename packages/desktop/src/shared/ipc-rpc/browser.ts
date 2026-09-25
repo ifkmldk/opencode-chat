@@ -16,6 +16,18 @@ const target = Schema.Struct({
   restore: Schema.optionalKey(Browser.State),
 })
 const bounds = Schema.Struct({ x: Schema.Finite, y: Schema.Finite, width: Schema.Finite, height: Schema.Finite })
+const screenshotRegion = Schema.Struct({
+  requestID: text(128),
+  tabID: Browser.TabID,
+  region: Schema.Struct({
+    x: Schema.Finite,
+    y: Schema.Finite,
+    width: Schema.Finite.check(Schema.isGreaterThan(0)),
+    height: Schema.Finite.check(Schema.isGreaterThan(0)),
+  }),
+  format: Schema.optional(Schema.Literals(["png", "jpeg", "webp"])),
+  quality: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 100 }))),
+})
 const channel = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 }))
 const layout = Schema.Struct({
   tabID: Browser.TabID,
@@ -28,6 +40,7 @@ export const BrowserPaneRequestSchema = Schema.Union([
   Schema.Struct({ type: Schema.Literal("register"), bindingID, target }),
   Schema.Struct({ type: Schema.Literal("layout"), bindingID, layout: Schema.optionalKey(layout) }),
   Schema.Struct({ type: Schema.Literal("command"), bindingID, command: Browser.Action }),
+  Schema.Struct({ type: Schema.Literal("region"), bindingID, region: screenshotRegion }),
   Schema.Struct({ type: Schema.Literal("close"), bindingID }),
 ])
 export type BrowserPaneRequest = Schema.Schema.Type<typeof BrowserPaneRequestSchema>
@@ -40,6 +53,16 @@ export const BrowserPaneEventSchema = Schema.Union([
     text: text(100_000),
     url: text(16_384),
     rect: Schema.Struct({ x: Schema.Finite, y: Schema.Finite, width: Schema.Finite, height: Schema.Finite }),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("region"),
+    requestID: text(128),
+    tabID: Browser.TabID,
+    data: text(7_000_000),
+    mime: Schema.Literals(["image/png", "image/jpeg", "image/webp"]),
+    width: Schema.Finite,
+    height: Schema.Finite,
+    sourceURL: text(16_384),
   }),
   Schema.Struct({ type: Schema.Literal("preview"), path: text(2_048) }),
   Schema.Struct({

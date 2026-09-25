@@ -1,6 +1,7 @@
 import type {
   BrowserPanePlatform,
   BrowserPaneRegistration,
+  BrowserPaneRegionRequest,
   BrowserPaneState,
   BrowserPaneTarget,
 } from "@/runtime/platform/browser-pane"
@@ -21,6 +22,7 @@ export function createBrowserConnection(input: {
   focus: (tabID: Browser.TabID) => void
   preview: (path: string) => void
   selection: (value: { tabID: Browser.TabID; text: string; url: string; rect: { x: number; y: number; width: number; height: number } }) => void
+  region: (value: { requestID: string; tabID: Browser.TabID; data: string; mime: "image/png" | "image/jpeg" | "image/webp"; width: number; height: number; sourceURL: string }) => void
 }) {
   const state: BrowserConnectionState = { browser: null, suspended: false }
   let disposed = false
@@ -37,6 +39,7 @@ export function createBrowserConnection(input: {
         if (event.type === "focus") return input.focus(event.tabID)
         if (event.type === "selection")
           return input.selection({ tabID: event.tabID, text: event.text, url: event.url, rect: event.rect })
+        if (event.type === "region") return input.region(event)
         if (event.type === "preview") return input.preview(event.path)
         if (event.error === "browser.pane.unsupported" || event.error === "browser.pane.replaced") {
           blocked = true
@@ -74,6 +77,10 @@ export function createBrowserConnection(input: {
     command(command: Browser.Action) {
       register()
       return state.registration?.command(command) ?? Promise.reject(new Error("browser.pane.unavailable"))
+    },
+    region(input: BrowserPaneRegionRequest) {
+      register()
+      return state.registration?.region(input) ?? Promise.reject(new Error("browser.pane.unavailable"))
     },
     dispose() {
       disposed = true

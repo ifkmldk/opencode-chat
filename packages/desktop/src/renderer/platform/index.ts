@@ -46,6 +46,7 @@ export function createDesktopPlatform(
                 .catch(() => undefined)
           },
           command: (command) => ready.then(() => api.browserPane.request({ type: "command", bindingID, command })),
+          region: (region) => ready.then(() => api.browserPane.request({ type: "region", bindingID, region })),
           close() {
             if (closed) return
             closed = true
