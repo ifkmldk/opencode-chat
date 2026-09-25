@@ -40,6 +40,7 @@ export const createSessionTabs = (input: TabsInput) => {
   const browser = input.browser ?? (() => false)
   const contextOpen = createMemo(() => input.tabs().active() === "context" || input.tabs().all().includes("context"))
   const researchOpen = createMemo(() => input.tabs().active() === "research" || input.tabs().all().includes("research"))
+  const canvasOpen = createMemo(() => input.tabs().active() === "canvas" || input.tabs().all().includes("canvas"))
   const openFileOpen = createMemo(
     () =>
       fileBrowser() &&
@@ -74,6 +75,7 @@ export const createSessionTabs = (input: TabsInput) => {
   )
   const activeTab = createMemo(() => {
     const active = input.tabs().active()
+    if (active === "canvas") return active
     if (active === "context") return active
     if (active === "research") return active
     if (active === SESSION_BTW_TAB) return active
@@ -84,6 +86,7 @@ export const createSessionTabs = (input: TabsInput) => {
 
     const first = openedTabs()[0]
     if (first) return first
+    if (canvasOpen()) return "canvas"
     if (contextOpen()) return "context"
     if (review() && hasReview()) return "review"
     return "empty"
@@ -95,6 +98,7 @@ export const createSessionTabs = (input: TabsInput) => {
   })
   const closableTab = createMemo<string | undefined>(() => {
     const active = activeTab()
+    if (active === "canvas") return active
     if (active === "context") return active
     if (active === "research") return active
     if (active === SESSION_BTW_TAB) return active
@@ -107,6 +111,7 @@ export const createSessionTabs = (input: TabsInput) => {
   return {
     contextOpen,
     researchOpen,
+    canvasOpen,
     openFileOpen,
     panelTabs,
     openedTabs,

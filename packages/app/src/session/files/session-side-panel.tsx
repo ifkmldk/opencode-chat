@@ -50,6 +50,8 @@ import { useSessionLayout } from "@/session/session-layout"
 import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/session/files/session-file-browser-tab"
 import { SessionBrowserPane } from "@/session/browser/pane"
 import { SessionResearchPanel } from "@/session/files/session-research-panel"
+import { CanvasPane } from "@/session/files/canvas-pane"
+import { useComposerState } from "@/composer/persistence"
 import type { createSessionBrowser } from "@/session/browser/model"
 
 type ReviewDiff = FileDiffInfo
@@ -181,6 +183,8 @@ export function SessionSidePanel(props: {
   })
   const contextOpen = tabState.contextOpen
   const researchOpen = tabState.researchOpen
+  const canvasOpen = tabState.canvasOpen
+  const composer = useComposerState()
   const openFileOpen = tabState.openFileOpen
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
@@ -212,6 +216,11 @@ export function SessionSidePanel(props: {
   }
   const activateTab = (value: string) => {
     const next = normalizeTab(value)
+    if (next === "canvas") {
+      tabs().open("canvas")
+      openReviewPanel()
+      return
+    }
     if (next === "research") {
       tabs().open("research")
       openReviewPanel()
