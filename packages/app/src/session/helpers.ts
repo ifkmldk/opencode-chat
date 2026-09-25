@@ -53,7 +53,7 @@ export const createSessionTabs = (input: TabsInput) => {
         .tabs()
         .all()
         .flatMap((tab) => {
-          if (tab === "context" || tab === "review" || tab === "research") return []
+          if (tab === "context" || tab === "review" || tab === "research" || tab === "canvas") return []
           if (isSessionBrowserTab(tab)) return browser() ? [tab] : []
           if (tab === SESSION_OPEN_FILE_TAB && !fileBrowser()) return []
           const value = input.pathFromTab(tab) ? input.normalizeTab(tab) : tab

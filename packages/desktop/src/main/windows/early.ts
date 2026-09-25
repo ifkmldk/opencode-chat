@@ -57,6 +57,7 @@ export function createEarlyWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      plugins: true,
       additionalArguments: windowArguments(id),
     },
   })

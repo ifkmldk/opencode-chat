@@ -367,6 +367,14 @@ export function SessionSidePanel(props: {
                               </div>
                             </Tabs.Trigger>
                           </Show>
+                          <Show when={canvasOpen()}>
+                            <Tabs.Trigger value="canvas">
+                              <div class="flex items-center gap-2">
+                                <Icon name="pencil-line" size="small" />
+                                <div>Canvas</div>
+                              </div>
+                            </Tabs.Trigger>
+                          </Show>
                           <Show when={contextOpen()}>
                             <Tabs.Trigger
                               value="context"
@@ -543,6 +551,15 @@ export function SessionSidePanel(props: {
                                            <span>Research workspace</span>
                                          </div>
                                        </Menu.Item>
+                                       <Menu.Item
+                                         class="!gap-6"
+                                         onSelect={() => activateTab("canvas")}
+                                       >
+                                         <div class="flex items-center gap-2">
+                                           <Icon name="pencil-line" size="small" />
+                                           <span>Canvas</span>
+                                         </div>
+                                       </Menu.Item>
                                       <Menu.Item
                                         class="!gap-6"
                                         onSelect={openFileBrowser}
@@ -621,6 +638,12 @@ export function SessionSidePanel(props: {
                       <Show when={activeTab() === "research"}>
                         <Tabs.Content value="research" class="flex flex-col h-full overflow-hidden contain-strict">
                           <SessionResearchPanel />
+                        </Tabs.Content>
+                      </Show>
+
+                      <Show when={activeTab() === "canvas"}>
+                        <Tabs.Content value="canvas" class="flex flex-col h-full overflow-hidden contain-strict">
+                          <CanvasPane onAnnotate={(item) => composer.context.add(item)} />
                         </Tabs.Content>
                       </Show>
 

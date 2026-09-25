@@ -38,6 +38,7 @@ export function windowAppearance(path: Path.Path, paths: DesktopPaths.Resolved) 
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      plugins: true,
     },
   }
 }
