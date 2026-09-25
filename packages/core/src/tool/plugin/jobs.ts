@@ -6,8 +6,12 @@ import { Effect, Schema } from "effect"
 import { Permission } from "../../permission.js"
 
 const SearchInput = Schema.Struct({ query: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)), location: Schema.optional(Schema.String.check(Schema.isMaxLength(200))), limit: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 50 }))) })
+const MatchInput = Schema.Struct({ title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)), description: Schema.optional(Schema.String.check(Schema.isMaxLength(20_000))), cvText: Schema.String.check(Schema.isMinLength(20), Schema.isMaxLength(100_000)) })
 const Job = Schema.Struct({ id: Schema.String, title: Schema.String, company: Schema.optional(Schema.String), location: Schema.optional(Schema.String), url: Schema.String, description: Schema.optional(Schema.String), postedAt: Schema.optional(Schema.String) })
 const Output = Schema.Struct({ provider: Schema.String, jobs: Schema.Array(Job) })
+const MatchOutput = Schema.Struct({ score: Schema.Number, matches: Schema.Array(Schema.String), missing: Schema.Array(Schema.String), recommendation: Schema.String })
+const stop = new Set("a an and are as at be by for from has have in is it of on or that the to with your you will this role job skills experience ability".split(" "))
+const words = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9+#.-]{2,}/g)?.filter((word) => !stop.has(word)) ?? [])
 const endpoint = () => { const value = process.env.OPENCODE_JOBS_API_URL; if (!value) return; const url = new URL(value); if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("OPENCODE_JOBS_API_URL must use http or https"); if (url.username || url.password) throw new Error("OPENCODE_JOBS_API_URL must not contain credentials"); return url }
 const request = (url: URL) => Effect.tryPromise({ try: () => fetch(url, { headers: { accept: "application/json", "user-agent": "OpenCode-Chat/2" }, signal: AbortSignal.timeout(20_000) }).then(async (response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return await response.json() as unknown }), catch: (error) => error }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Jobs provider request failed: ${error instanceof Error ? error.message : String(error)}`, error })))
 
@@ -22,6 +26,29 @@ export const Plugin = {
       const jobs = rows.flatMap((row) => { if (!row || typeof row !== "object") return []; const item = row as Record<string, unknown>; const url = typeof item.url === "string" ? item.url : ""; const title = typeof item.title === "string" ? item.title : ""; if (!url || !title) return []; return [{ id: String(item.id ?? url), title, company: typeof item.company === "string" ? item.company : undefined, location: typeof item.location === "string" ? item.location : undefined, url, description: typeof item.description === "string" ? item.description.slice(0, 10_000) : undefined, postedAt: typeof item.postedAt === "string" ? item.postedAt : undefined }] }).slice(0, input.limit ?? 20)
       const output = { provider: url.hostname, jobs }; return { output, content: JSON.stringify(output), metadata: { provider: output.provider, count: jobs.length } }
     }) })).pipe(Effect.orDie)
+    yield* ctx.tool.transform((editor) =>
+      editor.add({
+        name: "jobs_match",
+        options: { codemode: false, permission: "jobs.match" },
+        description: "Compare a CV or profile text to a job description locally and return an explainable match. Read-only; never sends the CV anywhere.",
+        input: MatchInput,
+        output: MatchOutput,
+        execute: (input, context) =>
+          Effect.gen(function* () {
+            yield* permission
+              .assert({ action: "jobs.match", resources: [input.title], sessionID: context.sessionID, agent: context.agent, source: { type: "tool", messageID: context.messageID, id: context.id } })
+              .pipe(Effect.mapError((error) => new ToolFailure({ message: `Jobs match permission denied: ${error.message}`, error })))
+            const required = words(`${input.title} ${input.description ?? ""}`)
+            const available = words(input.cvText)
+            const matches = [...required].filter((word) => available.has(word)).slice(0, 40)
+            const missing = [...required].filter((word) => !available.has(word)).slice(0, 40)
+            const score = required.size ? Math.round((matches.length / required.size) * 100) : 0
+            const recommendation = score >= 75 ? "Strong match" : score >= 50 ? "Possible match" : "Review carefully"
+            const output = { score, matches, missing, recommendation }
+            return { output, content: JSON.stringify(output), metadata: { score } }
+          }),
+      }),
+    ).pipe(Effect.orDie)
   }),
 }
-export const __test = { SearchInput }
+export const __test = { SearchInput, MatchInput }

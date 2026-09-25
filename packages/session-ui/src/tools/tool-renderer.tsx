@@ -2257,6 +2257,29 @@ function JobsToolOutput(props: ToolProps) {
   )
 }
 
+function JobsMatchToolOutput(props: ToolProps) {
+  const result = createMemo(() => toolJson(props.output))
+  const score = createMemo(() => Math.max(0, Math.min(100, Number(result()?.score ?? 0))))
+  const matches = createMemo(() => Array.isArray(result()?.matches) ? (result()!.matches as unknown[]).map(String) : [])
+  const missing = createMemo(() => Array.isArray(result()?.missing) ? (result()!.missing as unknown[]).map(String) : [])
+  const tone = createMemo(() => score() >= 75 ? "strong" : score() >= 50 ? "possible" : "review")
+  return (
+    <BasicTool {...props} icon="target" hasContent defaultOpen trigger={{ title: "CV match", subtitle: `${score()}% · ${String(result()?.recommendation ?? "Review carefully")}` }}>
+      <div class="flex flex-col gap-3 p-3" data-component="jobs-match-result" data-tone={tone()}>
+        <div class="flex items-center gap-3">
+          <div class="text-20-semibold tabular-nums text-text-strong">{score()}%</div>
+          <div class="text-12-regular text-text-weak">{String(result()?.recommendation ?? "Review carefully")}</div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div><div class="mb-1 text-11-semibold uppercase tracking-wide text-text-faint">Matches</div><div class="text-12-regular leading-5 text-text-weak">{matches().slice(0, 12).join(", ") || "No exact keyword matches"}</div></div>
+          <div><div class="mb-1 text-11-semibold uppercase tracking-wide text-text-faint">Review</div><div class="text-12-regular leading-5 text-text-weak">{missing().slice(0, 12).join(", ") || "No missing terms detected"}</div></div>
+        </div>
+        <div class="text-11-regular text-text-faint">This comparison is local and explainable. It does not submit your CV anywhere.</div>
+      </div>
+    </BasicTool>
+  )
+}
+
 function ActionToolOutput(props: ToolProps) {
   const result = createMemo(() => toolJson(props.output)?.action as Record<string, unknown> | undefined)
   const status = createMemo(() => String(result()?.status ?? props.status ?? "pending"))
@@ -2293,6 +2316,7 @@ function ActionToolOutput(props: ToolProps) {
 ToolRegistry.register({ name: "maps_search", render: MapsToolOutput })
 ToolRegistry.register({ name: "maps_route", render: MapsToolOutput })
 ToolRegistry.register({ name: "jobs_search", render: JobsToolOutput })
+ToolRegistry.register({ name: "jobs_match", render: JobsMatchToolOutput })
 ToolRegistry.register({ name: "action", render: ActionToolOutput })
 
 ToolRegistry.register({
