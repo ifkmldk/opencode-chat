@@ -266,3 +266,43 @@ export function clearResearchHistory(storage?: HistoryStorage) {
   }
 }
 
+/** Recently opened previews, session-only. Gallery = files opened via the artifact opener this session. */
+export type ArtifactGalleryEntry = { path: string; kind: string; at: number }
+
+export const ARTIFACT_GALLERY_MAX = 12
+
+export function artifactGalleryKind(path: string) {
+  const name = path.split(/[\\/]/).pop() ?? path
+  const index = name.lastIndexOf(".")
+  const ext = index <= 0 ? "" : name.slice(index + 1).toLowerCase()
+  if (["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "svg"].includes(ext)) return "image"
+  if (["mp4", "webm", "mov", "ogv", "mkv", "m4v"].includes(ext)) return "video"
+  if (["mp3", "wav", "ogg", "m4a", "aac", "flac", "opus"].includes(ext)) return "audio"
+  if (ext === "pdf") return "pdf"
+  if (ext === "html" || ext === "htm") return "html"
+  if (["md", "markdown", "mdx"].includes(ext)) return "markdown"
+  if (ext === "csv" || ext === "tsv") return "table"
+  if (ext === "docx") return "document"
+  if (ext === "xlsx") return "spreadsheet"
+  if (ext === "pptx") return "presentation"
+  if (["ttf", "otf", "woff", "woff2"].includes(ext)) return "font"
+  return "text"
+}
+
+export function addArtifactGalleryEntry(
+  entries: ArtifactGalleryEntry[],
+  path: string,
+): ArtifactGalleryEntry[] {
+  const value = path.trim()
+  if (!value) return entries
+  const next = [
+    { path: value, kind: artifactGalleryKind(value), at: Date.now() },
+    ...entries.filter((item) => item.path !== value),
+  ]
+  return next.slice(0, ARTIFACT_GALLERY_MAX)
+}
+
+export function removeArtifactGalleryEntry(entries: ArtifactGalleryEntry[], path: string) {
+  return entries.filter((item) => item.path !== path)
+}
+

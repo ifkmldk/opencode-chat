@@ -1,6 +1,7 @@
-import { createEffect, onCleanup, type ParentProps } from "solid-js"
+import { createEffect, createSignal, onCleanup, type ParentProps } from "solid-js"
 import { createSimpleContext } from "@opencode/ui/context"
 import { MarkdownProvider, useMarkdown } from "@opencode/session-ui/context/markdown"
+import { addArtifactGalleryEntry, type ArtifactGalleryEntry } from "@opencode/session-ui/research-events"
 import { useBrowserAttachments } from "@/session/browser/attachments"
 import type { SessionModel } from "@/session/model"
 import { useFile } from "@/workspaces/files/model"
@@ -39,6 +40,10 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
     const { tabs, view } = useSessionLayout()
 
     const root = () => location().directory.replaceAll("\\", "/").replace(/\/+$/, "")
+
+    // Recently opened previews, session-only. The research panel renders them as a gallery.
+    const [gallery, setGallery] = createSignal<ArtifactGalleryEntry[]>([])
+    const recordGallery = (path: string) => setGallery((current) => addArtifactGalleryEntry(current, path))
 
     /**
      * Turn a link into a path `useFile` can load: workspace-relative when it is under the root,
@@ -90,6 +95,7 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
     const open = (href: string, base?: string) => {
       const path = resolve(href, base)
       if (!path) return
+      recordGallery(path)
       if (artifactKind(path) === "html" && canOpenInBrowser(path)) return openInBrowser(path)
       openTab(path)
     }
@@ -116,6 +122,6 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
       onCleanup(attachments.onPreview(server, sessionID, (path) => open(path)))
     })
 
-    return { canOpenInBrowser, openInBrowser, open, download }
+    return { canOpenInBrowser, openInBrowser, open, download, gallery }
   },
 })

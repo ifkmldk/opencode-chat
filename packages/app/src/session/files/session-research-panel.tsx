@@ -11,6 +11,7 @@ import {
   saveResearchHistory,
   validateResearchFilters,
 } from "@opencode/session-ui/research-events"
+import { useArtifactOpener } from "@/session/files/open-artifact"
 import { useComposerState } from "@/composer/persistence"
 
 const categories = [
@@ -27,6 +28,13 @@ const categories = [
 
 export function SessionResearchPanel() {
   const composer = useComposerState()
+  let artifacts: ReturnType<typeof useArtifactOpener> | undefined
+  try {
+    artifacts = useArtifactOpener()
+  } catch {
+    artifacts = undefined
+  }
+  const gallery = () => artifacts?.gallery() ?? []
   const [query, setQuery] = createSignal("")
   const [category, setCategory] = createSignal<(typeof categories)[number][0]>("job")
   const [location, setLocation] = createSignal("")
@@ -100,6 +108,16 @@ export function SessionResearchPanel() {
           <div class="flex flex-col gap-1">
             {history().slice(0, 5).map((entry) => (
               <button type="button" data-action="research-history" class="truncate rounded-md px-2 py-1 text-left text-11-regular text-text-weak transition hover:bg-v2-overlay-simple-overlay-hover hover:text-text-strong" title={`${entry.query} · ${entry.category}`} onClick={() => applyHistory(entry)}>{entry.query}</button>
+            ))}
+          </div>
+        </div>
+      </Show>
+      <Show when={gallery().length > 0}>
+        <div class="flex flex-col gap-2">
+          <div class="text-11-medium text-text-weak">Recently opened previews</div>
+          <div class="flex flex-col gap-1">
+            {gallery().slice(0, 8).map((entry) => (
+              <button type="button" data-action="research-gallery" data-kind={entry.kind} class="truncate rounded-md px-2 py-1 text-left text-11-regular text-text-weak transition hover:bg-v2-overlay-simple-overlay-hover hover:text-text-strong" title={`${entry.path} · ${entry.kind}`} onClick={() => artifacts?.open(entry.path)}>{entry.path}</button>
             ))}
           </div>
         </div>

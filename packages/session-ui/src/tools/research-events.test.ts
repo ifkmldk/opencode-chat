@@ -3,7 +3,9 @@ import {
   RESEARCH_ASK_CHAT_EVENT,
   RESEARCH_CATEGORY_HINTS,
   RESEARCH_PROMPT_TEMPLATES,
+  addArtifactGalleryEntry,
   addResearchHistory,
+  artifactGalleryKind,
   candidateLabel,
   clearResearchHistory,
   draftActionPrompt,
@@ -12,6 +14,7 @@ import {
   mapEmbedUrl,
   placeOpenUrl,
   readResearchAskChatDetail,
+  removeArtifactGalleryEntry,
   removeShortlistPrompt,
   requestResearchAskChat,
   researchSearchPrompt,
@@ -111,5 +114,20 @@ describe("research-events", () => {
     expect(addResearchHistory(entries, { query: "  ", category: "hotel", location: "", budget: "" })).toBe(entries)
     clearResearchHistory(storage)
     expect(loadResearchHistory(storage)).toEqual([])
+  })
+
+  test("tracks recently opened previews for the gallery", () => {
+    expect(artifactGalleryKind("shot.PNG")).toBe("image")
+    expect(artifactGalleryKind("paper.pdf")).toBe("pdf")
+    expect(artifactGalleryKind("deck.pptx")).toBe("presentation")
+    expect(artifactGalleryKind("data.csv")).toBe("table")
+    expect(artifactGalleryKind("src/app.ts")).toBe("text")
+    const entries = addArtifactGalleryEntry([], "docs/report.pdf")
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.kind).toBe("pdf")
+    const deduped = addArtifactGalleryEntry(entries, "docs/report.pdf")
+    expect(deduped).toHaveLength(1)
+    expect(removeArtifactGalleryEntry(deduped, "docs/report.pdf")).toEqual([])
+    expect(addArtifactGalleryEntry(entries, "  ")).toBe(entries)
   })
 })
