@@ -1,0 +1,91 @@
+name: fork-chat
+
+# Minimal CI for the chat fork (branch custom/main).
+# Intentionally separate from upstream check.yml/test.yml (which only trigger
+# on dev/v2) so upstream merges never conflict with fork CI.
+on:
+  push:
+    branches: [custom/main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: typecheck (app + session-ui + e2e)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Typecheck app
+        run: bun run --cwd packages/app typecheck
+
+      - name: Typecheck session-ui
+        run: bun run --cwd packages/session-ui typecheck
+
+      - name: Typecheck e2e project
+        run: bun run --cwd packages/app typecheck:e2e
+
+  unit:
+    name: unit (research-events)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Research ask-chat unit tests
+        run: bun test src/tools/research-events.test.ts --cwd packages/session-ui
+
+  e2e:
+    name: e2e (research workflow, 1 spec)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Install Playwright chromium
+        working-directory: packages/app
+        run: bun x playwright install --with-deps chromium
+
+      - name: Research workflow spec (built mode)
+        working-directory: packages/app
+        run: bun x playwright test e2e/user-story/research-shortlist.spec.ts --reporter=line
+        env:
+          CI: true
+          PLAYWRIGHT_WORKERS: 1
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-fork-chat
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            packages/app/e2e/test-results
+            packages/app/e2e/playwright-report
