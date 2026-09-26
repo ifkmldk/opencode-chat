@@ -169,3 +169,100 @@ export function draftActionPrompt(candidate: ResearchCandidateLike) {
 export function removeShortlistPrompt(id: string) {
   return `Remove the research shortlist entry with id "${id}" using the research tools (research_shortlist remove).`
 }
+
+/** Curated prompt templates for the workspace prompt library. Bodies reuse researchSearchPrompt so wording never drifts. */
+export type ResearchPromptTemplate = { id: string; title: string; body: string }
+
+export const RESEARCH_PROMPT_TEMPLATES: ResearchPromptTemplate[] = [
+  {
+    id: "hotel-value",
+    title: "Hotel value pick",
+    body: researchSearchPrompt({ query: "best value hotel", category: "hotel", location: "Bali", budget: "max 150 USD/night" }),
+  },
+  {
+    id: "flight-cheap",
+    title: "Cheap flight",
+    body: researchSearchPrompt({ query: "cheapest direct flight", category: "flight", location: "CGK → DPS", budget: "max 300 USD" }),
+  },
+  {
+    id: "job-match",
+    title: "Job match",
+    body: researchSearchPrompt({ query: "frontend engineer roles", category: "job", location: "Jakarta", budget: "min 15M IDR/month" }),
+  },
+  {
+    id: "product-compare",
+    title: "Product compare",
+    body: researchSearchPrompt({ query: "wireless headphones", category: "product", budget: "max 200 USD" }),
+  },
+]
+
+/** A past workspace query, persisted in localStorage so history survives reloads. */
+export type ResearchHistoryEntry = { query: string; category: string; location: string; budget: string; at: number }
+
+export const RESEARCH_HISTORY_KEY = "opencode.research.history"
+export const RESEARCH_HISTORY_MAX = 20
+
+type HistoryStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">
+
+function historyStorage(custom?: HistoryStorage): HistoryStorage | undefined {
+  if (custom) return custom
+  try {
+    if (typeof localStorage !== "undefined") return localStorage
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+export function loadResearchHistory(storage?: HistoryStorage): ResearchHistoryEntry[] {
+  const store = historyStorage(storage)
+  if (!store) return []
+  try {
+    const raw = store.getItem(RESEARCH_HISTORY_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (item): item is ResearchHistoryEntry =>
+          !!item && typeof item === "object" && typeof (item as { query?: unknown }).query === "string",
+      )
+      .slice(0, RESEARCH_HISTORY_MAX)
+  } catch {
+    return []
+  }
+}
+
+export function addResearchHistory(
+  entries: ResearchHistoryEntry[],
+  entry: Omit<ResearchHistoryEntry, "at">,
+): ResearchHistoryEntry[] {
+  const query = entry.query.trim()
+  if (!query) return entries
+  const next = [
+    { ...entry, query, at: Date.now() },
+    ...entries.filter((item) => item.query !== query || item.category !== entry.category),
+  ]
+  return next.slice(0, RESEARCH_HISTORY_MAX)
+}
+
+export function saveResearchHistory(entries: ResearchHistoryEntry[], storage?: HistoryStorage) {
+  const store = historyStorage(storage)
+  if (!store) return
+  try {
+    store.setItem(RESEARCH_HISTORY_KEY, JSON.stringify(entries.slice(0, RESEARCH_HISTORY_MAX)))
+  } catch {
+    // Storage full or unavailable: history is best-effort.
+  }
+}
+
+export function clearResearchHistory(storage?: HistoryStorage) {
+  const store = historyStorage(storage)
+  if (!store) return
+  try {
+    store.removeItem(RESEARCH_HISTORY_KEY)
+  } catch {
+    // Already gone.
+  }
+}
+

@@ -394,6 +394,14 @@ export function createComposerEditor(input: {
     resetHistory() {
       setState({ historyIndex: -1, savedHistory: undefined })
     },
+    addVoiceTranscript(transcript: string) {
+      const text = transcript.trim()
+      if (!text) return
+      const current = draft.state.prompt.map((part) => ("content" in part ? part.content : "")).join("")
+      const next = current.trim() ? `${current.replace(/\s+$/, "")} ${text}` : text
+      draft.setText(next)
+      restoreFocus(next.length)
+    },
     onPaste(event: ClipboardEvent) {
       const clipboard = event.clipboardData
       const text = clipboard?.getData("text/plain")

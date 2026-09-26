@@ -385,6 +385,9 @@ export const dict = {
   "prompt.attachment.remove": "Remove attachment",
   "prompt.action.send": "Send",
   "prompt.action.stop": "Stop",
+  "prompt.action.voice": "Dictate",
+  "prompt.action.voiceListening": "Listening…",
+  "prompt.action.voiceStop": "Stop dictation",
 
   "prompt.toast.attachmentDuplicate.title": "This file has already been uploaded",
   "prompt.toast.uploading.percent": "{{percent}}%",

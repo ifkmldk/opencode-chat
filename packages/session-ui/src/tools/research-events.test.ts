@@ -2,9 +2,13 @@ import { describe, expect, test } from "bun:test"
 import {
   RESEARCH_ASK_CHAT_EVENT,
   RESEARCH_CATEGORY_HINTS,
+  RESEARCH_PROMPT_TEMPLATES,
+  addResearchHistory,
   candidateLabel,
+  clearResearchHistory,
   draftActionPrompt,
   formatRouteMeta,
+  loadResearchHistory,
   mapEmbedUrl,
   placeOpenUrl,
   readResearchAskChatDetail,
@@ -13,6 +17,7 @@ import {
   researchSearchPrompt,
   routeDirectionsUrl,
   routeEmbedUrl,
+  saveResearchHistory,
   shortlistPrompt,
   validateResearchFilters,
 } from "./research-events"
@@ -79,5 +84,32 @@ describe("research-events", () => {
     expect(placeOpenUrl(-6.2, 106.8, "https://example.com/p")).toBe("https://example.com/p")
     expect(placeOpenUrl(-6.2, 106.8, "javascript:alert(1)")).toContain("openstreetmap.org")
     expect(routeDirectionsUrl({ latitude: -6.2, longitude: 106.8 }, { latitude: -6.1, longitude: 106.9 })).toContain("openstreetmap.org/directions")
+  })
+
+  test("ships prompt templates and persists workspace history", () => {
+    expect(RESEARCH_PROMPT_TEMPLATES.length).toBeGreaterThan(0)
+    for (const template of RESEARCH_PROMPT_TEMPLATES) {
+      expect(template.body).toContain("research_search")
+      expect(template.body).toContain("without explicit approval")
+    }
+    const store = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value)
+      },
+      removeItem: (key: string) => {
+        store.delete(key)
+      },
+    }
+    expect(loadResearchHistory(storage)).toEqual([])
+    const entries = addResearchHistory([], { query: "Bali hotel", category: "hotel", location: "Bali", budget: "max 150" })
+    expect(entries).toHaveLength(1)
+    saveResearchHistory(entries, storage)
+    expect(loadResearchHistory(storage)).toHaveLength(1)
+    expect(loadResearchHistory(storage)[0]?.query).toBe("Bali hotel")
+    expect(addResearchHistory(entries, { query: "  ", category: "hotel", location: "", budget: "" })).toBe(entries)
+    clearResearchHistory(storage)
+    expect(loadResearchHistory(storage)).toEqual([])
   })
 })

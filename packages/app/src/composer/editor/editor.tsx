@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { appendVoiceTranscript, isVoiceInputSupported, voiceRecognitionCtor, type VoiceRecognizer } from "../voice"
 import { createStore } from "solid-js/store"
 import { FileIcon } from "@opencode/ui/file-icon"
 import { Icon } from "@opencode/ui/icon"
@@ -344,6 +345,14 @@ export function ComposerEditor(props: ComposerEditorProps) {
               onSubmit={() => props.controller.submit()}
               onStop={props.controller.stop}
             />
+            <Show when={state.mode === "normal"}>
+              <ComposerVoiceButton
+                dictateLabel={i18n.t("prompt.action.voice")}
+                listeningLabel={i18n.t("prompt.action.voiceListening")}
+                stopLabel={i18n.t("prompt.action.voiceStop")}
+                onTranscript={(text) => props.controller.addVoiceTranscript(text)}
+              />
+            </Show>
           </div>
         </div>
       </form>
@@ -944,6 +953,96 @@ export function ComposerEditorSubmitButton(props: {
     </Tooltip>
   )
 }
+
+/**
+ * Voice dictation button (browser Web Speech only, no server).
+ * Hidden entirely where SpeechRecognition is unavailable.
+ * Final transcripts are appended to the draft via onTranscript.
+ */
+export function ComposerVoiceButton(props: {
+  dictateLabel: string
+  listeningLabel: string
+  stopLabel: string
+  onTranscript: (text: string) => void
+}) {
+  const i18n = useI18n()
+  void i18n
+  const [listening, setListening] = createSignal(false)
+  const [supported] = createSignal(() => isVoiceInputSupported())
+  let recognizer: VoiceRecognizer | undefined
+
+  onCleanup(() => {
+    try {
+      recognizer?.stop()
+    } catch {
+      // Already stopped.
+    }
+    recognizer = undefined
+  })
+
+  const stop = () => {
+    try {
+      recognizer?.stop()
+    } catch {
+      // Already stopped.
+    }
+    recognizer = undefined
+    setListening(false)
+  }
+
+  const start = () => {
+    const Ctor = voiceRecognitionCtor()
+    if (!Ctor) return
+    const instance = new Ctor()
+    instance.lang = typeof navigator !== "undefined" && navigator.language ? navigator.language : "en-US"
+    instance.interimResults = false
+    instance.maxAlternatives = 1
+    instance.onresult = (event) => {
+      const finals: string[] = []
+      for (let index = 0; index < event.results.length; index++) {
+        const alternative = event.results[index]?.[0]?.transcript
+        if (typeof alternative === "string" && alternative.trim()) finals.push(alternative)
+      }
+      const text = finals.join(" ").trim()
+      if (text) props.onTranscript(text)
+    }
+    instance.onend = () => {
+      recognizer = undefined
+      setListening(false)
+    }
+    instance.onerror = () => {
+      recognizer = undefined
+      setListening(false)
+    }
+    recognizer = instance
+    try {
+      instance.start()
+      setListening(true)
+    } catch {
+      recognizer = undefined
+      setListening(false)
+    }
+  }
+
+  return (
+    <Show when={supported()}>
+      <Tooltip placement="top" value={listening() ? props.stopLabel : `${props.dictateLabel} (${props.listeningLabel})`}>
+        <IconButton
+          data-action="composer-voice"
+          type="button"
+          icon={<Icon name="mic" />}
+          variant="ghost-muted"
+          size="large"
+          aria-label={listening() ? props.stopLabel : props.dictateLabel}
+          aria-pressed={listening()}
+          class={listening() ? "text-accent" : undefined}
+          onClick={() => (listening() ? stop() : start())}
+        />
+      </Tooltip>
+    </Show>
+  )
+}
+
 
 function ComposerSuggestionIcon(props: { item: ComposerSuggestion }) {
   if (props.item.kind === "agent") return <Icon name="brain" size="small" class="shrink-0 text-icon-info-active" />

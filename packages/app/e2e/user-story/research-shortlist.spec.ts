@@ -77,6 +77,7 @@ test('research workflow asks with filters, shortlists, and drafts an approval-ga
 
   // 1) Workspace panel: query + category + location + budget prefills a filtered research_search prompt.
   // Category hotel shows a non-blocking hint; a locations-less hotel query warns but still submits.
+  // Prompt library + history UI now live below the submit button.
   const panel = page.locator('#review-panel')
   await expectAppVisible(panel)
   await panel.getByRole('button', { name: 'Add tab' }).click()
@@ -89,8 +90,18 @@ test('research workflow asks with filters, shortlists, and drafts an approval-ga
   await panel.locator('[data-action="research-location"]').fill('Bali')
   await panel.locator('[data-action="research-budget"]').fill('max 150 USD/night')
   await expect(panel.locator('[data-action="research-warning"]')).toHaveCount(0)
-  await panel.getByRole('button', { name: 'Ask Chat to research' }).click()
   const composer = page.locator('[data-component="composer"]')
+  await expect(panel.getByText('Prompt library', { exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Hotel value pick' }).click()
+  await expect(composer.getByText('research_search', { exact: false })).toBeVisible()
+  await expect(composer.getByText('Location: Bali.', { exact: false })).toBeVisible()
+  await panel.locator('[data-action="research-query"]').fill('Bali hotel')
+  await panel.locator('[data-action="research-location"]').fill('Bali')
+  await panel.locator('[data-action="research-budget"]').fill('max 150 USD/night')
+  await expect(panel.locator('[data-action="research-warning"]')).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Ask Chat to research' }).click()
+  await expect(composer.getByText('Budget: max 150 USD/night.', { exact: false })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Bali hotel', exact: true })).toBeVisible()
   await expect(composer.getByText('research_search', { exact: false })).toBeVisible()
   await expect(composer.getByText('Location: Bali.', { exact: false })).toBeVisible()
   await expect(composer.getByText('Budget: max 150 USD/night.', { exact: false })).toBeVisible()
