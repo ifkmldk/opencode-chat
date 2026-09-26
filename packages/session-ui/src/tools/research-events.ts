@@ -66,6 +66,48 @@ export function formatRouteMeta(distanceMeters: unknown, durationSeconds: unknow
     .join(" · ")
 }
 
+/** Per-category hint shown in the Research workspace panel. Non-blocking guidance. */
+export const RESEARCH_CATEGORY_HINTS: Record<string, string> = {
+  job: "Tip: add a location (e.g. Jakarta) and a salary range as budget.",
+  hotel: "Tip: location is strongly recommended (city/area); budget e.g. max 150 USD/night.",
+  flight: "Tip: use location for origin → destination (e.g. CGK → DPS); budget e.g. max 300 USD.",
+  product: "Tip: budget helps compare price vs quality.",
+  youtube: "Tip: location/budget are optional for video search.",
+  place: "Tip: location is strongly recommended for places.",
+  event: "Tip: location is strongly recommended for events.",
+  course: "Tip: budget e.g. max 50 USD helps filter courses.",
+  service: "Tip: location helps find nearby services.",
+}
+
+/** Categories where a location is strongly recommended (not a hard block). */
+const LOCATION_RECOMMENDED = new Set(["hotel", "flight", "place", "event", "job", "service"])
+
+/**
+ * Non-blocking validation for workspace filters.
+ * Returns a hint string when something looks off, undefined when fine.
+ * Never blocks submit: the panel only displays the hint.
+ */
+export function validateResearchFilters(input: ResearchSearchInput): string | undefined {
+  if (LOCATION_RECOMMENDED.has(input.category) && !input.location?.trim()) {
+    return "Add a location for better results (optional but recommended)."
+  }
+  if (input.budget?.trim() && !/\d/.test(input.budget)) {
+    return "Budget should include a number, e.g. max 150 USD/night."
+  }
+  return undefined
+}
+
+/** External OSM link for a place. Prefers the provider URL, falls back to lat/lon. */
+export function placeOpenUrl(latitude: number, longitude: number, url?: unknown) {
+  if (typeof url === "string" && /^https?:\/\//.test(url.trim())) return url.trim()
+  return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=15/${latitude}/${longitude}`
+}
+
+/** External OSM directions link for a route. */
+export function routeDirectionsUrl(origin: MapPoint, destination: MapPoint) {
+  return `https://www.openstreetmap.org/directions?from=${origin.latitude}%2C${origin.longitude}&to=${destination.latitude}%2C${destination.longitude}`
+}
+
 export type ResearchCandidateLike = {
   id?: unknown
   category?: unknown

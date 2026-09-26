@@ -76,15 +76,19 @@ test('research workflow asks with filters, shortlists, and drafts an approval-ga
   await expectSessionTitle(page, title)
 
   // 1) Workspace panel: query + category + location + budget prefills a filtered research_search prompt.
+  // Category hotel shows a non-blocking hint; a locations-less hotel query warns but still submits.
   const panel = page.locator('#review-panel')
   await expectAppVisible(panel)
   await panel.getByRole('button', { name: 'Add tab' }).click()
   await page.getByRole('menuitem', { name: 'Research workspace' }).click()
   await expect(panel.getByRole('tab', { name: 'Research' })).toHaveAttribute('data-selected', '')
-  await panel.locator('[data-action="research-query"]').fill('Bali hotel')
   await panel.locator('[data-action="research-category"]').selectOption('hotel')
+  await expect(panel.locator('[data-action="research-hint"]')).toContainText('location is strongly recommended')
+  await panel.locator('[data-action="research-query"]').fill('Bali hotel')
+  await expect(panel.locator('[data-action="research-warning"]')).toContainText('Add a location')
   await panel.locator('[data-action="research-location"]').fill('Bali')
   await panel.locator('[data-action="research-budget"]').fill('max 150 USD/night')
+  await expect(panel.locator('[data-action="research-warning"]')).toHaveCount(0)
   await panel.getByRole('button', { name: 'Ask Chat to research' }).click()
   const composer = page.locator('[data-component="composer"]')
   await expect(composer.getByText('research_search', { exact: false })).toBeVisible()

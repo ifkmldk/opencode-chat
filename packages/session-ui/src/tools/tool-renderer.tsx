@@ -57,8 +57,10 @@ import {
   draftActionPrompt,
   formatRouteMeta,
   mapEmbedUrl,
+  placeOpenUrl,
   removeShortlistPrompt,
   requestResearchAskChat,
+  routeDirectionsUrl,
   routeEmbedUrl,
   shortlistPrompt,
 } from "./research-events"
@@ -2243,7 +2245,7 @@ function MapsToolOutput(props: ToolProps) {
                 <ResultCard
                 title={String(value.name ?? "Place")}
                 value={String(value.address ?? "")}
-                href={typeof value.url === "string" ? value.url : undefined}
+                href={latitude !== undefined && longitude !== undefined ? placeOpenUrl(latitude, longitude, value.url) : typeof value.url === "string" ? value.url : undefined}
                 eyebrow="Map result"
                 meta={
                   latitude !== undefined && longitude !== undefined
@@ -2267,7 +2269,7 @@ function MapsToolOutput(props: ToolProps) {
         <Show when={route()}>
           {(value) => (
             <div class="flex flex-col gap-2">
-              <ResultCard title={`${value().mode} route`} value={routeNames()} meta={routeMeta() || undefined} />
+              <ResultCard title={`${value().mode} route`} value={routeNames()} meta={routeMeta() || undefined} href={routeEndpoints() ? routeDirectionsUrl(routeEndpoints()!.origin, routeEndpoints()!.destination) : undefined} />
               <Show when={routeEndpoints()}>
                 {(points) => (
                   <iframe

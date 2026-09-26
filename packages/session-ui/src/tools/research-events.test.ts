@@ -1,16 +1,20 @@
 import { describe, expect, test } from "bun:test"
 import {
   RESEARCH_ASK_CHAT_EVENT,
+  RESEARCH_CATEGORY_HINTS,
   candidateLabel,
   draftActionPrompt,
   formatRouteMeta,
   mapEmbedUrl,
+  placeOpenUrl,
   readResearchAskChatDetail,
   removeShortlistPrompt,
   requestResearchAskChat,
   researchSearchPrompt,
+  routeDirectionsUrl,
   routeEmbedUrl,
   shortlistPrompt,
+  validateResearchFilters,
 } from "./research-events"
 
 describe("research-events", () => {
@@ -63,5 +67,17 @@ describe("research-events", () => {
     expect(prompt).toContain("Budget: max 150 USD/night.")
     expect(prompt).toContain("without explicit approval")
     expect(researchSearchPrompt({ query: "Go", category: "course" })).not.toContain("Location:")
+  })
+
+  test("validates workspace filters without blocking and links out to OSM", () => {
+    expect(RESEARCH_CATEGORY_HINTS.hotel).toContain("location")
+    expect(RESEARCH_CATEGORY_HINTS.flight).toContain("origin")
+    expect(validateResearchFilters({ query: "x", category: "hotel", location: "", budget: "" })).toContain("location")
+    expect(validateResearchFilters({ query: "x", category: "hotel", location: "Bali", budget: "cheap" })).toContain("number")
+    expect(validateResearchFilters({ query: "x", category: "hotel", location: "Bali", budget: "max 150 USD" })).toBeUndefined()
+    expect(validateResearchFilters({ query: "x", category: "course" })).toBeUndefined()
+    expect(placeOpenUrl(-6.2, 106.8, "https://example.com/p")).toBe("https://example.com/p")
+    expect(placeOpenUrl(-6.2, 106.8, "javascript:alert(1)")).toContain("openstreetmap.org")
+    expect(routeDirectionsUrl({ latitude: -6.2, longitude: 106.8 }, { latitude: -6.1, longitude: 106.9 })).toContain("openstreetmap.org/directions")
   })
 })
