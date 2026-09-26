@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js"
 import { Button } from "@opencode/ui/button"
 import { Icon } from "@opencode/ui/icon"
+import { researchSearchPrompt } from "@opencode/session-ui/research-events"
 import { useComposerState } from "@/composer/persistence"
 
 const categories = [
@@ -20,15 +21,12 @@ export function SessionResearchPanel() {
   const [query, setQuery] = createSignal("")
   const [category, setCategory] = createSignal<(typeof categories)[number][0]>("job")
   const [location, setLocation] = createSignal("")
+  const [budget, setBudget] = createSignal("")
 
   const ask = () => {
     const value = query().trim()
     if (!value) return
-    const text = [
-      `Use the research tools in Laya Classifier mode to find the best ${category()} options for: ${value}.`,
-      location().trim() ? `Location: ${location().trim()}.` : undefined,
-      "Compare price, quality, rating, availability, and tradeoffs. Return an explainable shortlist with sources. Do not book, buy, apply, or submit anything without explicit approval.",
-    ].filter(Boolean).join(" ")
+    const text = researchSearchPrompt({ query: value, category: category(), location: location(), budget: budget() })
     composer.set([{ type: "text", content: text, start: 0, end: text.length }])
   }
 
@@ -49,6 +47,7 @@ export function SessionResearchPanel() {
         <label class="flex flex-col gap-1 text-11-medium text-text-weak">Category<select data-action="research-category" value={category()} onChange={(event) => setCategory(event.currentTarget.value as (typeof categories)[number][0])} class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong">{categories.map(([value, label]) => <option value={value}>{label}</option>)}</select></label>
         <label class="flex flex-col gap-1 text-11-medium text-text-weak">Location<input data-action="research-location" value={location()} onInput={(event) => setLocation(event.currentTarget.value)} placeholder="Optional" class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong" /></label>
       </div>
+      <label class="flex flex-col gap-1 text-11-medium text-text-weak">Budget<input data-action="research-budget" value={budget()} onInput={(event) => setBudget(event.currentTarget.value)} placeholder="Optional, e.g. max 150 USD/night" class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong" /></label>
       <Button data-action="research-ask-chat" onClick={ask} disabled={!query().trim()} class="w-full justify-center"><Icon name="sparkles" class="size-4" />Ask Chat to research</Button>
       <div class="rounded-lg border border-border-weaker-base bg-surface-raised/50 p-3 text-11-regular text-text-weak">
         <div class="mb-1 font-medium text-text-strong">How it works</div>

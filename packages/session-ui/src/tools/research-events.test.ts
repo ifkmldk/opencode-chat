@@ -8,6 +8,7 @@ import {
   readResearchAskChatDetail,
   removeShortlistPrompt,
   requestResearchAskChat,
+  researchSearchPrompt,
   routeEmbedUrl,
   shortlistPrompt,
 } from "./research-events"
@@ -53,5 +54,14 @@ describe("research-events", () => {
     expect(draftActionPrompt(candidate)).toContain("action prepare")
     expect(draftActionPrompt(candidate)).toContain("pending until I explicitly approve")
     expect(removeShortlistPrompt("opt-1")).toContain("research_shortlist remove")
+  })
+
+  test("builds a filtered research_search prompt with budget and location", () => {
+    const prompt = researchSearchPrompt({ query: "Bali hotel", category: "hotel", location: "Bali", budget: "max 150 USD/night" })
+    expect(prompt).toContain("research_search")
+    expect(prompt).toContain("Location: Bali.")
+    expect(prompt).toContain("Budget: max 150 USD/night.")
+    expect(prompt).toContain("without explicit approval")
+    expect(researchSearchPrompt({ query: "Go", category: "course" })).not.toContain("Location:")
   })
 })

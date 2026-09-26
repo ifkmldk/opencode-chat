@@ -5,6 +5,26 @@
  * itself so permissions and approval gates stay intact. */
 export const RESEARCH_ASK_CHAT_EVENT = "opencode:research-ask-chat"
 
+export type ResearchSearchInput = {
+  query: string
+  category: string
+  location?: string
+  budget?: string
+}
+
+/** Prefill text asking Chat to run research_search with budget/location filters. */
+export function researchSearchPrompt(input: ResearchSearchInput) {
+  const lines = [
+    `Use the research tools (research_search) to find the best ${input.category} options for: ${input.query}.`,
+  ]
+  if (input.location?.trim()) lines.push(`Location: ${input.location.trim()}.`)
+  if (input.budget?.trim()) lines.push(`Budget: ${input.budget.trim()}.`)
+  lines.push(
+    "Compare price, quality, rating, availability, and tradeoffs. Return an explainable shortlist with sources. Do not book, buy, apply, or submit anything without explicit approval.",
+  )
+  return lines.join(" ")
+}
+
 export function requestResearchAskChat(text: string) {
   if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent(RESEARCH_ASK_CHAT_EVENT, { detail: { text } }))
