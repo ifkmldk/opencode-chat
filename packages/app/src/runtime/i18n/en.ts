@@ -1264,6 +1264,18 @@ export const dict = {
   "settings.general.row.showCustomAgents.title": "Show agent",
   "settings.general.row.showCustomAgents.description":
     "Switch between agents in the composer. When hidden, defaults to Build agent.",
+  "settings.general.row.researchProviders.title": "Research providers",
+  "settings.general.row.researchProviders.description":
+    "Optional HTTP endpoints for structured research plus the approval-gated action executor. Empty means web-search fallback. Values are never read back here; copy the export block and restart the server to apply.",
+  "settings.general.row.researchProviders.webhook": "Action executor",
+  "settings.general.row.researchProviders.webhookHint": "action tool POST target. Empty means approve-only with no execution.",
+  "settings.general.row.researchProviders.exportLabel": "Apply on restart",
+  "settings.general.row.researchProviders.copy": "Copy export commands",
+  "settings.general.row.researchProviders.copied": "Copied",
+  "settings.general.row.researchProviders.restartNote": "The server reads these only at startup. Restart opencode serve after exporting.",
+  "settings.general.row.researchProviders.invalidUrl": "Must be a valid URL.",
+  "settings.general.row.researchProviders.invalidScheme": "Must start with http:// or https://.",
+  "settings.general.row.researchProviders.noCredentials": "Must not contain username or password.",
   "settings.general.row.followUpBehavior.title": "Follow-up behavior",
   "settings.general.row.followUpBehavior.description":
     "Choose whether to queue follow-ups or steer the current turn. Use {{keybind}} to switch.",

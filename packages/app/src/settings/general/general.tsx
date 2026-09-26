@@ -5,6 +5,7 @@ import { Select } from "@opencode/ui/select"
 import { Switch } from "@opencode/ui/switch"
 import { TextInput } from "@opencode/ui/text-input"
 import { TimelineDetailControl } from "@/settings/timeline-detail"
+import { ResearchProvidersSetting } from "@/settings/general/research-providers"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useUpdaterAction } from "@/shell/updates/action"
@@ -349,6 +350,7 @@ export const SettingsGeneral: Component = () => {
         <LanguageSetting />
 
         <WorkspaceDestinationSetting />
+        <ResearchProvidersSetting />
         <AutoApprovePermissionsSetting />
 
         <SettingsRow
