@@ -38,6 +38,7 @@
     "./line-comment-styles": "./src/components/line-comment-styles.ts",
     "./pierre": "./src/pierre/index.ts",
     "./pierre/*": "./src/pierre/*.ts",
+    "./research-events": "./src/tools/research-events.ts",
     "./context": "./src/context/index.ts",
     "./context/*": "./src/context/*.tsx",
     "./styles": "./src/styles/index.css",

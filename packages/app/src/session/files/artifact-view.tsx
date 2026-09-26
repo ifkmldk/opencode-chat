@@ -16,6 +16,7 @@ import {
   artifactKind,
   blobUrlFromContent,
   contentBytes,
+  extractPdfText,
   officeBytes,
   parseOfficeDocument,
   parseOfficeSlides,
@@ -116,6 +117,9 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
       >
         Add selection
       </Button>
+      <Show when={kind() === "pdf"}>
+        <ArtifactPdfExtractButton path={props.path} content={props.content} onAnnotate={props.onAnnotate!} />
+      </Show>
     </Show>
   )
   return (
@@ -352,15 +356,93 @@ function ArtifactFrame(props: { path: string; content: FileContent; kind: "pdf" 
   // PDF Open Parameters: start with the thumbnail pane closed and the page fitted to the pane width.
   const src = () => (props.kind === "pdf" ? `${url()}#navpanes=0&view=FitH` : url())
   return (
-    <iframe
-      class="block h-full w-full flex-1 border-0 bg-white"
-      title={getFilename(props.path)}
-      src={src()}
-      // The PDF viewer is Chromium's own and does not run in a sandboxed frame. HTML runs as an
-      // opaque origin: no app storage, cookies, or credentialed requests reach it.
-      sandbox={props.kind === "html" ? "allow-scripts allow-popups allow-forms allow-modals" : undefined}
-      referrerPolicy="no-referrer"
-    />
+    <div class="flex min-h-0 flex-1 flex-col">
+      <Show when={props.kind === "pdf"}>
+        <ArtifactPdfExtractBar path={props.path} content={props.content} onAnnotate={undefined} />
+      </Show>
+      <iframe
+        class="block h-full w-full flex-1 border-0 bg-white"
+        title={getFilename(props.path)}
+        src={src()}
+        // The PDF viewer is Chromium's own and does not run in a sandboxed frame. HTML runs as an
+        // opaque origin: no app storage, cookies, or credentialed requests reach it.
+        sandbox={props.kind === "html" ? "allow-scripts allow-popups allow-forms allow-modals" : undefined}
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  )
+}
+
+/**
+ * PDF text bridge: Chromium renders the pixels, but the iframe gives no
+ * selectable text back to the app. This extracts embedded text client-side so
+ * text PDFs become quotable into Chat; scanned PDFs report zero text and point
+ * at OCR instead of silently sending nothing. Heavy pdf.js is deliberately
+ * avoided: no new dependency, no worker, no binary size jump.
+ */
+function ArtifactPdfExtractBar(props: { path: string; content: FileContent; onAnnotate?: (annotation: ArtifactAnnotation) => void }) {
+  const language = useLanguage()
+  const bytes = () => officeBytes(props.content)
+  const extraction = createMemo(() => {
+    const data = bytes()
+    if (!data) return undefined
+    try {
+      return extractPdfText(data)
+    } catch {
+      return undefined
+    }
+  })
+  const label = () => {
+    const result = extraction()
+    if (!result) return language.t("file.view.pdf.extractUnavailable")
+    if (!result.text.trim()) return language.t("file.view.pdf.scanned")
+    const pages = result.pages ? ` · ${language.plural("file.view.pdf.pages", result.pages)}` : ""
+    const truncated = result.truncated ? ` · ${language.t("file.view.pdf.truncated")}` : ""
+    return `${language.t("file.view.pdf.extracted")}${pages}${truncated}`
+  }
+  return (
+    <div data-slot="artifact-pdf-extract" class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-weaker-base px-4 py-2 text-12-regular text-text-weak">
+      <span class="min-w-0 flex-1 truncate">{label()}</span>
+      <Show when={extraction()?.text.trim()}>
+        {(text) => (
+          <Button
+            size="small"
+            variant="ghost"
+            data-action="pdf-send-to-chat"
+            onClick={() => props.onAnnotate?.({ text: text().slice(0, 40_000), comment: `Extracted from ${getFilename(props.path)}` })}
+          >
+            {language.t("file.view.pdf.sendToChat")}
+          </Button>
+        )}
+      </Show>
+    </div>
+  )
+}
+
+function ArtifactPdfExtractButton(props: { path: string; content: FileContent; onAnnotate: (annotation: ArtifactAnnotation) => void }) {
+  const language = useLanguage()
+  return (
+    <Button
+      size="small"
+      variant="ghost"
+      data-action="pdf-send-to-chat"
+      title={language.t("file.view.pdf.sendToChatHint")}
+      onClick={() => {
+        const data = officeBytes(props.content)
+        if (!data) return
+        let result: ReturnType<typeof extractPdfText> | undefined
+        try {
+          result = extractPdfText(data)
+        } catch {
+          return
+        }
+        const text = result?.text.trim()
+        if (!text) return
+        props.onAnnotate({ text: text.slice(0, 40_000), comment: `Extracted from ${getFilename(props.path)}` })
+      }}
+    >
+      {language.t("file.view.pdf.sendToChat")}
+    </Button>
   )
 }
 

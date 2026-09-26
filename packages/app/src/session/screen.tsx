@@ -13,6 +13,7 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { readResearchAskChatDetail } from "@opencode/session-ui/research-events"
 import { debounce } from "@solid-primitives/scheduled"
 import { ResizeHandle } from "@opencode/ui/resize-handle"
 import { MessageTimeline } from "@/session/timeline/message-timeline"
@@ -63,6 +64,25 @@ export function SessionScreen(props: { session: SessionModel }) {
       </ArtifactMarkdownProvider>
     </ArtifactOpenerProvider>
   )
+}
+
+/**
+ * Timeline tool cards (research/maps) live in session-ui and cannot touch the
+ * composer directly. They emit RESEARCH_ASK_CHAT_EVENT; this listener prefills
+ * the composer draft so the model runs research_shortlist/action itself with
+ * permissions and approval gates intact. Never executes tools from the UI.
+ */
+function ResearchAskChatListener() {
+  const composer = useComposerState()
+  onMount(() => {
+    const onAsk = (event: Event) => {
+      const detail = readResearchAskChatDetail(event)
+      if (!detail) return
+      composer.set([{ type: "text", content: detail.text, start: 0, end: detail.text.length }])
+    }
+    return makeEventListener(window, "opencode:research-ask-chat", onAsk)
+  })
+  return null
 }
 
 function SessionScreenContent(props: { session: SessionModel; browser: ReturnType<typeof createSessionBrowser> }) {
@@ -307,6 +327,7 @@ function SessionScreenContent(props: { session: SessionModel; browser: ReturnTyp
         identity={session.layout.tabKey}
       />
       {/* Selecting chat text stages a message-quote context item through the shared action bar. */}
+      <ResearchAskChatListener />
       <ChatSelectionAnnotator
         onQuote={(item) =>
           composerPrompt.context.add({
