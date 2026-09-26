@@ -67,6 +67,7 @@ export function candidateLabel(candidate: ResearchCandidateLike) {
 
 function candidateFacts(candidate: ResearchCandidateLike) {
   return [
+    `ID: ${text(candidate.id, 'n/a')}`,
     `Title: ${candidateLabel(candidate)}`,
     `Category: ${text(candidate.category, "research")}`,
     `URL: ${text(candidate.url, "n/a")}`,

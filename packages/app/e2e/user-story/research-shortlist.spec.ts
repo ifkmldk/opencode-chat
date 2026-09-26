@@ -71,6 +71,7 @@ test('research candidate shortlist button prefills the composer for the model to
   }, { directory, server, sessionID, tabKey: `${server}\n/server/${base64Encode(server)}/session/${sessionID}` })
   await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
   await expectSessionTitle(page, title)
+  await page.getByRole('button', { name: 'Used 1 research_search' }).click()
   const card = page.locator('[data-component="assistant-result-card"]', { hasText: 'Grand Bali' })
   await expectAppVisible(card)
   await card.getByRole('button', { name: 'Shortlist', exact: true }).click()
