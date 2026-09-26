@@ -5,8 +5,9 @@ name: fork-chat
 # on dev/v2) so upstream merges never conflict with fork CI.
 on:
   push:
-    branches: [custom/main]
+    branches: [custom/main, main]
   pull_request:
+    branches: [custom/main, main]
   workflow_dispatch:
 
 concurrency:
