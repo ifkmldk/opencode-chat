@@ -4,12 +4,23 @@ import type {
   SessionMessageUser,
 } from "@opencode/client/promise"
 import { Match, Switch, type ComponentProps } from "solid-js"
-import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+import type {
+  SessionUserActions,
+  SessionUserAnnotation,
+  SessionUserAttachmentReference,
+  SessionUserComment,
+} from "../actions"
 import { AssistantReasoningContent, AssistantTextContent, CurrentUserMessageDisplay } from "./message-content"
+import type { AssistantArtifactsProps } from "./assistant-artifacts"
 import { CurrentContextToolGroup, CurrentFileToolGroup, ToolDisplay } from "../tools/tool-renderer"
 import { currentToolError, currentToolInput, currentToolMetadata, currentToolOutput } from "./current-tool-state"
 
-export type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+export type {
+  SessionUserActions,
+  SessionUserAnnotation,
+  SessionUserAttachmentReference,
+  SessionUserComment,
+} from "../actions"
 export { SessionShellMessage } from "../tools/tool-renderer"
 export { currentContentDefaultOpen } from "./current-tool-state"
 
@@ -19,6 +30,7 @@ export function SessionUserMessage(props: {
   displayText?: string
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
+  annotations?: SessionUserAnnotation[]
   historicalAgent: string
   historicalModel: SessionMessageAssistant["model"]
   actions?: SessionUserActions
@@ -30,6 +42,7 @@ export function SessionUserMessage(props: {
       text={props.displayText ?? props.message.text}
       comments={props.comments}
       references={props.references}
+      annotations={props.annotations}
       agent={props.historicalAgent}
       model={props.historicalModel}
       actions={props.actions}
@@ -48,8 +61,7 @@ export function SessionAssistantContent(props: {
   toolOpen?: boolean
   onToolOpenChange?: (open: boolean) => void
   onContentRendered?: () => void
-  openArtifact?: (path: string) => void
-  downloadArtifact?: (path: string) => void
+  artifacts?: AssistantArtifactsProps
 }) {
   return (
     <Switch>
@@ -61,8 +73,7 @@ export function SessionAssistantContent(props: {
             message={props.message}
             showCopy={props.showAssistantCopyPartID === props.contentID}
             turnDurationMs={props.turnDurationMs}
-            openArtifact={props.openArtifact}
-            downloadArtifact={props.downloadArtifact}
+            artifacts={props.artifacts}
           />
         )}
       </Match>

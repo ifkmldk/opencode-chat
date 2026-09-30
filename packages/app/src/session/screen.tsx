@@ -13,6 +13,8 @@ import {
 } from "solid-js"
 import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
+import { CanvasOpenListener } from "@/fork/web-browser/canvas-listener"
+import { MapListener } from "@/fork/map/listener"
 import { readResearchAskChatDetail } from "@opencode/session-ui/research-events"
 import { debounce } from "@solid-primitives/scheduled"
 import { ResizeHandle } from "@opencode/ui/resize-handle"
@@ -21,6 +23,7 @@ import { useServer } from "@/runtime/server/current"
 import { projectForSession } from "@/shell/layout/helpers"
 import { ComposerDropzone } from "@/composer/dropzone"
 import { useComposerState } from "@/composer/persistence"
+import { appendDraftText, promptLength } from "@/composer/prompt-parts"
 import { ChatSelectionAnnotator } from "@/session/chat-selection"
 import type { SessionModel } from "@/session/model"
 import { SESSION_PANEL_WIDTH_MIN } from "@/session/session-panel-width"
@@ -78,7 +81,8 @@ function ResearchAskChatListener() {
     const onAsk = (event: Event) => {
       const detail = readResearchAskChatDetail(event)
       if (!detail) return
-      composer.set([{ type: "text", content: detail.text, start: 0, end: detail.text.length }])
+      const next = appendDraftText(composer.current(), detail.text)
+      composer.set(next, promptLength(next))
     }
     return makeEventListener(window, "opencode:research-ask-chat", onAsk)
   })
@@ -328,6 +332,8 @@ function SessionScreenContent(props: { session: SessionModel; browser: ReturnTyp
       />
       {/* Selecting chat text stages a message-quote context item through the shared action bar. */}
       <ResearchAskChatListener />
+      <CanvasOpenListener session={session} />
+      <MapListener session={session} />
       <ChatSelectionAnnotator
         onQuote={(item) =>
           composerPrompt.context.add({

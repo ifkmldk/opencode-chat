@@ -34,6 +34,7 @@ import { ShellSelect } from "./shell/select.js"
 import { Reference } from "./reference.js"
 import { Rpc } from "./rpc.js"
 import { WebSearch } from "./websearch.js"
+import { MapsSettings } from "./maps/settings.js"
 import { ReferenceInstructions } from "./reference/instructions.js"
 import { SessionRunnerLLM } from "./session/runner/llm.js"
 import { SessionRunnerModel } from "./session/runner/model.js"
@@ -66,6 +67,8 @@ const nodes = [
   Reference.node,
   Rpc.node,
   WebSearch.node,
+  // fork: Settings → Maps (free-tier Google Maps guard).
+  MapsSettings.node,
   Integration.node,
   Provider.node,
   Model.node,

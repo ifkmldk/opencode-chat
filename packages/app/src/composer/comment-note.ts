@@ -1,4 +1,50 @@
 import type { FileSelection } from "@/workspaces/files/model"
+import type { ContextItem } from "@/composer/schema"
+
+/** fork: a quote or annotation the user staged; the sent message shows it as a card. */
+export type PromptAnnotation = {
+  kind: "quote" | "page-text" | "media"
+  text?: string
+  comment?: string
+  source?: string
+  role?: "user" | "assistant"
+}
+
+export function promptAnnotations(context: readonly ContextItem[]) {
+  return context.flatMap((item): PromptAnnotation[] => {
+    if (item.type === "file") return []
+    const comment = item.comment?.trim() || undefined
+    if (item.type === "message-quote") {
+      const text = item.quotedText.trim()
+      return text ? [{ kind: "quote", text, comment, role: item.role }] : []
+    }
+    if (item.type === "page-text-annotation")
+      return [{ kind: "page-text", text: item.text, comment, source: item.sourceURL ?? item.sourcePath }]
+    return [{ kind: "media", comment, source: item.surface === "browser" ? item.sourceURL : item.sourcePath }]
+  })
+}
+
+function readAnnotations(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item): PromptAnnotation[] => {
+    if (!item || typeof item !== "object") return []
+    const kind = (item as { kind?: unknown }).kind
+    if (kind !== "quote" && kind !== "page-text" && kind !== "media") return []
+    const text = (item as { text?: unknown }).text
+    const comment = (item as { comment?: unknown }).comment
+    const source = (item as { source?: unknown }).source
+    const role = (item as { role?: unknown }).role
+    return [
+      {
+        kind,
+        text: typeof text === "string" ? text : undefined,
+        comment: typeof comment === "string" ? comment : undefined,
+        source: typeof source === "string" ? source : undefined,
+        role: role === "user" || role === "assistant" ? role : undefined,
+      },
+    ]
+  })
+}
 
 export type PromptComment = {
   path: string
@@ -68,6 +114,7 @@ export function readPromptPresentation(value: unknown) {
   const attachments = (value as { attachments?: unknown }).attachments
   return {
     displayText,
+    annotations: readAnnotations((value as { annotations?: unknown }).annotations),
     attachments: (Array.isArray(attachments) ? attachments : []).flatMap((item): PromptAttachmentReference[] => {
       if (!item || typeof item !== "object") return []
       const name = (item as { name?: unknown }).name

@@ -3,6 +3,7 @@ import type { OpenCodeEvent } from "@opencode/client/promise"
 import { expect, test, type Route } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
+import { addTabButton, openFileBrowser } from "../utils/side-panel"
 
 const directory = "C:/OpenCode/ReviewOpenFile"
 const projectID = "proj_review_open_file"
@@ -95,11 +96,11 @@ test("opens and searches project files inline", async ({ page }) => {
   const contextButton = page.getByRole("button", { name: "View context usage" })
   await contextButton.click()
   await expect(panel.getByRole("tab", { name: "Context", selected: true })).toBeVisible()
-  await expect(panel.getByRole("button", { name: "Open file" }).locator("use")).toHaveAttribute(
+  await expect(addTabButton(panel).locator("use")).toHaveAttribute(
     "href",
     "#opencode-v2-icon-plus",
   )
-  await panel.getByRole("button", { name: "Open file" }).click()
+  await openFileBrowser(panel)
   const openFileTab = panel.getByRole("tab", { name: "Open file" })
   const openFileTabClose = openFileTab.locator("..").getByRole("button", { name: "Close tab" })
   await expect(openFileTab).toHaveAttribute("data-selected", "")
@@ -115,7 +116,7 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByRole("tab", { name: "Context", selected: true })).toBeVisible()
   await expect(openFileTabClose).toHaveCSS("opacity", "0")
   await expect(sidebar).toBeHidden()
-  await panel.getByRole("button", { name: "Open file" }).click()
+  await openFileBrowser(panel)
   const filter = panel.getByRole("combobox", { name: "Filter files" })
   await expect(filter).toBeFocused()
   await expect(panel.getByRole("tab", { name: "Open file", selected: true })).toBeVisible()
@@ -158,7 +159,7 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(restoredTab.locator("[data-file-not-found]")).toHaveCount(0)
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
 
-  await panel.getByRole("button", { name: "Open file" }).click()
+  await openFileBrowser(panel)
   await expect(panel.getByRole("tab", { name: "README.md" })).toHaveCount(0)
   await expect(sidebar).toBeVisible()
   await filter.fill("nested")
@@ -175,7 +176,7 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByText("contents:src/nested.ts", { exact: true })).toBeVisible()
   expect(searches).toContainEqual({ query: "nested", dirs: "file", limit: 200 })
 
-  await panel.getByRole("button", { name: "Open file" }).click()
+  await openFileBrowser(panel)
   await expect(panel.getByRole("tab", { name: "nested.ts" })).toHaveCount(1)
   await expect(panel.getByRole("tab", { name: "Open file", selected: true })).toBeVisible()
   await expect(sidebarToggle).toBeDisabled()

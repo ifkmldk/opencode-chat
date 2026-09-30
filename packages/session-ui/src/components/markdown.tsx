@@ -1,4 +1,5 @@
 import { useI18n } from "@opencode/ui/context/i18n"
+import { decoratePlaces } from "../fork/places/inline-cards"
 import { checksum } from "@opencode/util/encode"
 import {
   type ComponentProps,
@@ -599,6 +600,13 @@ export function Markdown(
     }
     images?.update(container)
     previewImages(container)
+    // fork: place cards after the first `place:` link of each place (fork/places/inline-cards.ts).
+    decoratePlaces(container, markdown?.resolvePlace, {
+      open: i18n.t("ui.tool.maps.open"),
+      closed: i18n.t("ui.tool.maps.closed"),
+      directions: i18n.t("ui.tool.maps.directions"),
+      stars: (count) => i18n.t("ui.tool.maps.stars", { count: String(count) }),
+    })
     container
       .querySelectorAll<HTMLElement>('[data-slot="markdown-copy-button"]')
       .forEach((button) => setCopyState(button, labels, button.dataset.copied === "true"))

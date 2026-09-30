@@ -252,11 +252,19 @@ import type {
   WebsearchProvidersOutput,
   WebsearchQueryInput,
   WebsearchQueryOutput,
+  MapsStatusInput,
+  MapsStatusOutput,
+  MapsSettingsInput,
+  MapsSettingsOutput,
+  MapsTestInput,
+  MapsTestOutput,
   ConfigGetInput,
   ConfigGetOutput,
   ConfigShellsOutput,
   ConfigUpdateInput,
   ConfigUpdateOutput,
+  BrowserProxyTicketInput,
+  BrowserProxyTicketOutput,
 } from "./types.js"
 import { ClientError } from "./client-error.js"
 
@@ -2125,6 +2133,50 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
     },
+    maps: {
+      status: (input?: MapsStatusInput, requestOptions?: RequestOptions) =>
+        request<MapsStatusOutput>(
+          {
+            method: "GET",
+            path: `/api/experimental/maps/status`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      settings: (input?: MapsSettingsInput, requestOptions?: RequestOptions) =>
+        request<MapsSettingsOutput>(
+          {
+            method: "PUT",
+            path: `/api/experimental/maps/settings`,
+            query: { location: input?.["location"] },
+            body: {
+              googleEnabled: input?.["googleEnabled"],
+              confirmedFree: input?.["confirmedFree"],
+              dailyLimit: input?.["dailyLimit"],
+              osmEnabled: input?.["osmEnabled"],
+            },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      test: (input?: MapsTestInput, requestOptions?: RequestOptions) =>
+        request<MapsTestOutput>(
+          {
+            method: "POST",
+            path: `/api/experimental/maps/test`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 503],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
     config: {
       get: (input?: ConfigGetInput, requestOptions?: RequestOptions) =>
         request<ConfigGetOutput>(
@@ -2156,11 +2208,32 @@ export function make(options: ClientOptions) {
           requestOptions,
         ),
     },
+    browserProxy: {
+      ticket: (input: BrowserProxyTicketInput, requestOptions?: RequestOptions) =>
+        request<BrowserProxyTicketOutput>(
+          {
+            method: "POST",
+            path: `/api/experimental/browser-proxy/ticket`,
+            headers: { "x-opencode-ticket": input["x-opencode-ticket"] },
+            body: { url: input["url"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
   }
 }
 
+// fork: the path travels as "~b64~<base64url>", so no file name or extension appears in the URL even after
+// percent-decoding (download managers such as IDM take over "/api/fs/read/report.pdf" and "report%2Epdf" alike).
+// The server's fs.read handler decodes it.
 function encodePath(value: string): string {
-  return value.split("/").map(encodeURIComponent).join("/")
+  const bytes = new TextEncoder().encode(value)
+  let binary = ""
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return `~b64~${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")}`
 }
 
 function appendQuery(params: URLSearchParams, key: string, value: unknown): void {

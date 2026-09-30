@@ -136,7 +136,10 @@ export async function installTimelineStreamProbe(
           }
           if (state.scroll.lastCallFrame === state.scroll.frame) state.scroll.sameFrameCalls += 1
           state.scroll.lastCallFrame = state.scroll.frame
-          Reflect.apply(scrollTo, this, typeof first === "number" ? [first, second ?? 0] : [first])
+          if (typeof first === "number") return scrollTo.call(this, first, second ?? 0)
+          // `call` only sees the last overload, so name the options form explicitly.
+          const scrollToOptions: (this: Element, options?: ScrollToOptions) => void = scrollTo
+          scrollToOptions.call(this, first)
         }
         Element.prototype.scrollTo = measuredScrollTo
         Object.defineProperty(Element.prototype, "scrollTop", {

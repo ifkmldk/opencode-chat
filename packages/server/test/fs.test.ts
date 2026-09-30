@@ -77,3 +77,25 @@ it.live(
     }),
   15_000,
 )
+
+// fork: the app sends the path base64url-encoded so the URL never names the file, and script reads get plain
+// bytes; download managers (IDM) otherwise take over the request. Percent-encoded paths still work.
+it.live("reads a file by encoded name and serves script reads as plain bytes", () =>
+  Effect.gen(function* () {
+    const tmp = yield* tmpdirScoped()
+    yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "report.pdf"), "%PDF-1.4"))
+    const server = yield* startServer(path.join(tmp.path, "config"))
+    const read = (headers: Record<string, string>, path = `~b64~${Buffer.from("report.pdf").toString("base64url")}`) =>
+      Effect.promise(async () => {
+        const url = new URL(`/api/fs/read/${path}`, server.base)
+        url.searchParams.set("location[directory]", tmp.path)
+        const response = await fetch(url, { headers: { ...server.headers, ...headers } })
+        return { type: response.headers.get("content-type"), body: await response.text() }
+      })
+    const script = yield* read({ "sec-fetch-dest": "empty" })
+    expect(script).toEqual({ type: "application/octet-stream", body: "%PDF-1.4" })
+    const frame = yield* read({ "sec-fetch-dest": "iframe" })
+    expect(frame.type).toContain("application/pdf")
+    expect((yield* read({ "sec-fetch-dest": "empty" }, "report%2Epdf")).body).toBe("%PDF-1.4")
+  }),
+)

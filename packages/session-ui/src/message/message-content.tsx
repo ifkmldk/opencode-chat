@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show, type ComponentProps, type JSX } from "solid-js"
+import { hideCompletionMarker } from "./completion-marker"
 import { createStore } from "solid-js/store"
 import { useData } from "../context"
 import { useDialog } from "@opencode/ui/context/dialog"
@@ -26,8 +27,13 @@ import type {
   SessionMessageCompaction,
   SessionMessageUser,
 } from "@opencode/client/promise"
-import { AssistantArtifacts } from "./assistant-artifacts"
-import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+import { AssistantArtifacts, type AssistantArtifactsProps } from "./assistant-artifacts"
+import type {
+  SessionUserActions,
+  SessionUserAnnotation,
+  SessionUserAttachmentReference,
+  SessionUserComment,
+} from "../actions"
 import { attached, typeLabel } from "../components/message-file"
 
 export async function writeClipboard(text: string): Promise<boolean> {
@@ -210,6 +216,7 @@ export function CurrentUserMessageDisplay(props: {
   actions?: SessionUserActions
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
+  annotations?: SessionUserAnnotation[]
 }) {
   const data = useData()
   const dialog = useDialog()
@@ -220,6 +227,7 @@ export function CurrentUserMessageDisplay(props: {
   const inlineFiles = createMemo(() => (props.message.files ?? []).filter((file) => !!file.mention))
   const agents = createMemo(() => props.message.agents ?? [])
   const comments = createMemo(() => props.comments ?? [])
+  const annotations = createMemo(() => props.annotations ?? [])
   const model = createMemo(() => {
     const match = data.store.provider?.all?.get(props.model.providerID)
     return match?.models?.[props.model.id]?.name ?? props.model.id
@@ -291,6 +299,9 @@ export function CurrentUserMessageDisplay(props: {
 
   return (
     <div data-component="user-message" data-timeline-part-id={props.text ? `${props.message.id}:text:0` : undefined}>
+      <Show when={annotations().length > 0}>
+        <UserMessageAnnotations annotations={annotations()} />
+      </Show>
       <Show
         when={props.text}
         fallback={
@@ -309,7 +320,7 @@ export function CurrentUserMessageDisplay(props: {
         </div>
       </Show>
       {renderAttachments()}
-      <Show when={props.text || comments().length > 0}>
+      <Show when={props.text || comments().length > 0 || annotations().length > 0}>
         <div data-slot="user-message-copy-wrapper">
           <span data-slot="user-message-meta-wrap">
             <Show when={metaHead()}>
@@ -353,6 +364,45 @@ export function CurrentUserMessageDisplay(props: {
           </Show>
         </div>
       </Show>
+    </div>
+  )
+}
+
+// fork: quotes and annotations staged in the composer stay visible on the sent message, v1-style.
+function UserMessageAnnotations(props: { annotations: SessionUserAnnotation[] }) {
+  const i18n = useI18n()
+  const label = (annotation: SessionUserAnnotation) => {
+    if (annotation.kind === "page-text") return i18n.t("ui.message.annotation.pageText")
+    if (annotation.kind === "media") return i18n.t("ui.message.annotation.media")
+    return annotation.role === "assistant" ? i18n.t("ui.message.annotation.reply") : i18n.t("ui.message.annotation.quote")
+  }
+  const icon = (annotation: SessionUserAnnotation) =>
+    annotation.kind === "page-text" ? "globe" : annotation.kind === "media" ? "photo" : "bubble-5"
+  return (
+    <div data-slot="user-message-annotations">
+      <For each={props.annotations}>
+        {(annotation) => (
+          <div data-slot="user-message-annotation" data-kind={annotation.kind}>
+            <div data-slot="user-message-annotation-head">
+              <Icon name={icon(annotation)} size="small" />
+              <span data-slot="user-message-annotation-label">{label(annotation)}</span>
+              <Show when={annotation.source}>
+                {(source) => (
+                  <span data-slot="user-message-annotation-source" title={source()}>
+                    {source()}
+                  </span>
+                )}
+              </Show>
+            </div>
+            <Show when={annotation.text}>
+              {(text) => <div data-slot="user-message-annotation-text">{text()}</div>}
+            </Show>
+            <Show when={annotation.comment}>
+              {(comment) => <div data-slot="user-message-annotation-comment">{comment()}</div>}
+            </Show>
+          </div>
+        )}
+      </For>
     </div>
   )
 }
@@ -479,8 +529,7 @@ export function AssistantTextContent(props: {
   message: SessionMessageAssistant
   showCopy: boolean
   turnDurationMs?: number | null
-  openArtifact?: (path: string) => void
-  downloadArtifact?: (path: string) => void
+  artifacts?: AssistantArtifactsProps
 }) {
   const data = useData()
   const i18n = useI18n()
@@ -523,8 +572,11 @@ export function AssistantTextContent(props: {
       .join(" \u00B7 ")
   })
   const [copied, setCopied] = createSignal(false)
+  const streaming = () => typeof props.message.time.completed !== "number"
+  // fork: the completion marker is runner bookkeeping; the part stays mounted for its cards and copy button.
+  const text = createMemo(() => hideCompletionMarker(props.text, streaming()))
   const copy = async () => {
-    if (!(await writeClipboard(props.text))) return
+    if (!(await writeClipboard(text()))) return
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -532,16 +584,12 @@ export function AssistantTextContent(props: {
   return (
     <Show when={props.text}>
       <div data-component="text-part" data-timeline-part-id={props.id}>
-        <div data-slot="text-part-body">
-          <PacedMarkdown
-            text={props.text}
-            cacheKey={props.id}
-            streaming={typeof props.message.time.completed !== "number"}
-          />
-        </div>
-        <Show when={props.openArtifact && props.message.time.completed !== undefined}>
-          <AssistantArtifacts text={props.text} onOpen={props.openArtifact!} onDownload={props.downloadArtifact} />
+        <Show when={text()}>
+          <div data-slot="text-part-body">
+            <PacedMarkdown text={text()} cacheKey={props.id} streaming={streaming()} />
+          </div>
         </Show>
+        <Show when={props.artifacts}>{(artifacts) => <AssistantArtifacts {...artifacts()} />}</Show>
         <Show when={props.showCopy}>
           <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
             <MessageActionButton

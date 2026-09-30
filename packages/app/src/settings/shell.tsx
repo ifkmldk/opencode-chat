@@ -29,6 +29,7 @@ import { useWorkspacesPrefetch } from "./workspaces/queries"
 import { SettingsProjects } from "./workspaces/projects"
 import { SettingsExtensions } from "./providers/extensions"
 import { SettingsAbout } from "./about/about"
+import { SettingsMaps } from "./maps/maps"
 import { SettingsServerDataScope } from "./server-scope"
 import { SettingsNavigation, type SettingsNavGroup } from "./navigation"
 import { SettingsProjectGeneral } from "./workspaces/project"
@@ -52,6 +53,8 @@ const serverTabs = [
   { value: "providers", icon: pageIcons.providers, label: "settings.providers.title" },
   { value: "models", icon: pageIcons.models, label: "settings.models.title" },
   { value: "extensions", icon: pageIcons.extensions, label: "settings.tab.extensions" },
+  // fork: Settings → Maps (Gemini free-tier key, OpenStreetMap fallback)
+  { value: "maps", icon: pageIcons.maps, label: "settings.tab.maps" },
 ] as const
 
 const trailingTabs = [
@@ -256,7 +259,7 @@ function RootSettings() {
   createEffect(() => {
     const view = surface.view()
     if (view.type !== "root" || !multiple()) return
-    if (["projects", "workspaces", "providers", "models", "extensions", "servers"].includes(view.tab))
+    if (["projects", "workspaces", "providers", "models", "extensions", "maps", "servers"].includes(view.tab))
       surface.open("general")
   })
 
@@ -327,6 +330,9 @@ function RootSettings() {
             </Tabs.Content>
             <Tabs.Content value="extensions" class="settings-panel">
               <SettingsExtensions subtab={surface.view().subtab} onSubtab={(value) => surface.subtab(value)} />
+            </Tabs.Content>
+            <Tabs.Content value="maps" class="settings-panel">
+              <SettingsMaps />
             </Tabs.Content>
           </SettingsServerDataScope>
         )}

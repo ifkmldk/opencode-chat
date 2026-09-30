@@ -165,6 +165,7 @@ for (const device of ["Pixel 7", "iPhone 13"]) {
         settings: { shellToolPartsExpanded: true },
         viewport: { width: 390, height: 844 },
       })
+      await markPromptInk(page)
       const reading = await readFrom(page, "Part 2 line 0.")
       const bounds = (await reading.scroller.boundingBox())!
       const devtools = await page.context().newCDPSession(page)
@@ -830,6 +831,7 @@ for (const hidden of ["translateY(-500px)", "scale(0)"]) {
       messages: [userMessage(), assistantMessage([textPart("prt_pixel_control", "Content.")])],
       viewport: { width: 390, height: 844 },
     })
+    await markPromptInk(page)
     const timeline = page.locator('[data-slot="session-timeline-scroll"]')
     await expect(timeline.locator("[data-timeline-virtual-content]")).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
@@ -895,6 +897,11 @@ async function capturePromptMotion(page: Page, view: { x: number; y: number; wid
     await session.detach()
     return { positions: await readPromptPositions(page, frames, view), frames }
   }
+}
+
+// fork: the prompt bubble is grey in this fork (v1 look), so give it the blue ink this pixel probe tracks.
+async function markPromptInk(page: Page) {
+  await page.addStyleTag({ content: '[data-slot="user-message-text"] { background: rgb(37 99 235) !important; }' })
 }
 
 async function readPromptPositions(page: Page, frames: string[], view: { x: number; y: number; width: number }) {

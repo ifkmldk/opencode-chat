@@ -1,5 +1,6 @@
 // @refresh reload
 
+import { watchServiceWorker } from "@/fork/sw-update"
 import "@/runtime/polyfills"
 import { init } from "@sentry/solid"
 import { render } from "solid-js/web"
@@ -12,6 +13,7 @@ import { KeyboardInsets } from "@/runtime/platform/keyboard"
 import en from "@/runtime/i18n/en"
 import zh from "@/runtime/i18n/zh"
 import { authFromToken } from "@/runtime/server/api"
+import { launcherToken } from "@/fork/auth-token"
 import pkg from "../package.json"
 import { ServerConnection } from "@/runtime/server/registry"
 
@@ -46,7 +48,11 @@ const clearAuthToken = () => {
 const web = createWebPlatform(pkg.version)
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"), { once: true })
+  window.addEventListener(
+    "load",
+    () => void navigator.serviceWorker.register("/sw.js").then(watchServiceWorker, () => undefined),
+    { once: true },
+  )
 }
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -72,7 +78,7 @@ if (root instanceof HTMLElement && root.dataset.opencodeMounted === undefined) {
   // Lazy chunks can import the entry chunk back under a distinct URL, so claim the root before async startup.
   root.dataset.opencodeMounted = ""
   void loadInitialLocale().then((locale) => {
-    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+    const auth = authFromToken(launcherToken(location.search))
     clearAuthToken()
     const standalone = isStandalone()
     root.dataset.standalone = String(standalone)

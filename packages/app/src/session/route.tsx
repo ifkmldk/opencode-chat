@@ -71,6 +71,7 @@ function PreparingSession(props: { sessionID: string; pending: PendingSession })
               sessionID={props.sessionID}
               message={props.pending.message}
               comments={readPromptPresentation(props.pending.message.metadata)?.comments}
+              annotations={readPromptPresentation(props.pending.message.metadata)?.annotations}
               historicalAgent={props.pending.selection.agent}
               historicalModel={{
                 id: props.pending.selection.model.modelID,

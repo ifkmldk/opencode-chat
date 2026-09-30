@@ -2,9 +2,11 @@ import katex from "katex"
 import type { MarkedExtension, Tokens } from "marked"
 import markedShiki from "marked-shiki"
 import { createMarkdownBase } from "./marked-base"
+import { calloutExtension } from "./marked-callout"
 
 export function createMarkdownParser(highlight: (code: string, language: string) => string | Promise<string>) {
-  return createMarkdownBase().use(katexExtension, markedShiki({ highlight }))
+  // fork: calloutExtension renders `> [!NOTE]`-style alerts as callouts (v1).
+  return createMarkdownBase().use(katexExtension, calloutExtension, markedShiki({ highlight }))
 }
 
 const inlineMathRegex = /^\\\(((?:\\.|[^\\\n])*?)\\\)/

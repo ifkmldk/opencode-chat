@@ -6,6 +6,8 @@ import type { ContextItem, AgentPart, FileAttachmentPart, ImageAttachmentPart, P
 import {
   formatAttachmentReference,
   formatCommentNote,
+  promptAnnotations,
+  type PromptAnnotation,
   type PromptAttachmentReference,
   type PromptComment,
 } from "@/composer/comment-note"
@@ -19,6 +21,7 @@ type PromptRequest = {
   skills: { id: string; name: string; mention?: { start: number; end: number; text: string } }[]
   comments: PromptComment[]
   attachments: PromptAttachmentReference[]
+  annotations: PromptAnnotation[]
 }
 
 type ContextFile = Extract<ContextItem, { type: "file" }> & { key?: string }
@@ -145,5 +148,6 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
     skills,
     comments,
     attachments,
+    annotations: promptAnnotations(input.context),
   }
 }

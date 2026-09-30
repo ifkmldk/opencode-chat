@@ -63,7 +63,15 @@ export const groupNames = {
   "server.worktree": "worktree",
   "server.vcs": "vcs",
   "server.config": "config",
+  "server.browserProxy": "browserProxy",
+  "server.maps": "maps",
 } as const
 
-export const promiseOmitEndpoints = new Set(["pty.connect", "persistentPty.connect"])
-export const effectOmitEndpoints = new Set(["fs.read", "fs.write", "pty.connect", "persistentPty.connect"])
+export const promiseOmitEndpoints = new Set(["pty.connect", "persistentPty.connect", "browserProxy.proxy"])
+export const effectOmitEndpoints = new Set([
+  "fs.read",
+  "fs.write",
+  "pty.connect",
+  "persistentPty.connect",
+  "browserProxy.proxy",
+])

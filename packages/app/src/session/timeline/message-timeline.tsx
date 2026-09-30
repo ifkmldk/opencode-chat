@@ -222,6 +222,7 @@ function MessageTimelineView(
           (presentation?.displayText ?? message.text).length <= 1024 &&
           !presentation?.comments?.length &&
           !presentation?.attachments.length &&
+          !presentation?.annotations.length &&
           !parseCommentNote(message.text)
         )
       }
@@ -300,6 +301,7 @@ function MessageTimelineView(
         displayText: value?.displayText,
         comments: value?.comments ?? (parsed ? [parsed] : []),
         references: value?.attachments,
+        annotations: value?.annotations,
       }
     },
     actions: props.actions,

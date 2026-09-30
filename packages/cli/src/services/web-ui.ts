@@ -54,14 +54,18 @@ function isRouteNotFound(error: unknown) {
 }
 
 function csp(hash = "") {
-  return `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; media-src 'self' data:; connect-src * data: blob:`
+  // fork: blob: frames/media for PDF and video previews, https: frames for map embeds; the web Browser
+  // pane frames the same-origin proxy route, and loopback pages (preview-plugin canvas, dev servers) directly.
+  return `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash ? ` 'sha256-${hash}'` : ""}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; media-src 'self' data: blob:; frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src * data: blob:`
 }
 
 function cspForHtml(body: string) {
   const match = body.match(
     /<script\b(?![^>]*\bsrc\s*=)[^>]*\bid=(["'])oc-theme-preload-script\1[^>]*>([\s\S]*?)<\/script>/i,
   )
-  return csp(match ? createHash("sha256").update(match[2]).digest("base64") : "")
+  // fork: browsers hash inline scripts after HTML newline normalization, so a CRLF build (Windows
+  // checkout) must be hashed the same way or the theme preload script is blocked.
+  return csp(match ? createHash("sha256").update(match[2].replace(/\r\n?/g, "\n")).digest("base64") : "")
 }
 
 export * as WebUi from "./web-ui"

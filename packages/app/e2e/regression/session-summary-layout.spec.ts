@@ -21,7 +21,8 @@ for (const direction of ["ltr", "rtl"] as const) {
     const panel = page.locator('[data-slot="session-chat-panel"]')
     const summary = page.getByRole("dialog", { name: "Session details", exact: true })
     await expect(row).toBeInViewport()
-    await expect(row).toHaveCSS("width", "1000px")
+    // fork: v1 conversation column is 800px (app/src/fork/fork.css).
+    await expect(row).toHaveCSS("width", "800px")
     const before = await row.boundingBox()
     const dock = await composer.boundingBox()
     expect(before).not.toBeNull()
@@ -51,7 +52,7 @@ for (const direction of ["ltr", "rtl"] as const) {
         )
       })
       .toBe(true)
-    await expect(row).toHaveCSS("width", "1000px")
+    await expect(row).toHaveCSS("width", "800px")
     await expect
       .poll(async () => {
         const message = await row.boundingBox()
@@ -109,7 +110,7 @@ for (const direction of ["ltr", "rtl"] as const) {
       .toBeGreaterThan(0)
     await page.setViewportSize({ width: 1319 + shell, height: 900 })
     await expect(content).toHaveCSS("translate", "none")
-    await expect(row).toHaveCSS("width", "1000px")
+    await expect(row).toHaveCSS("width", "800px")
     await expect(summary).toBeVisible()
 
     await page.setViewportSize({ width: 1800, height: 900 })

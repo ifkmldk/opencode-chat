@@ -275,62 +275,6 @@ export function pdfPageCount(bytes: Uint8Array) {
 }
 
 /**
- * Best-effort text extraction from raw PDF bytes without a heavy parser.
- * Reads literal `(text)` and hex `<0068…>` strings inside content streams so
- * text PDFs become quotable; scanned PDFs return an empty string so the UI can
- * say "use OCR" instead of silently sending nothing. Caps output at 40k chars.
- */
-export function extractPdfText(bytes: Uint8Array, limit = 40_000) {
-  if (pdfPageCount(bytes) === undefined) return { text: "", truncated: false, pages: undefined }
-  const ascii = new TextDecoder("latin1").decode(bytes)
-  const parts: string[] = []
-  let truncated = false
-  const push = (value: string) => {
-    const cleaned = value
-      .replace(/\\n/g, "\n")
-      .replace(/\\r/g, "\r")
-      .replace(/\\t/g, "\t")
-      .replace(/\\\(/g, "(")
-      .replace(/\\\)/g, ")")
-      .replace(/\\\\/g, "\\")
-    if (!cleaned.trim()) return
-    for (const chunk of cleaned.split(/[\r\n]+/)) {
-      const line = chunk.trim()
-      if (!line) continue
-      if (parts.join("\n").length + line.length + 1 > limit) {
-        truncated = true
-        return
-      }
-      parts.push(line)
-    }
-  }
-  const literal = /\((?:\\.|[^\\)])*\)/g
-  let match: RegExpExecArray | null
-  while ((match = literal.exec(ascii)) !== null) {
-    push(match[0].slice(1, -1))
-    if (truncated) break
-  }
-  if (!truncated) {
-    const hex = /<([0-9a-fA-F\s]+)>/g
-    while ((match = hex.exec(ascii)) !== null) {
-      const digits = match[1]!.replace(/\s+/g, "")
-      if (digits.length < 4 || digits.length % 2 !== 0) continue
-      try {
-        const chars = Array.from({ length: digits.length / 2 }, (_, index) =>
-          String.fromCharCode(Number.parseInt(digits.slice(index * 2, index * 2 + 2), 16)),
-        ).join("")
-        push(chars)
-      } catch {
-        continue
-      }
-      if (truncated) break
-      if (parts.length > 5_000) break
-    }
-  }
-  return { text: parts.join("\n"), truncated, pages: pdfPageCount(bytes) }
-}
-
-/**
  * Resolve a relative link against a directory. A relative base yields a workspace-relative path and
  * an absolute base an absolute one; undefined when the link climbs past the base's root.
  */

@@ -15,6 +15,13 @@ export function promptLength(prompt: Prompt) {
   return prompt.reduce((length, part) => length + ("content" in part ? part.content.length : 0), 0)
 }
 
+/** Add text to a draft without discarding what the user already typed or attached. */
+export function appendDraftText(prompt: Prompt, text: string): Prompt {
+  const next: Prompt = [{ type: "text", content: text, start: 0, end: text.length }]
+  if (!prompt.some((part) => part.type !== "text" || part.content.trim())) return next
+  return appendPrompt(prompt, next)
+}
+
 export function appendPrompt(prompt: Prompt, following: Prompt): Prompt {
   const start = promptLength(prompt)
   const offset = start + 2

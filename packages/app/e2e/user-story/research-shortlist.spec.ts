@@ -112,7 +112,7 @@ test('research workflow asks with filters, shortlists, and drafts an approval-ga
   // locator goes stale, so Draft must be checked while the card reference is fresh.
   const composerEditor = composer.locator('[data-component="composer-editor"]')
   await composerEditor.fill('')
-  await page.getByRole('button', { name: 'Used 1 research_search' }).click()
+  // Result tools render as their own open card, never folded into a "Used N" group (session-ui result-tools.ts).
   const card = page.locator('[data-component="assistant-result-card"]', { hasText: 'Grand Bali' })
   await expectAppVisible(card)
   await card.getByRole('button', { name: 'Shortlist', exact: true }).click()

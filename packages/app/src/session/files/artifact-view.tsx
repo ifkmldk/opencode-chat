@@ -16,7 +16,6 @@ import {
   artifactKind,
   blobUrlFromContent,
   contentBytes,
-  extractPdfText,
   officeBytes,
   parseOfficeDocument,
   parseOfficeSlides,
@@ -25,7 +24,13 @@ import {
   resolveArtifactPath,
   type ArtifactKind,
 } from "@/workspaces/files/artifact"
+import { extractPdfText } from "@/workspaces/files/pdf-text"
+import { PdfPages } from "@/fork/pdf/pdf-pages"
 import { useArtifactOpener } from "@/session/files/open-artifact"
+import { showToast } from "@/shell/notifications/toast"
+import { captureRegion } from "@/fork/annotate/capture"
+import { RegionSelectOverlay } from "@/fork/annotate/region-select"
+import { TextSelectOverlay } from "@/fork/annotate/text-select"
 import "./artifact-view.css"
 
 type ArtifactMode = "preview" | "source"
@@ -48,7 +53,9 @@ const previewableKinds = new Set<ArtifactKind>(["svg", "html", "markdown", "merm
  * Renders a loaded non-text file: media, documents, and data get a dedicated viewer with a toolbar;
  * previewable text kinds can switch to `source`, which the host supplies (its code view).
  */
-export type ArtifactAnnotation = { text: string; html?: string; comment?: string }
+export type ArtifactAnnotation =
+  | { kind: "text"; text: string; html?: string; comment?: string }
+  | { kind: "media"; blob: Blob; mime: string; comment?: string }
 
 export function ArtifactView(props: { path: string; content: FileContent; cacheKey?: string; source: JSX.Element; onAnnotate?: (annotation: ArtifactAnnotation) => void }) {
   const language = useLanguage()
@@ -57,12 +64,13 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
     info: {} as ArtifactInfo,
     // Media the browser could not decode falls back to the binary placeholder.
     undecodable: false,
-    annotation: undefined as ArtifactAnnotation | undefined,
+    // fork: region-select mode for the v1 annotator.
+    region: false,
   })
   createEffect(
     on(
       () => props.content,
-      () => setState({ mode: "preview", info: {}, undecodable: false, annotation: undefined }),
+      () => setState({ mode: "preview", info: {}, undecodable: false, region: false }),
       { defer: true },
     ),
   )
@@ -99,24 +107,21 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
     </ScrollView>
   )
 
-  const annotate = (comment?: string) => {
-    const selection = window.getSelection()
-    const text = selection?.toString().trim() ?? ""
-    if (!text || !props.onAnnotate) return
-    props.onAnnotate({ text, comment })
-    setState("annotation", undefined)
-    selection?.removeAllRanges()
-  }
+  const [content, setContent] = createSignal<HTMLDivElement>()
   const actions = (
     <Show when={props.onAnnotate}>
-      <Button
-        size="small"
-        variant="ghost"
-        onClick={() => annotate()}
-        title="Add selected text to context"
-      >
-        Add selection
-      </Button>
+      <Show when={kind() !== "binary" && kind() !== "font" && kind() !== "audio"}>
+        <Button
+          size="small"
+          variant="ghost"
+          data-action="artifact-select-region"
+          aria-pressed={state.region}
+          title={language.t("file.view.region.hint")}
+          onClick={() => setState("region", (value) => !value)}
+        >
+          {language.t(state.region ? "file.view.region.cancel" : "file.view.region.select")}
+        </Button>
+      </Show>
       <Show when={kind() === "pdf"}>
         <ArtifactPdfExtractButton path={props.path} content={props.content} onAnnotate={props.onAnnotate!} />
       </Show>
@@ -137,6 +142,7 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
           </>
         }
       />
+      <div ref={setContent} data-slot="artifact-view-content" class="relative flex min-h-0 flex-1 flex-col">
       <Show when={!previewable() || state.mode === "preview"} fallback={props.source}>
         <Switch>
           <Match when={kind() === "image" || kind() === "svg"}>
@@ -148,8 +154,12 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
           <Match when={kind() === "audio"}>
             <ArtifactAudio path={props.path} content={props.content} {...media} />
           </Match>
-          <Match when={kind() === "pdf" || kind() === "html"}>
-            <ArtifactFrame path={props.path} content={props.content} kind={kind() === "pdf" ? "pdf" : "html"} />
+          <Match when={kind() === "pdf"}>
+            {/* fork: pdf.js canvases; Chromium's viewer renders nothing in the app's blob frames. */}
+            <PdfPages bytes={officeBytes(props.content)} title={getFilename(props.path)} />
+          </Match>
+          <Match when={kind() === "html"}>
+            <ArtifactFrame path={props.path} content={props.content} kind="html" />
           </Match>
           <Match when={kind() === "font"}>
             <ArtifactFont path={props.path} content={props.content} />
@@ -166,6 +176,26 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
           </Match>
         </Switch>
       </Show>
+      <Show when={props.onAnnotate}>
+        {(onAnnotate) => (
+          <>
+            <RegionSelectOverlay
+              active={state.region}
+              capture={(rect) => captureRegion(content()!, rect)}
+              onAnnotate={(blob, comment) => onAnnotate()({ kind: "media", blob, mime: "image/png", comment })}
+              onCaptureFailed={() => showToast({ title: language.t("file.view.region.captureFailed") })}
+              onDone={() => setState("region", false)}
+            />
+            <Show when={!state.region}>
+              <TextSelectOverlay
+                container={content}
+                onAnnotate={(item, comment) => onAnnotate()({ kind: "text", text: item.text, html: item.html, comment })}
+              />
+            </Show>
+          </>
+        )}
+      </Show>
+      </div>
     </>
   )
 }
@@ -215,7 +245,7 @@ function ArtifactToolbar(props: {
             {(item, index) => (
               <>
                 <Show when={index() > 0}>
-                  <span aria-hidden class="text-text-faint">
+                  <span aria-hidden class="text-text-weaker">
                     ·
                   </span>
                 </Show>
@@ -357,9 +387,6 @@ function ArtifactFrame(props: { path: string; content: FileContent; kind: "pdf" 
   const src = () => (props.kind === "pdf" ? `${url()}#navpanes=0&view=FitH` : url())
   return (
     <div class="flex min-h-0 flex-1 flex-col">
-      <Show when={props.kind === "pdf"}>
-        <ArtifactPdfExtractBar path={props.path} content={props.content} onAnnotate={undefined} />
-      </Show>
       <iframe
         class="block h-full w-full flex-1 border-0 bg-white"
         title={getFilename(props.path)}
@@ -374,72 +401,42 @@ function ArtifactFrame(props: { path: string; content: FileContent; kind: "pdf" 
 }
 
 /**
- * PDF text bridge: Chromium renders the pixels, but the iframe gives no
- * selectable text back to the app. This extracts embedded text client-side so
- * text PDFs become quotable into Chat; scanned PDFs report zero text and point
- * at OCR instead of silently sending nothing. Heavy pdf.js is deliberately
- * avoided: no new dependency, no worker, no binary size jump.
+ * PDF text bridge: Chromium renders the pixels but gives no selectable text back to the app, so the
+ * embedded text is extracted with pdf.js on demand. Scanned PDFs have none and say so instead of
+ * silently sending nothing.
  */
-function ArtifactPdfExtractBar(props: { path: string; content: FileContent; onAnnotate?: (annotation: ArtifactAnnotation) => void }) {
+function ArtifactPdfExtractButton(props: {
+  path: string
+  content: FileContent
+  onAnnotate: (annotation: ArtifactAnnotation) => void
+}) {
   const language = useLanguage()
-  const bytes = () => officeBytes(props.content)
-  const extraction = createMemo(() => {
-    const data = bytes()
-    if (!data) return undefined
-    try {
-      return extractPdfText(data)
-    } catch {
-      return undefined
-    }
-  })
-  const label = () => {
-    const result = extraction()
-    if (!result) return language.t("file.view.pdf.extractUnavailable")
-    if (!result.text.trim()) return language.t("file.view.pdf.scanned")
-    const pages = result.pages ? ` · ${language.plural("file.view.pdf.pages", result.pages)}` : ""
-    const truncated = result.truncated ? ` · ${language.t("file.view.pdf.truncated")}` : ""
-    return `${language.t("file.view.pdf.extracted")}${pages}${truncated}`
+  const [pending, setPending] = createSignal(false)
+  const send = async () => {
+    const data = officeBytes(props.content)
+    if (!data || pending()) return
+    setPending(true)
+    const result = await extractPdfText(data).catch(() => undefined)
+    setPending(false)
+    if (!result) return showToast({ title: language.t("file.view.pdf.extractUnavailable") })
+    const text = result.text.trim()
+    if (!text) return showToast({ title: language.t("file.view.pdf.scanned") })
+    props.onAnnotate({
+      kind: "text",
+      text,
+      comment: language.t(result.truncated ? "file.view.pdf.sourceTruncated" : "file.view.pdf.source", {
+        name: getFilename(props.path),
+      }),
+    })
   }
-  return (
-    <div data-slot="artifact-pdf-extract" class="flex shrink-0 flex-wrap items-center gap-2 border-b border-border-weaker-base px-4 py-2 text-12-regular text-text-weak">
-      <span class="min-w-0 flex-1 truncate">{label()}</span>
-      <Show when={extraction()?.text.trim()}>
-        {(text) => (
-          <Button
-            size="small"
-            variant="ghost"
-            data-action="pdf-send-to-chat"
-            onClick={() => props.onAnnotate?.({ text: text().slice(0, 40_000), comment: `Extracted from ${getFilename(props.path)}` })}
-          >
-            {language.t("file.view.pdf.sendToChat")}
-          </Button>
-        )}
-      </Show>
-    </div>
-  )
-}
-
-function ArtifactPdfExtractButton(props: { path: string; content: FileContent; onAnnotate: (annotation: ArtifactAnnotation) => void }) {
-  const language = useLanguage()
   return (
     <Button
       size="small"
       variant="ghost"
       data-action="pdf-send-to-chat"
       title={language.t("file.view.pdf.sendToChatHint")}
-      onClick={() => {
-        const data = officeBytes(props.content)
-        if (!data) return
-        let result: ReturnType<typeof extractPdfText> | undefined
-        try {
-          result = extractPdfText(data)
-        } catch {
-          return
-        }
-        const text = result?.text.trim()
-        if (!text) return
-        props.onAnnotate({ text: text.slice(0, 40_000), comment: `Extracted from ${getFilename(props.path)}` })
-      }}
+      disabled={pending()}
+      onClick={() => void send()}
     >
       {language.t("file.view.pdf.sendToChat")}
     </Button>
@@ -591,6 +588,7 @@ type SlideOutline = { index: number; title?: string; bullets: string[] }
  * available from the Text toggle, and a renderer failure drops back to it automatically.
  */
 function ArtifactSlides(props: { bytes?: Uint8Array; slides: SlideOutline[] }) {
+  const language = useLanguage()
   const [mode, setMode] = createSignal<"visual" | "text">("visual")
   const [visual, setVisual] = createSignal<"loading" | "ready">("loading")
   let host: HTMLDivElement | undefined
@@ -648,8 +646,8 @@ function ArtifactSlides(props: { bytes?: Uint8Array; slides: SlideOutline[] }) {
             if (value === "visual" || value === "text") setMode(value)
           }}
         >
-          <SegmentedControlItem value="visual">Visual</SegmentedControlItem>
-          <SegmentedControlItem value="text">Text</SegmentedControlItem>
+          <SegmentedControlItem value="visual">{language.t("file.view.slides.visual")}</SegmentedControlItem>
+          <SegmentedControlItem value="text">{language.t("file.view.slides.text")}</SegmentedControlItem>
         </SegmentedControl>
       </div>
       <Show
@@ -657,14 +655,15 @@ function ArtifactSlides(props: { bytes?: Uint8Array; slides: SlideOutline[] }) {
         fallback={
           <div class="min-h-0 flex-1 overflow-auto p-6">
             <Show when={!props.bytes && mode() === "visual"}>
-              <div class="mb-4 text-13-regular text-text-weak">This presentation is too large to render visually; showing the extracted outline.</div>
+              <div class="mb-4 text-13-regular text-text-weak">{language.t("file.view.slides.tooLarge")}</div>
             </Show>
             <For each={props.slides}>
               {(slide) => (
                 <section class="mb-4 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-5">
                   <h2 class="mb-2 text-15-semibold text-text-strong">
-                    Slide {slide.index}
-                    {slide.title ? `: ${slide.title}` : ""}
+                    {slide.title
+                      ? language.t("file.view.slides.titled", { index: slide.index, title: slide.title })
+                      : language.t("file.view.slides.slide", { index: slide.index })}
                   </h2>
                   <For each={slide.bullets}>{(bullet) => <p class="text-13-regular text-text-base">• {bullet}</p>}</For>
                 </section>
@@ -676,7 +675,7 @@ function ArtifactSlides(props: { bytes?: Uint8Array; slides: SlideOutline[] }) {
         <div class="min-h-0 flex-1 overflow-auto p-6">
           <div ref={(el) => (host = el)} data-slot="artifact-slides-visual" class="mx-auto flex w-full max-w-5xl flex-col items-center" />
           <Show when={visual() === "loading"}>
-            <div class="mt-3 text-13-regular text-text-weak">Rendering slides…</div>
+            <div class="mt-3 text-13-regular text-text-weak">{language.t("file.view.slides.rendering")}</div>
           </Show>
         </div>
       </Show>
@@ -714,7 +713,7 @@ function ArtifactFont(props: { path: string; content: FileContent }) {
             {(size) => (
               <div class="flex items-baseline gap-4">
                 <span
-                  class="w-8 shrink-0 text-12-regular text-text-faint tabular-nums"
+                  class="w-8 shrink-0 text-12-regular text-text-weaker tabular-nums"
                   style={{ "font-family": "var(--font-family-mono)" }}
                 >
                   {size}

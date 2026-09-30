@@ -215,6 +215,8 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
         Effect.gen(function* () {
           const path = decodeURIComponent(new URL(ctx.request.url, "http://localhost").pathname.slice(13))
           const value = yield* Effect.promise(() => Promise.resolve(config.fileContent?.(path)))
+          // Raw bytes pass through so binary downloads can be checked byte for byte.
+          if (value instanceof Uint8Array) return HttpServerResponse.uint8Array(value)
           const content =
             value && typeof value === "object" && "content" in value ? String(value.content) : String(value ?? "")
           return HttpServerResponse.uint8Array(new TextEncoder().encode(content))
@@ -287,12 +289,12 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
           return Effect.succeed([{ ...project, canonical: project.canonical ?? project.worktree ?? config.directory }])
         },
         projectUpdate: (ctx) => {
-          const project = config.project as { canonical?: string }
+          const project = config.project as { canonical?: string; worktree?: string }
           return Effect.succeed({
             ...project,
             ...ctx.payload,
             id: ctx.params.projectID,
-            canonical: project.canonical ?? config.directory,
+            canonical: project.canonical ?? project.worktree ?? config.directory,
           })
         },
         configShells: () => Effect.succeed(config.shells ?? []),

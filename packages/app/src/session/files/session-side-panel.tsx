@@ -51,6 +51,12 @@ import { SessionFileBrowserTab, type SessionFileBrowserState } from "@/session/f
 import { SessionBrowserPane } from "@/session/browser/pane"
 import { SessionResearchPanel } from "@/session/files/session-research-panel"
 import { CanvasPane } from "@/session/files/canvas-pane"
+import { WebBrowserPane } from "@/fork/web-browser/pane"
+import { SideChatPane } from "@/fork/side-chat/pane"
+import { SIDE_CHAT_TAB } from "@/fork/side-chat/model"
+import { MapPane } from "@/fork/map/pane"
+import { MAP_TAB } from "@/fork/map/scene"
+import { isWebBrowserTab, useWebBrowser, webBrowserTab, WEB_BROWSER_TAB_PREFIX } from "@/fork/web-browser/model"
 import { useComposerState } from "@/composer/persistence"
 import type { createSessionBrowser } from "@/session/browser/model"
 
@@ -182,15 +188,23 @@ export function SessionSidePanel(props: {
     browser: props.browser.attached,
   })
   const contextOpen = tabState.contextOpen
-  const researchOpen = tabState.researchOpen
-  const canvasOpen = tabState.canvasOpen
   const composer = useComposerState()
+
   const openFileOpen = tabState.openFileOpen
   const panelTabs = tabState.panelTabs
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
-
+  // fork: the native browser view is desktop-only; the web UI frames pages through the server proxy.
+  const web = useWebBrowser()
+  const webTabs = createMemo(() => panelTabs().filter(isWebBrowserTab))
+  const openBrowser = () => {
+    if (props.browser.available()) return props.browser.open()
+    const tab = webBrowserTab(web.create())
+    tabs().open(tab)
+    openReviewPanel()
+    tabs().setActive(tab)
+  }
   const fileTreeTab = () => layout.fileTree.tab()
 
   const setFileTreeTabValue = (value: string) => {
@@ -218,6 +232,16 @@ export function SessionSidePanel(props: {
     const next = normalizeTab(value)
     if (next === "canvas") {
       tabs().open("canvas")
+      openReviewPanel()
+      return
+    }
+    if (next === SIDE_CHAT_TAB) {
+      tabs().open(SIDE_CHAT_TAB)
+      openReviewPanel()
+      return
+    }
+    if (next === MAP_TAB) {
+      tabs().open(MAP_TAB)
       openReviewPanel()
       return
     }
@@ -249,6 +273,7 @@ export function SessionSidePanel(props: {
   })
   const openFileKeybind = createMemo(() => command.keybindParts("file.open"))
   const openBrowserKeybind = createMemo(() => command.keybindParts("browser.open"))
+  const terminalKeybind = createMemo(() => command.keybindParts("terminal.toggle"))
   const closeTabKeybind = createMemo(() => command.keybindParts("file.close"))
   createEffect(() => {
     if (!file.ready()) return
@@ -359,22 +384,6 @@ export function SessionSidePanel(props: {
                                 : language.t("session.tab.review")}
                             </Tabs.Trigger>
                           </Show>
-                          <Show when={researchOpen()}>
-                            <Tabs.Trigger value="research">
-                              <div class="flex items-center gap-2">
-                                <Icon name="sparkles" size="small" />
-                                <div>Research</div>
-                              </div>
-                            </Tabs.Trigger>
-                          </Show>
-                          <Show when={canvasOpen()}>
-                            <Tabs.Trigger value="canvas">
-                              <div class="flex items-center gap-2">
-                                <Icon name="pencil-line" size="small" />
-                                <div>Canvas</div>
-                              </div>
-                            </Tabs.Trigger>
-                          </Show>
                           <Show when={contextOpen()}>
                             <Tabs.Trigger
                               value="context"
@@ -419,6 +428,57 @@ export function SessionSidePanel(props: {
                                   />
                                 }
                               >
+                                <Match when={tab === SIDE_CHAT_TAB}>
+                                  <SortableTab tab={tab} index={tabs().all().indexOf(tab)} onTabClose={tabs().close}>
+                                    <div class="flex items-center gap-1.5">
+                                      <Icon name="bubble-5" size="small" />
+                                      <span>{language.t("session.tab.sideChat")}</span>
+                                    </div>
+                                  </SortableTab>
+                                </Match>
+                                <Match when={tab === MAP_TAB}>
+                                  <SortableTab tab={tab} index={tabs().all().indexOf(tab)} onTabClose={tabs().close}>
+                                    <div class="flex items-center gap-1.5">
+                                      <Icon name="globe" size="small" />
+                                      <span>{language.t("session.tab.map")}</span>
+                                    </div>
+                                  </SortableTab>
+                                </Match>
+                                <Match when={tab === "research"}>
+                                  <SortableTab tab={tab} index={tabs().all().indexOf(tab)} onTabClose={tabs().close}>
+                                    <div class="flex items-center gap-1.5">
+                                      <Icon name="sparkles" size="small" />
+                                      <span>{language.t("session.tab.research")}</span>
+                                    </div>
+                                  </SortableTab>
+                                </Match>
+                                <Match when={tab === "canvas"}>
+                                  <SortableTab tab={tab} index={tabs().all().indexOf(tab)} onTabClose={tabs().close}>
+                                    <div class="flex items-center gap-1.5">
+                                      <Icon name="pencil-line" size="small" />
+                                      <span>{language.t("session.tab.canvas")}</span>
+                                    </div>
+                                  </SortableTab>
+                                </Match>
+                                <Match when={isWebBrowserTab(tab)}>
+                                  <SortableTab
+                                    tab={tab}
+                                    index={tabs().all().indexOf(tab)}
+                                    onTabClose={() => {
+                                      tabs().close(tab)
+                                      web.remove(tab.slice(WEB_BROWSER_TAB_PREFIX.length))
+                                    }}
+                                  >
+                                    <div class="flex items-center gap-1.5">
+                                      <Icon name="globe" size="small" />
+                                      <span class="max-w-40 truncate">
+                                        {web.tab(tab.slice(WEB_BROWSER_TAB_PREFIX.length)).title ||
+                                          web.tab(tab.slice(WEB_BROWSER_TAB_PREFIX.length)).url ||
+                                          language.t("session.tab.browser")}
+                                      </span>
+                                    </div>
+                                  </SortableTab>
+                                </Match>
                                 <Match when={tab === SESSION_BTW_TAB}>
                                   <SortableTab tab={tab} index={tabs().all().indexOf(tab)} onTabClose={tabs().close}>
                                     <div class="flex items-center gap-1.5">
@@ -514,52 +574,73 @@ export function SessionSidePanel(props: {
                                 />
                                 <Menu.Portal>
                                   <Menu.Content>
-                                       <Menu.Item
-                                         class="!gap-6"
-                                         onSelect={() => activateTab("research")}
-                                       >
-                                         <div class="flex items-center gap-2">
-                                           <Icon name="sparkles" size="small" />
-                                           <span>Research workspace</span>
-                                         </div>
-                                       </Menu.Item>
-                                       <Menu.Item
-                                         class="!gap-6"
-                                         onSelect={() => activateTab("canvas")}
-                                       >
-                                         <div class="flex items-center gap-2">
-                                           <Icon name="pencil-line" size="small" />
-                                           <span>Canvas</span>
-                                         </div>
-                                       </Menu.Item>
-                                      <Menu.Item
-                                        class="!gap-6"
-                                        onSelect={openFileBrowser}
-                                        shortcut={
-                                          <Show when={openFileKeybind().length > 0}>
-                                            <Keybind keys={openFileKeybind()} variant="neutral" />
-                                          </Show>
-                                        }
-                                      >
-                                        <div class="flex items-center gap-2">
-                                          <Icon name="file-tree" size="small" />
-                                          <span>{language.t("command.file.open")}</span>
-                                        </div>
-                                      </Menu.Item>
-                                      <Menu.Item
-                                        class="!gap-6"
-                                        onSelect={props.browser.open}
-                                        shortcut={
-                                          <Show when={openBrowserKeybind().length > 0}>
-                                            <Keybind keys={openBrowserKeybind()} variant="neutral" />
-                                          </Show>
-                                        }
-                                      >
-                                        <div class="flex items-center gap-2">
-                                          <Icon name="globe" size="small" />
-                                          <span>{language.t("session.tab.browser")}</span>
-                                        </div>
-                                      </Menu.Item>
+                                    <Menu.Item
+                                      class="!gap-6"
+                                      onSelect={openFileBrowser}
+                                      shortcut={
+                                        <Show when={openFileKeybind().length > 0}>
+                                          <Keybind keys={openFileKeybind()} variant="neutral" />
+                                        </Show>
+                                      }
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="file-tree" size="small" />
+                                        <span>{language.t("command.file.open")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item
+                                      class="!gap-6"
+                                      onSelect={openBrowser}
+                                      shortcut={
+                                        // The shortcut drives the native pane only; the web pane has none.
+                                        <Show when={props.browser.available() && openBrowserKeybind().length > 0}>
+                                          <Keybind keys={openBrowserKeybind()} variant="neutral" />
+                                        </Show>
+                                      }
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="globe" size="small" />
+                                        <span>{language.t("session.tab.browser")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item
+                                      class="!gap-6"
+                                      onSelect={() => command.trigger("terminal.toggle")}
+                                      shortcut={
+                                        <Show when={terminalKeybind().length > 0}>
+                                          <Keybind keys={terminalKeybind()} variant="neutral" />
+                                        </Show>
+                                      }
+                                    >
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="terminal" size="small" />
+                                        <span>{language.t("session.tab.terminal")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item class="!gap-6" onSelect={() => activateTab(SIDE_CHAT_TAB)}>
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="bubble-5" size="small" />
+                                        <span>{language.t("session.tab.sideChat")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item class="!gap-6" onSelect={() => activateTab(MAP_TAB)}>
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="globe" size="small" />
+                                        <span>{language.t("session.tab.map")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item class="!gap-6" onSelect={() => activateTab("canvas")}>
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="pencil-line" size="small" />
+                                        <span>{language.t("session.tab.canvas")}</span>
+                                      </div>
+                                    </Menu.Item>
+                                    <Menu.Item class="!gap-6" onSelect={() => activateTab("research")}>
+                                      <div class="flex items-center gap-2">
+                                        <Icon name="sparkles" size="small" />
+                                        <span>{language.t("session.research.title")}</span>
+                                      </div>
+                                    </Menu.Item>
                                     </Menu.Content>
                                   </Menu.Portal>
                               </Menu>
@@ -606,6 +687,20 @@ export function SessionSidePanel(props: {
                         </Tabs.Content>
                       </Show>
 
+                      <Show when={activeTab() === SIDE_CHAT_TAB && params.id}>
+                        {(sessionID) => (
+                          <Tabs.Content value={SIDE_CHAT_TAB} class="flex flex-col h-full overflow-hidden contain-strict">
+                            <SideChatPane mainSessionID={sessionID()} directory={projectDirectory()} />
+                          </Tabs.Content>
+                        )}
+                      </Show>
+
+                      <Show when={activeTab() === MAP_TAB}>
+                        <Tabs.Content value={MAP_TAB} class="flex flex-col h-full overflow-hidden contain-strict">
+                          <MapPane sessionID={params.id} />
+                        </Tabs.Content>
+                      </Show>
+
                       <Show when={activeTab() === "research"}>
                         <Tabs.Content value="research" class="flex flex-col h-full overflow-hidden contain-strict">
                           <SessionResearchPanel />
@@ -614,7 +709,7 @@ export function SessionSidePanel(props: {
 
                       <Show when={activeTab() === "canvas"}>
                         <Tabs.Content value="canvas" class="flex flex-col h-full overflow-hidden contain-strict">
-                          <CanvasPane onAnnotate={(item) => composer.context.add(item)} />
+                          <CanvasPane storageKey={sessionKey()} onAnnotate={(item) => composer.context.add(item)} />
                         </Tabs.Content>
                       </Show>
 
@@ -631,6 +726,23 @@ export function SessionSidePanel(props: {
                           {props.btwPanel()}
                         </Tabs.Content>
                       </Show>
+
+                      <For each={webTabs()}>
+                        {(tab) => (
+                          <div
+                            role="tabpanel"
+                            data-slot="tabs-content"
+                            class="h-full min-h-0 overflow-hidden"
+                            classList={{ hidden: activeTab() !== tab }}
+                            inert={activeTab() !== tab || undefined}
+                          >
+                            <WebBrowserPane
+                              id={tab.slice(WEB_BROWSER_TAB_PREFIX.length)}
+                              visible={reviewOpen() && activeTab() === tab}
+                            />
+                          </div>
+                        )}
+                      </For>
 
                       <Show when={props.browser.opened()}>
                         <div

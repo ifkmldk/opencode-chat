@@ -1,11 +1,12 @@
 import { createEffect, createSignal, onCleanup, type ParentProps } from "solid-js"
+import { mapState } from "@/fork/map/model"
 import { createSimpleContext } from "@opencode/ui/context"
 import { MarkdownProvider, useMarkdown } from "@opencode/session-ui/context/markdown"
 import { addArtifactGalleryEntry, type ArtifactGalleryEntry } from "@opencode/session-ui/research-events"
 import { useBrowserAttachments } from "@/session/browser/attachments"
 import type { SessionModel } from "@/session/model"
 import { useFile } from "@/workspaces/files/model"
-import { artifactKind, blobUrlFromContent, resolveArtifactPath } from "@/workspaces/files/artifact"
+import { artifactKind, resolveArtifactPath } from "@/workspaces/files/artifact"
 import { encodeFilePath } from "@/workspaces/files/path"
 import { getFilename } from "@opencode/util/path"
 import { useWorkspaceLocation } from "@/workspaces/location"
@@ -14,13 +15,24 @@ import { ServerConnection } from "@/runtime/server/registry"
 import { useSessionLayout } from "@/session/session-layout"
 import { createOpenSessionFileTab } from "@/session/helpers"
 import type { createSessionBrowser } from "@/session/browser/model"
+import { useServerSDK } from "@/runtime/server/client"
+import { formatServerError } from "@/runtime/server/errors"
+import { useLanguage } from "@/runtime/i18n/language"
+import { showToast } from "@/shell/notifications/toast"
+import { artifactsExist, readArtifact, saveBlob } from "@/fork/artifact-download"
 
 /** Routes local links in timeline markdown to the artifact opener while keeping image loading. */
 export function ArtifactMarkdownProvider(props: ParentProps) {
   const markdown = useMarkdown()
   const artifacts = useArtifactOpener()
+  const layout = useSessionLayout()
   return (
-    <MarkdownProvider readImage={markdown?.readImage} openLocalFile={(path) => artifacts.open(path)}>
+    <MarkdownProvider
+      readImage={markdown?.readImage}
+      openLocalFile={(path) => artifacts.open(path)}
+      // fork: place cards in replies read the session's maps results (fork/map).
+      resolvePlace={(id) => mapState.place(layout.params.id, id)}
+    >
       {props.children}
     </MarkdownProvider>
   )
@@ -35,6 +47,8 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
   init: (props: { session: SessionModel; browser: ReturnType<typeof createSessionBrowser> }) => {
     const file = useFile()
     const server = useServer()
+    const serverSDK = useServerSDK()
+    const language = useLanguage()
     const location = useWorkspaceLocation()
     const attachments = useBrowserAttachments()
     const { tabs, view } = useSessionLayout()
@@ -51,6 +65,8 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
      * become absolute too, so a `../../shared/report.pdf` still opens.
      */
     const resolve = (href: string, base?: string) => {
+      // fork: file: URLs from generated-file cards are absolute; the path helper strips the scheme.
+      if (/^file:/i.test(href)) return file.normalize(href)
       // Agents cite locations as path:line or path:line:col; the file is what opens.
       const value = href.replaceAll("\\", "/").replace(/:\d+(?::\d+)?$/, "")
       if (/^[a-z]:\//i.test(value) || value.startsWith("/")) return file.normalize(value)
@@ -103,17 +119,18 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
     const download = (href: string, base?: string) => {
       const path = resolve(href, base)
       if (!path) return
-      void file.load(path).then(() => {
-        const content = file.get(path)?.content
-        if (!content) return
-        const url = blobUrlFromContent(content)
-        const anchor = document.createElement("a")
-        anchor.href = url
-        anchor.download = getFilename(path) || "artifact"
-        anchor.click()
-        setTimeout(() => URL.revokeObjectURL(url), 0)
-      })
+      void readArtifact(serverSDK.api, location().directory, path)
+        .then((blob) => saveBlob(blob, getFilename(path) || "artifact"))
+        .catch((error: unknown) =>
+          showToast({
+            variant: "error",
+            title: language.t("toast.file.downloadFailed.title"),
+            description: formatServerError(error, language.t, language.t("error.chain.unknown")),
+          }),
+        )
     }
+
+    const exists = (paths: string[]) => artifactsExist(serverSDK.api, location().directory, paths)
 
     // The agent's browser.preview tool arrives through the desktop browser pane attachment.
     createEffect(() => {
@@ -122,6 +139,6 @@ export const { use: useArtifactOpener, provider: ArtifactOpenerProvider } = crea
       onCleanup(attachments.onPreview(server, sessionID, (path) => open(path)))
     })
 
-    return { canOpenInBrowser, openInBrowser, open, download, gallery }
+    return { canOpenInBrowser, openInBrowser, open, download, exists, gallery }
   },
 })

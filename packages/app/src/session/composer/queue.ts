@@ -355,6 +355,11 @@ async function editedPromptInput(
     ],
     agents: agents.map((agent) => ({ name: agent.name, mention: mention(agent.mention) })),
     skills: skills.map((skill) => ({ id: skill.id, mention: mention(skill.mention) })),
-    metadata: { ...payload?.metadata, displayText: request.displayText, attachments: request.attachments },
+    metadata: {
+      ...payload?.metadata,
+      displayText: request.displayText,
+      attachments: request.attachments,
+      annotations: request.annotations,
+    },
   }
 }

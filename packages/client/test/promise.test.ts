@@ -34,7 +34,10 @@ test("exposes every standard HTTP API group", () => {
     "debug",
     "migration",
     "websearch",
+    // fork: Settings → Maps and the web Browser pane proxy
+    "maps",
     "config",
+    "browserProxy",
   ])
   expect(Object.keys(client.debug)).toEqual(["location"])
   expect(Object.keys(client.debug.location)).toEqual(["list", "evict"])
@@ -406,7 +409,7 @@ test("file.read returns binary content from the public HTTP contract", async () 
 
   expect(Array.from(content)).toEqual([104, 105])
   expect(request?.url).toBe(
-    "http://localhost:3000/api/fs/read/src/a%20b%23c.ts?location%5Bdirectory%5D=%2Ftmp%2Fproject",
+    `http://localhost:3000/api/fs/read/~b64~${Buffer.from("src/a b#c.ts").toString("base64url")}?location%5Bdirectory%5D=%2Ftmp%2Fproject`,
   )
 })
 

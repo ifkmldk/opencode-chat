@@ -1260,7 +1260,7 @@ function normalizePromiseClientContent(content: string, groups: ReadonlyArray<Gr
     ? replaceOne(
         binaryBodyReady,
         "function appendQuery(params: URLSearchParams, key: string, value: unknown): void {",
-        'function encodePath(value: string): string {\n  return value.split("/").map(encodeURIComponent).join("/")\n}\n\nfunction appendQuery(params: URLSearchParams, key: string, value: unknown): void {',
+        '// fork: the path travels as "~b64~<base64url>", so no file name or extension appears in the URL even after\n// percent-decoding (download managers such as IDM take over "/api/fs/read/report.pdf" and "report%2Epdf" alike).\n// The server\'s fs.read handler decodes it.\nfunction encodePath(value: string): string {\n  const bytes = new TextEncoder().encode(value)\n  let binary = ""\n  for (const byte of bytes) binary += String.fromCharCode(byte)\n  return `~b64~${btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")}`\n}\n\nfunction appendQuery(params: URLSearchParams, key: string, value: unknown): void {',
       )
     : binaryBodyReady
 }

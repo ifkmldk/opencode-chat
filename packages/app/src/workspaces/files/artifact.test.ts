@@ -3,7 +3,6 @@ import {
   artifactKind,
   bytesToBase64,
   contentBytes,
-  extractPdfText,
   fileContentFromBytes,
   MAX_MEDIA_BYTES,
   parseDelimited,
@@ -92,14 +91,10 @@ describe("office artifact parsers", () => {
     })
   })
 
-  test("extracts literal text from PDF bytes and flags scanned PDFs", () => {
+  test("counts PDF pages and rejects non-PDF bytes", () => {
     const textPdf = new TextEncoder().encode("%PDF-1.4\n1 0 obj\n/Type /Page\nBT (Hello PDF) Tj ET\n")
     expect(pdfPageCount(textPdf)).toBe(1)
-    expect(extractPdfText(textPdf).text).toContain("Hello PDF")
     expect(pdfPageCount(new TextEncoder().encode("not a pdf"))).toBeUndefined()
-
-    const scanned = new TextEncoder().encode("%PDF-1.4\n1 0 obj\n/Type /Page\nstream\n\xff\xd8 image bytes\nendstream\n")
-    expect(extractPdfText(scanned).text).toBe("")
   })
 })
 

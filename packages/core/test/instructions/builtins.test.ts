@@ -18,6 +18,7 @@ const projectDirectory = AbsolutePath.make(FSUtil.resolve("/repo"))
 const timestamp = Date.parse("2026-06-03T12:00:00.000Z")
 const sessionID = SessionSchema.ID.make("ses_builtin_test")
 const temporary = os.tmpdir()
+const temporaryLinkRoot = temporary.replaceAll("\\", "/")
 const localDate = (time: number) => new Date(time).toDateString()
 const locationLayer = Layer.succeed(
   Location.Service,
@@ -41,8 +42,14 @@ describe("InstructionBuiltIns", () => {
       yield* TestClock.setTime(timestamp)
       const context = yield* InstructionBuiltIns.Service
       const initialized = yield* readInitial(yield* context.load(sessionID))
+      // fork: the maps guidance (core/geo) sits between the output-files and date instructions.
+      const blocks = initialized.text.split("\n\n")
+      const geo = blocks.find((block) => block.startsWith("For questions about real places"))
+      expect(geo).toContain("[Name](place:<id>)")
+      expect(geo).toContain("map_show")
+      expect(geo).toContain("WGS84")
 
-      expect(initialized.text).toBe(
+      expect(blocks.filter((block) => block !== geo).join("\n\n")).toBe(
         [
           "Here is some useful information about the environment you are running in:",
           "<env>",
@@ -53,6 +60,13 @@ describe("InstructionBuiltIns", () => {
           `  Platform: ${process.platform}`,
           `  Prefer ${temporary} over generic system temporary directories such as /tmp; it is pre-created and approved for external access.`,
           "</env>",
+          "",
+          [
+            "When you create or export files the user asked for (documents, spreadsheets, slides, images, audio, video, web pages, archives, or a requested script),",
+            `end your reply with a Markdown link to each file using its absolute path with forward slashes, for example [report.pdf](${temporaryLinkRoot}/report.pdf).`,
+            `Wrap a path that contains spaces in angle brackets, for example [My report.pdf](<${temporaryLinkRoot}/My report.pdf>).`,
+            "Do not link source files you only edited while working.",
+          ].join(" "),
           "",
           `Today's date: ${localDate(timestamp)}`,
         ].join("\n"),

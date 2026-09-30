@@ -3,6 +3,9 @@ import { createStore } from "solid-js/store"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { same } from "@/runtime/persistence/equality"
 import { isSessionBrowserTab, SESSION_BTW_TAB, SESSION_OPEN_FILE_TAB } from "@/shell/state/session-tabs"
+import { isWebBrowserTab } from "@/fork/web-browser/tab"
+import { SIDE_CHAT_TAB } from "@/fork/side-chat/tab"
+import { MAP_TAB } from "@/fork/map/scene"
 
 export {
   SESSION_BROWSER_TAB,
@@ -53,7 +56,7 @@ export const createSessionTabs = (input: TabsInput) => {
         .tabs()
         .all()
         .flatMap((tab) => {
-          if (tab === "context" || tab === "review" || tab === "research" || tab === "canvas") return []
+          if (tab === "context" || tab === "review") return []
           if (isSessionBrowserTab(tab)) return browser() ? [tab] : []
           if (tab === SESSION_OPEN_FILE_TAB && !fileBrowser()) return []
           const value = input.pathFromTab(tab) ? input.normalizeTab(tab) : tab
@@ -68,7 +71,15 @@ export const createSessionTabs = (input: TabsInput) => {
   const openedTabs = createMemo(
     () =>
       panelTabs().filter(
-        (tab) => tab !== SESSION_OPEN_FILE_TAB && tab !== SESSION_BTW_TAB && !isSessionBrowserTab(tab),
+        (tab) =>
+          tab !== SESSION_OPEN_FILE_TAB &&
+          tab !== SESSION_BTW_TAB &&
+          tab !== "research" &&
+          tab !== "canvas" &&
+          tab !== SIDE_CHAT_TAB &&
+          tab !== MAP_TAB &&
+          !isWebBrowserTab(tab) &&
+          !isSessionBrowserTab(tab),
       ),
     emptyTabs,
     { equals: same },
@@ -79,6 +90,9 @@ export const createSessionTabs = (input: TabsInput) => {
     if (active === "context") return active
     if (active === "research") return active
     if (active === SESSION_BTW_TAB) return active
+    if (active && isWebBrowserTab(active)) return active
+    if (active === SIDE_CHAT_TAB) return active
+    if (active === MAP_TAB) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
     if (active && isSessionBrowserTab(active) && browser()) return active
     if (active === "review" && review()) return active
@@ -102,6 +116,9 @@ export const createSessionTabs = (input: TabsInput) => {
     if (active === "context") return active
     if (active === "research") return active
     if (active === SESSION_BTW_TAB) return active
+    if (active && isWebBrowserTab(active)) return active
+    if (active === SIDE_CHAT_TAB) return active
+    if (active === MAP_TAB) return active
     if (active === SESSION_OPEN_FILE_TAB && openFileOpen()) return active
     if (active && isSessionBrowserTab(active) && browser()) return active
     if (!openedTabs().includes(active)) return

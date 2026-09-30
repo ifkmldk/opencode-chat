@@ -33,6 +33,8 @@ import { WorktreeGroup } from "./groups/worktree.js"
 import { VcsGroup } from "./groups/vcs.js"
 import { MigrationGroup } from "./groups/migration.js"
 import { ConfigGroup } from "./groups/config.js"
+import { BrowserProxyGroup } from "./groups/browser-proxy.js"
+import { MapsGroup } from "./groups/maps.js"
 
 type LocationGroups<LocationId extends HttpApiMiddleware.AnyId> =
   | HttpApiGroup.AddMiddleware<typeof AgentGroup, LocationId>
@@ -41,6 +43,7 @@ type LocationGroups<LocationId extends HttpApiMiddleware.AnyId> =
   | HttpApiGroup.AddMiddleware<typeof ProviderGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof IntegrationGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof WebSearchGroup, LocationId>
+  | HttpApiGroup.AddMiddleware<typeof MapsGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof McpGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof ProjectGroup, LocationId>
   | HttpApiGroup.AddMiddleware<typeof FileSystemGroup, LocationId>
@@ -93,6 +96,7 @@ type ApiGroups<
   | typeof GenerateGroup
   | typeof PersistentPtyGroup
   | typeof CredentialGroup
+  | typeof BrowserProxyGroup
   | LocationGroups<LocationId>
   | LocationGroup<LocationId, LocationService>
   | FormGroups<LocationId, LocationService>
@@ -182,7 +186,9 @@ const makeApiFromGroup = <
     .add(DebugGroup)
     .add(MigrationGroup)
     .add(WebSearchGroup.middleware(locationMiddleware))
+    .add(MapsGroup.middleware(locationMiddleware))
     .add(ConfigGroup.middleware(locationMiddleware))
+    .add(BrowserProxyGroup)
     .annotateMerge(
       OpenApi.annotations({
         title: "opencode HttpApi",

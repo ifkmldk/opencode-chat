@@ -39,6 +39,8 @@
     "./pierre": "./src/pierre/index.ts",
     "./pierre/*": "./src/pierre/*.ts",
     "./research-events": "./src/tools/research-events.ts",
+    "./map-events": "./src/fork/places/map-events.ts",
+    "./place-cards": "./src/fork/places/inline-cards.ts",
     "./context": "./src/context/index.ts",
     "./context/*": "./src/context/*.tsx",
     "./styles": "./src/styles/index.css",

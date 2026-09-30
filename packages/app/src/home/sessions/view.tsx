@@ -16,6 +16,9 @@ import { SessionTabAvatarView } from "@/shell/layout/session-tab-avatar"
 import { sessionLabel } from "@/session/title"
 import { shouldOpenSessionInBackground } from "./open"
 import "./view.css"
+import { HomeTopicsRow } from "@/fork/topics/row"
+import { Topics } from "@/fork/topics/model"
+import { SideChat } from "@/fork/side-chat/model"
 import {
   HomeSessionStatusController,
   homeSessionSearchKey,
@@ -91,6 +94,18 @@ type HomeSessionRowUI = {
 
 export function HomeSessionsView(props: HomeSessionsViewProps) {
   const [rowUI, setRowUI] = createStore<HomeSessionRowUI>({ menu: undefined, editor: undefined })
+  // fork: v1 Topics filter, and side chats nested under their main session instead of listed on their own.
+  const groups = createMemo(() => {
+    const topic = Topics.selected()
+    return props.groups.flatMap((group) => {
+      const sessions = group.sessions.filter(
+        (record) => !SideChat.parentOf(record.session.id) && (!topic || Topics.topicFor(record.session.id) === topic),
+      )
+      return sessions.length ? [{ ...group, sessions }] : []
+    })
+  })
+  const record = (sessionID: string) =>
+    props.groups.flatMap((group) => group.sessions).find((item) => item.session.id === sessionID)
   return (
     <section
       ref={props.onSetHoverTarget}
@@ -117,6 +132,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           </div>
         </Show>
       </div>
+      <HomeTopicsRow canCreateSession={props.canCreateSession} onCreateSession={props.onCreateSession} />
       <div class="pointer-events-none sticky top-[68px] z-40 h-0 -mr-3 md:top-[84px] lg:top-[108px]">
         <div
           ref={props.onSetThumbTrack}
@@ -134,18 +150,27 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           }
         >
           <Show
-            when={props.groups.length > 0}
+            when={groups().length > 0}
             fallback={
-              <HomeSessionsEmpty
-                onNewSession={props.canCreateSession ? props.onCreateSession : undefined}
-                language={props.language}
-              />
+              <Show
+                when={!Topics.selected()}
+                fallback={
+                  <div class="pt-6 text-center text-13-regular text-v2-text-text-muted">
+                    {props.language.t("home.topics.empty")}
+                  </div>
+                }
+              >
+                <HomeSessionsEmpty
+                  onNewSession={props.canCreateSession ? props.onCreateSession : undefined}
+                  language={props.language}
+                />
+              </Show>
             }
           >
             <div ref={props.onSetContent} class="flex flex-col pt-1 pr-3 pb-16 md:pt-3">
               {/* Index keeps group subtrees mounted when the group arrays are
                   rebuilt, so store updates cannot recreate rows mid-gesture. */}
-              <Index each={props.groups}>
+              <Index each={groups()}>
                 {(group, index) => (
                   <>
                     <HomeSessionGroupHeader
@@ -155,14 +180,25 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
                       elevated={index === 0}
                     />
                     <div
-                      class={`flex min-w-0 flex-col gap-px pt-2 md:pt-4 ${index === props.groups.length - 1 ? "" : "mb-6"}`}
+                      class={`flex min-w-0 flex-col gap-px pt-2 md:pt-4 ${index === groups().length - 1 ? "" : "mb-6"}`}
                     >
                       {/* Rows key by session ID: session.sync replaces the
                           stored session object wholesale, so reference-keyed
                           rows would be disposed mid-interaction whenever a
                           sync response lands. */}
                       <Key each={group().sessions} by={(record) => record.session.id}>
-                        {(record) => <HomeSessionRow {...props} record={record()} rowUI={rowUI} setRowUI={setRowUI} />}
+                        {(item) => (
+                          <>
+                            <HomeSessionRow {...props} record={item()} rowUI={rowUI} setRowUI={setRowUI} />
+                            <Show when={SideChat.for(item().session.id) && record(SideChat.for(item().session.id)!.sessionID)}>
+                              {(side) => (
+                                <div data-slot="home-session-side-chat" class="ps-6">
+                                  <HomeSessionRow {...props} record={side()} rowUI={rowUI} setRowUI={setRowUI} />
+                                </div>
+                              )}
+                            </Show>
+                          </>
+                        )}
                       </Key>
                     </div>
                   </>
@@ -692,6 +728,24 @@ function HomeSessionRow(
             }}
           >
             <Menu.Item onSelect={openEditor}>{props.language.t("common.rename")}</Menu.Item>
+            <Show when={Topics.list().length > 0}>
+              <Menu.Sub>
+                <Menu.SubTrigger>{props.language.t("home.topics.move")}</Menu.SubTrigger>
+                <Menu.Portal>
+                  <Menu.SubContent>
+                    <Menu.RadioGroup
+                      value={Topics.topicFor(sessionID()) ?? ""}
+                      onChange={(value) => Topics.assign(sessionID(), value || null)}
+                    >
+                      <Menu.RadioItem value="">{props.language.t("home.topics.none")}</Menu.RadioItem>
+                      <For each={Topics.list()}>
+                        {(topic) => <Menu.RadioItem value={topic.id}>{topic.name}</Menu.RadioItem>}
+                      </For>
+                    </Menu.RadioGroup>
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
+            </Show>
             <Menu.Item onSelect={() => void props.onExportSession(props.server, props.record.session)}>
               {props.language.t("common.export")}…
             </Menu.Item>

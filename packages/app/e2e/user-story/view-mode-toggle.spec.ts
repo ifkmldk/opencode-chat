@@ -11,8 +11,7 @@ const sessionID = 'ses_view_mode'
 const title = 'View mode toggle'
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? '127.0.0.1'}:${process.env.PLAYWRIGHT_SERVER_PORT ?? '4096'}`
 
-// Assistant message with a completed tool call: chat mode collapses it,
-// code mode shows the tool detail.
+// Assistant message with a completed result tool: every view mode keeps result cards visible.
 const assistantToolMessage: SessionMessageInfo = {
   id: 'msg_tool_viewmode',
   type: 'assistant',
@@ -36,7 +35,7 @@ const assistantToolMessage: SessionMessageInfo = {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('chat/code/laya view mode toggle cycles and persists', async ({ page }) => {
+test('chat/code/laya view mode picker selects, persists, and keeps result cards', async ({ page }) => {
   const errors = trackPageErrors(page)
   await mockOpenCodeServer(page, {
     directory,
@@ -55,24 +54,23 @@ test('chat/code/laya view mode toggle cycles and persists', async ({ page }) => 
   await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
   await expectSessionTitle(page, title)
 
-  const toggle = page.locator('[data-action="composer-view-mode"]')
-  await expectAppVisible(toggle)
-  const startMode = await toggle.getAttribute('data-mode')
-  expect(['chat', 'code', 'laya']).toContain(startMode)
+  const picker = page.locator('[data-action="composer-view-mode"]')
+  const choose = async (label: string) => {
+    await picker.getByRole('button').click()
+    await page.getByRole('menuitemradio', { name: label }).click()
+  }
+  await expectAppVisible(picker)
 
-  // Cycle once: mode attribute must change and persist across reload.
-  await toggle.click()
-  const nextMode = await toggle.getAttribute('data-mode')
-  expect(nextMode).not.toBe(startMode)
+  for (const [label, mode] of [['Chat', 'chat'], ['Laya', 'laya'], ['Code', 'code']] as const) {
+    await choose(label)
+    await expect(picker).toHaveAttribute('data-mode', mode)
+    // Result cards are the answer, not process: visible in every mode.
+    await expect(page.getByText('Research status').first()).toBeVisible()
+  }
+
+  await choose('Chat')
   await page.reload()
   await expectSessionTitle(page, title)
-  const reloaded = page.locator('[data-action="composer-view-mode"]')
-  await expectAppVisible(reloaded)
-  await expect(reloaded).toHaveAttribute('data-mode', nextMode ?? '')
-
-  // Cycle through all three modes without errors.
-  await reloaded.click()
-  await reloaded.click()
-  await expect(reloaded).toHaveAttribute('data-mode', startMode ?? '')
+  await expect(page.locator('[data-action="composer-view-mode"]')).toHaveAttribute('data-mode', 'chat')
   expect(errors).toEqual([])
 })

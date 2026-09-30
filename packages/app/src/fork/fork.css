@@ -1,0 +1,66 @@
+/* fork: v1 UX layer for the app package. Kept in one file so upstream CSS merges stay conflict-free. */
+
+/* The app shell disables text selection; previews must allow it so text can be quoted (v1 annotator). */
+[data-slot="artifact-view-content"] {
+  user-select: text;
+}
+
+[data-slot="artifact-view-content"] [data-slot="artifact-table"] td[data-index] {
+  user-select: none;
+}
+
+/* v1 chat column: 800px centered (about 760px of text), not 1000px. Covers the timeline rows, the working
+   indicator, and the composer, which all share this utility. Unlayered, so it wins over Tailwind's layer. */
+@media (min-width: 768px) {
+  .md\:max-w-\[1000px\] {
+    max-width: 800px;
+  }
+}
+
+/* A session still preparing its worktree renders the same conversation first; it must match so the
+   message does not jump when the real session takes over. */
+[data-component="session-preparing"] .max-w-\[1000px\],
+[data-component="session-composer-dock"] .max-w-\[1000px\] {
+  max-width: 800px;
+}
+
+/* The mic follows Send in tab order (upstream expects Send right after the model picker) but sits
+   visually before it, so Send stays the rightmost action. */
+[data-slot="composer-actions"] > :has([data-action="composer-voice"]),
+[data-slot="composer-actions"] > [data-action="composer-voice"] {
+  order: -1;
+}
+
+/*
+ * v1 settings dialog: on wide screens the settings surface floats as a centered card over the app
+ * backdrop instead of filling the window. Routing, search, and navigation stay upstream's.
+ * `:root` raises specificity above the lazily loaded settings.css.
+ */
+@media (min-width: 1100px) {
+  :root .settings-screen {
+    flex: 0 1 auto;
+    align-self: center;
+    width: min(1000px, calc(100% - 64px));
+    height: min(760px, calc(100% - 64px));
+    margin: auto;
+    border-radius: 12px;
+    box-shadow:
+      0 24px 64px -16px rgb(0 0 0 / 0.55),
+      0 0 0 0.5px var(--v2-border-border-base);
+  }
+
+  :root
+    .settings-screen
+    > .settings[data-component="tabs-v2"][data-variant="settings"][data-orientation="vertical"]
+    > .settings-sidebar {
+    /* Width comes from settings.css: the dialog is under 1048px, so the sidebar is 240px, as in v1. */
+    padding-block: 20px;
+    padding-inline: 12px;
+    border-inline-end: 0.5px solid var(--v2-border-border-base);
+    background: var(--v2-background-bg-layer-01);
+  }
+
+  :root .settings-screen > .settings {
+    width: 100%;
+  }
+}

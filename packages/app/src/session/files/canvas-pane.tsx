@@ -3,14 +3,24 @@ import { Portal } from "solid-js/web"
 import { createBlobReference } from "@/runtime/persistence/drafts"
 import type { MediaAnnotationContextItem } from "@/composer/schema"
 import { SelectionActionBar } from "@opencode/ui/selection-action-bar"
+import { useLanguage } from "@/runtime/i18n/language"
 
 type Point = { x: number; y: number }
 type Selection = { start: Point; current: Point }
 
 const MIN_SELECTION_PX = 6
 
-export function CanvasPane(props: { onAnnotate: (item: MediaAnnotationContextItem) => void }) {
-  const [imageUrl, setImageUrl] = createSignal<string>()
+// The canvas image outlives the pane: switching side-panel tabs unmounts it, and the user expects
+// the pasted image to still be there when they come back. Keyed per session.
+const images = new Map<string, string>()
+
+export function CanvasPane(props: { storageKey: string; onAnnotate: (item: MediaAnnotationContextItem) => void }) {
+  const language = useLanguage()
+  const [imageUrl, setImageUrlSignal] = createSignal<string | undefined>(images.get(props.storageKey))
+  const setImageUrl = (url: string) => {
+    images.set(props.storageKey, url)
+    setImageUrlSignal(url)
+  }
   const [selection, setSelection] = createSignal<Selection>()
   const [dragging, setDragging] = createSignal(false)
   const [sending, setSending] = createSignal(false)
@@ -48,11 +58,7 @@ export function CanvasPane(props: { onAnnotate: (item: MediaAnnotationContextIte
     window.addEventListener("resize", onResize)
     onCleanup(() => window.removeEventListener("resize", onResize))
   })
-  onCleanup(() => {
-    document.removeEventListener("paste", onPaste)
-    const url = imageUrl()
-    if (url) URL.revokeObjectURL(url)
-  })
+  onCleanup(() => document.removeEventListener("paste", onPaste))
 
   const selectionBoundsPx = (overlay: HTMLCanvasElement, sel: Selection) => {
     const x0 = Math.min(sel.start.x, sel.current.x) * overlay.width
@@ -191,7 +197,7 @@ export function CanvasPane(props: { onAnnotate: (item: MediaAnnotationContextIte
   return (
     <div class="flex h-full flex-col overflow-hidden">
       <div class="flex shrink-0 items-center gap-1 border-b border-v2-border-border-base p-2">
-        <div class="text-12-regular text-v2-text-text-weak">Drag to select an area to annotate</div>
+        <div class="text-12-regular text-v2-text-text-muted">{language.t("session.canvas.hint")}</div>
         <div class="flex-1" />
         <input
           ref={(el) => (fileInput = el)}
@@ -206,18 +212,18 @@ export function CanvasPane(props: { onAnnotate: (item: MediaAnnotationContextIte
         />
         <button
           type="button"
-          class="rounded px-2 py-1 text-12-regular text-v2-text-text-weak hover:text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
+          class="rounded px-2 py-1 text-12-regular text-v2-text-text-muted hover:text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
           onClick={() => fileInput?.click()}
         >
-          Upload image
+          {language.t("session.canvas.upload")}
         </button>
       </div>
       <div class="relative min-h-0 flex-1 overflow-auto bg-v2-background-bg-base">
         <Show
           when={imageUrl()}
           fallback={
-            <div class="flex h-full flex-col items-center justify-center gap-1 text-v2-text-text-weak">
-              <div class="text-13-regular">Paste an image (Ctrl/Cmd+V) or upload one to annotate</div>
+            <div class="flex h-full flex-col items-center justify-center gap-1 text-v2-text-text-muted">
+              <div class="text-13-regular">{language.t("session.canvas.empty")}</div>
             </div>
           }
         >

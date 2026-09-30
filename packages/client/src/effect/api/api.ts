@@ -2303,6 +2303,87 @@ export interface WebsearchApi<E = never> {
   readonly query: WebsearchQueryOperation<E>
 }
 
+export type MapsStatusInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type MapsStatusOutput = {
+  readonly location: Location.PublicRef
+  readonly data: {
+    readonly google: {
+      readonly configured: boolean
+      readonly source?: "credential" | "env" | undefined
+      readonly enabled: boolean
+      readonly confirmedFree: boolean
+      readonly usedToday: number
+      readonly exhaustedToday: boolean
+      readonly dailyLimit: number
+      readonly maxDailyLimit: number
+      readonly freeDaily: number
+      readonly resetsAt: string
+    }
+    readonly osm: { readonly enabled: boolean }
+  }
+}
+export type MapsStatusOperation<E = never> = (input?: MapsStatusInput) => Effect.Effect<MapsStatusOutput, E>
+
+export type MapsSettingsInput = {
+  readonly location?: { readonly directory?: string | undefined } | undefined
+  readonly googleEnabled?: boolean | undefined
+  readonly confirmedFree?: boolean | undefined
+  readonly dailyLimit?: number | undefined
+  readonly osmEnabled?: boolean | undefined
+}
+export type MapsSettingsOutput = {
+  readonly location: Location.PublicRef
+  readonly data: {
+    readonly google: {
+      readonly configured: boolean
+      readonly source?: "credential" | "env" | undefined
+      readonly enabled: boolean
+      readonly confirmedFree: boolean
+      readonly usedToday: number
+      readonly exhaustedToday: boolean
+      readonly dailyLimit: number
+      readonly maxDailyLimit: number
+      readonly freeDaily: number
+      readonly resetsAt: string
+    }
+    readonly osm: { readonly enabled: boolean }
+  }
+}
+export type MapsSettingsOperation<E = never> = (input?: MapsSettingsInput) => Effect.Effect<MapsSettingsOutput, E>
+
+export type MapsTestInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type MapsTestOutput = {
+  readonly location: Location.PublicRef
+  readonly data: {
+    readonly ok: boolean
+    readonly message: string
+    readonly model?: string | undefined
+    readonly grounded?: boolean | undefined
+    readonly status: {
+      readonly google: {
+        readonly configured: boolean
+        readonly source?: "credential" | "env" | undefined
+        readonly enabled: boolean
+        readonly confirmedFree: boolean
+        readonly usedToday: number
+        readonly exhaustedToday: boolean
+        readonly dailyLimit: number
+        readonly maxDailyLimit: number
+        readonly freeDaily: number
+        readonly resetsAt: string
+      }
+      readonly osm: { readonly enabled: boolean }
+    }
+  }
+}
+export type MapsTestOperation<E = never> = (input?: MapsTestInput) => Effect.Effect<MapsTestOutput, E>
+
+export interface MapsApi<E = never> {
+  readonly status: MapsStatusOperation<E>
+  readonly settings: MapsSettingsOperation<E>
+  readonly test: MapsTestOperation<E>
+}
+
 export type ConfigGetInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 export type ConfigGetOutput = ReadonlyArray<Config.Entry>
 export type ConfigGetOperation<E = never> = (input?: ConfigGetInput) => Effect.Effect<ConfigGetOutput, E>
@@ -2322,6 +2403,16 @@ export interface ConfigApi<E = never> {
   readonly get: ConfigGetOperation<E>
   readonly shells: ConfigShellsOperation<E>
   readonly update: ConfigUpdateOperation<E>
+}
+
+export type BrowserProxyTicketInput = { readonly "x-opencode-ticket"?: string | undefined; readonly url: string }
+export type BrowserProxyTicketOutput = { readonly ticket: string; readonly expiresIn: number }
+export type BrowserProxyTicketOperation<E = never> = (
+  input: BrowserProxyTicketInput,
+) => Effect.Effect<BrowserProxyTicketOutput, E>
+
+export interface BrowserProxyApi<E = never> {
+  readonly ticket: BrowserProxyTicketOperation<E>
 }
 
 export interface AppApi<E = never> {
@@ -2354,5 +2445,7 @@ export interface AppApi<E = never> {
   readonly debug: DebugApi<E>
   readonly migration: MigrationApi<E>
   readonly websearch: WebsearchApi<E>
+  readonly maps: MapsApi<E>
   readonly config: ConfigApi<E>
+  readonly browserProxy: BrowserProxyApi<E>
 }

@@ -1,4 +1,5 @@
 import { Marked } from "marked"
+import { calloutExtension } from "./marked-callout"
 
 export function createMarkdownBase() {
   return new Marked({
@@ -30,7 +31,8 @@ export function parseSmallMarkdown(text: string) {
       .map((paragraph) => `<p>${paragraph.replace(/["']/g, (value) => (value === '"' ? "&quot;" : "&#39;"))}</p>\n`)
       .join("")
   }
-  const parser = (smallParser ??= createMarkdownBase())
+  // fork: the main-thread fast path must render callouts like the worker parser does (v1).
+  const parser = (smallParser ??= createMarkdownBase().use(calloutExtension))
   const paragraphs = text.replace(/\r\n?/g, "\n")
   // Inline formatting in ordinary paragraphs does not need the block lexer.
   // Any possible block opener, HTML, table, or reference definition stays on it.

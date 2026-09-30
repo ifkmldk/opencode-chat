@@ -16,14 +16,15 @@ function setup(
   return { api, requests }
 }
 
+// fork: the client sends read paths base64url-encoded (download managers grab URLs that name a file).
 describe("readLocalImage", () => {
   test.each([
-    ["images/screen #1 + 50% ?.PNG", "/workspace/project", "images/screen%20%231%20%2B%2050%25%20%3F.PNG"],
-    ["C:/tmp/opencode/screen #1.png", "C:/tmp/opencode/", "screen%20%231.png"],
+    ["images/screen #1 + 50% ?.PNG", "/workspace/project", "images/screen #1 + 50% ?.PNG"],
+    ["C:/tmp/opencode/screen #1.png", "C:/tmp/opencode/", "screen #1.png"],
     ["d:/screen.png", "d:/", "screen.png"],
     ["D:/charts/screen.png", "D:/charts/", "screen.png"],
     ["Z:/charts/screen.png", "Z:/charts/", "screen.png"],
-    ["/tmp/opencode/screen #1.png", "/tmp/opencode/", "screen%20%231.png"],
+    ["/tmp/opencode/screen #1.png", "/tmp/opencode/", "screen #1.png"],
     ["/screen.png", "/", "screen.png"],
   ])("reads %s with the correct location and authentication", async (path, directory, encoded) => {
     const { api, requests } = setup()
@@ -35,7 +36,7 @@ describe("readLocalImage", () => {
     expect(new Uint8Array(await blob!.arrayBuffer())).toEqual(new Uint8Array([0, 127, 255]))
     expect(requests).toHaveLength(1)
     expect(requests[0].url.origin).toBe("https://server.example:4096")
-    expect(requests[0].url.pathname).toBe(`/api/fs/read/${encoded}`)
+    expect(requests[0].url.pathname).toBe(`/api/fs/read/~b64~${Buffer.from(encoded).toString("base64url")}`)
     expect([...requests[0].url.searchParams]).toEqual([["location[directory]", directory]])
     expect(requests[0].init?.method).toBe("GET")
     expect(new Headers(requests[0].init?.headers).get("authorization")).toBe(`Basic ${btoa("opencode:secret")}`)
@@ -47,7 +48,7 @@ describe("readLocalImage", () => {
     await readLocalImage(api, "C:/project #1 + 50%", "images/literal%20name.png", new AbortController().signal)
 
     expect(requests[0].url.href).toBe(
-      "https://server.example:4096/api/fs/read/images/literal%2520name.png?location%5Bdirectory%5D=C%3A%2Fproject+%231+%2B+50%25",
+      `https://server.example:4096/api/fs/read/~b64~${Buffer.from("images/literal%20name.png").toString("base64url")}?location%5Bdirectory%5D=C%3A%2Fproject+%231+%2B+50%25`,
     )
   })
 

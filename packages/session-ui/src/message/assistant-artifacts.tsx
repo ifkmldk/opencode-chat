@@ -1,98 +1,116 @@
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from "solid-js"
-import { ImagePreview } from "@opencode/ui/image-preview"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { FileIcon } from "@opencode/ui/file-icon"
+import { Icon } from "@opencode/ui/icon"
 import { Tooltip } from "@opencode/ui/tooltip"
-import { useI18n } from "@opencode/ui/context/i18n"
-import { useDialog } from "@opencode/ui/context/dialog"
+import { useI18n, type UiI18nKey } from "@opencode/ui/context/i18n"
 import { useMarkdown } from "../context/markdown"
 import { typeLabel } from "../components/message-file"
-import { assistantArtifacts } from "./assistant-artifact-model"
+import type { AssistantArtifact, AssistantArtifactKind } from "./assistant-artifact-model"
 
-export function AssistantArtifacts(props: { text: string; onOpen: (path: string) => void; onDownload?: (path: string) => void }) {
+const KIND_LABEL = {
+  document: "ui.artifact.kind.document",
+  spreadsheet: "ui.artifact.kind.spreadsheet",
+  presentation: "ui.artifact.kind.presentation",
+  image: "ui.artifact.kind.image",
+  audio: "ui.artifact.kind.audio",
+  video: "ui.artifact.kind.video",
+  web: "ui.artifact.kind.web",
+  archive: "ui.artifact.kind.archive",
+  file: "ui.common.file",
+} as const satisfies Record<AssistantArtifactKind, UiI18nKey>
+
+export type AssistantArtifactsProps = {
+  items: AssistantArtifact[]
+  onOpen: (path: string) => void
+  onDownload?: (path: string) => void
+  /** Resolves the subset of paths that exist; cards for missing files are hidden. */
+  exists?: (paths: string[]) => Promise<ReadonlySet<string>>
+}
+
+/** fork: Claude-style cards for the files a reply produced, shown once at the end of the turn. */
+export function AssistantArtifacts(props: AssistantArtifactsProps) {
   const i18n = useI18n()
-  const dialog = useDialog()
   const markdown = useMarkdown()
-  const artifacts = () => assistantArtifacts(props.text)
-  const [image] = createResource(
-    () => {
-      const first = artifacts().find((item) => item.kind === "image")
-      return first && markdown?.readImage ? first.path : undefined
-    },
-    (path) => (path ? markdown?.readImage?.(path, new AbortController().signal) : Promise.resolve(undefined)),
-  )
-  const imagePath = createMemo(() => artifacts().find((item) => item.kind === "image")?.path)
+  // Plain signals, not createResource: a resource read during render suspends the nearest <Suspense>, which is
+  // the whole session view, so scrolling an older turn with cards into view blanked the screen.
+  const [present, setPresent] = createSignal<ReadonlySet<string>>()
+  createEffect(() => {
+    const exists = props.exists
+    const paths = props.items.map((item) => item.path)
+    if (!exists) return
+    const state = { cancelled: false }
+    void exists(paths)
+      .catch(() => new Set(paths))
+      .then((found) => !state.cancelled && setPresent(found))
+    onCleanup(() => (state.cancelled = true))
+  })
+  const items = createMemo(() => {
+    if (!props.exists) return props.items
+    const found = present()
+    return found ? props.items.filter((item) => found.has(item.path)) : []
+  })
+  const imagePath = createMemo(() => items().find((item) => item.kind === "image")?.path)
   const [imageURL, setImageURL] = createSignal<string>()
   createEffect(() => {
-    const source = image()
-    if (!source) {
-      setImageURL(undefined)
-      return
-    }
-    const url = URL.createObjectURL(source)
-    setImageURL(url)
-    onCleanup(() => URL.revokeObjectURL(url))
+    const path = imagePath()
+    const read = markdown?.readImage
+    setImageURL(undefined)
+    if (!path || !read) return
+    const controller = new AbortController()
+    const state = { url: undefined as string | undefined }
+    void read(path, controller.signal)
+      .then((source) => {
+        if (controller.signal.aborted || !source) return
+        state.url = URL.createObjectURL(source)
+        setImageURL(state.url)
+      })
+      .catch(() => undefined)
+    onCleanup(() => {
+      controller.abort()
+      if (state.url) URL.revokeObjectURL(state.url)
+    })
   })
-  const preview = () => {
-    const url = imageURL()
-    const first = artifacts().find((item) => item.kind === "image")
-    if (!url || !first) return
-    dialog.show(() => <ImagePreview src={url} alt={first.label} />)
+  const subtitle = (item: AssistantArtifact) => {
+    const kind = i18n.t(KIND_LABEL[item.kind])
+    const type = typeLabel(item.path, "", "")
+    return type ? i18n.t("ui.artifact.subtitle", { kind, type }) : kind
   }
   return (
-    <Show when={artifacts().length > 0}>
+    <Show when={items().length > 0}>
       <div data-component="assistant-artifacts" data-slot="assistant-artifacts">
-        <For each={artifacts()}>
-          {(artifact) => (
-            <Tooltip placement="top" openDelay={500} value={artifact.path} class="max-w-[320px]">
-              <button
-                type="button"
-                data-component="assistant-artifact"
-                data-kind={artifact.kind}
-                onClick={() => (artifact.kind === "image" && artifact.path === imagePath() && image() ? preview() : props.onOpen(artifact.path))}
-              >
-                <Show when={artifact.kind === "image" && artifact.path === imagePath() && image()}>
-                  <img
-                    data-slot="assistant-artifact-image"
-                    src={imageURL()!}
-                    alt={artifact.label}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      preview()
-                    }}
-                  />
-                </Show>
-                <Show when={artifact.kind !== "image" || artifact.path !== imagePath() || !image()}>
+        <For each={items()}>
+          {(item) => (
+            <div data-component="assistant-artifact" data-kind={item.kind}>
+              <Tooltip placement="top" openDelay={500} value={item.path} contentClass="max-w-[320px] break-all">
+                <button type="button" data-slot="assistant-artifact-open" onClick={() => props.onOpen(item.path)}>
                   <span data-slot="assistant-artifact-icon">
-                    <FileIcon node={{ path: artifact.path, type: "file" }} />
+                    <Show
+                      when={item.path === imagePath() && imageURL()}
+                      fallback={<FileIcon node={{ path: item.path, type: "file" }} />}
+                    >
+                      {(url) => <img data-slot="assistant-artifact-image" src={url()} alt="" />}
+                    </Show>
                   </span>
-                </Show>
-                <span data-slot="assistant-artifact-copy">
-                  <span data-slot="assistant-artifact-title">{artifact.label}</span>
-                  <span data-slot="assistant-artifact-type">
-                    {typeLabel(artifact.path, "", i18n.t("ui.common.file"))}
+                  <span data-slot="assistant-artifact-copy">
+                    <span data-slot="assistant-artifact-title">{item.name}</span>
+                    <span data-slot="assistant-artifact-type">{subtitle(item)}</span>
                   </span>
-                </span>
-                <Show when={props.onDownload}>
-                  <span
+                </button>
+              </Tooltip>
+              <Show when={props.onDownload}>
+                {(download) => (
+                  <button
+                    type="button"
                     data-slot="assistant-artifact-download"
-                    role="button"
-                    tabindex="0"
-                    aria-label="Download artifact"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      props.onDownload?.(artifact.path)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return
-                      event.preventDefault()
-                      props.onDownload?.(artifact.path)
-                    }}
+                    aria-label={i18n.t("ui.artifact.downloadLabel", { name: item.name })}
+                    onClick={() => download()(item.path)}
                   >
-                    ↓
-                  </span>
-                </Show>
-              </button>
-            </Tooltip>
+                    <Icon name="download" size="small" />
+                    <span>{i18n.t("ui.artifact.downloadAction")}</span>
+                  </button>
+                )}
+              </Show>
+            </div>
           )}
         </For>
       </div>

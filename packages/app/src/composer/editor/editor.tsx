@@ -492,9 +492,10 @@ function composerCursor(editor: HTMLDivElement) {
 }
 
 function ContextAnnotationImage(props: { annotation: Extract<ComposerContextItem, { type: "media-annotation" }> }) {
+  const i18n = useI18n()
   const [url] = createResource(() => props.annotation.blob, resolveBlobUrl)
   return (
-    <Show when={url()} fallback={<span>Annotation</span>}>
+    <Show when={url()} fallback={<span>{i18n.t("prompt.context.annotation")}</span>}>
       {(src) => <img src={src()} alt="" class="size-4 rounded-[3px] object-cover" />}
     </Show>
   )
@@ -561,13 +562,25 @@ export function ComposerAttachments(props: {
           <For each={props.contextItems ?? []}>
             {(item) => (
               <Show when={item.type !== "file"}>
-                <div class="relative shrink-0">
-                  <AttachmentCard title={item.type === "message-quote" ? item.quotedText : item.comment || "Annotation"}>
+                <div class="relative group shrink-0">
+                  <AttachmentCard
+                    title={
+                      item.type === "message-quote"
+                        ? item.comment || item.quotedText
+                        : item.type === "page-text-annotation"
+                          ? item.comment || item.text
+                          : item.comment || i18n.t("prompt.context.annotation")
+                    }
+                  >
                     <Show when={item.type === "media-annotation" ? item : undefined}>
                       {(annotation) => <ContextAnnotationImage annotation={annotation()} />}
                     </Show>
                     <Show when={item.type !== "media-annotation"}>
-                      <span>{item.type === "message-quote" ? "Message quote" : item.type === "media-annotation" ? "Annotation" : "Page text"}</span>
+                      <span>
+                        {item.type === "message-quote"
+                          ? i18n.t("prompt.context.messageQuote")
+                          : i18n.t("prompt.context.pageText")}
+                      </span>
                     </Show>
                   </AttachmentCard>
                   <button
@@ -965,10 +978,8 @@ export function ComposerVoiceButton(props: {
   stopLabel: string
   onTranscript: (text: string) => void
 }) {
-  const i18n = useI18n()
-  void i18n
   const [listening, setListening] = createSignal(false)
-  const [supported] = createSignal(() => isVoiceInputSupported())
+  const supported = isVoiceInputSupported()
   let recognizer: VoiceRecognizer | undefined
 
   onCleanup(() => {
@@ -1025,8 +1036,8 @@ export function ComposerVoiceButton(props: {
   }
 
   return (
-    <Show when={supported()}>
-      <Tooltip placement="top" value={listening() ? props.stopLabel : `${props.dictateLabel} (${props.listeningLabel})`}>
+    <Show when={supported}>
+      <Tooltip placement="top" value={listening() ? props.listeningLabel : props.dictateLabel}>
         <IconButton
           data-action="composer-voice"
           type="button"
@@ -1035,7 +1046,7 @@ export function ComposerVoiceButton(props: {
           size="large"
           aria-label={listening() ? props.stopLabel : props.dictateLabel}
           aria-pressed={listening()}
-          class={listening() ? "text-accent" : undefined}
+          class={listening() ? "text-v2-text-text-accent" : undefined}
           onClick={() => (listening() ? stop() : start())}
         />
       </Tooltip>

@@ -17,6 +17,7 @@ import { ArtifactView, type ArtifactAnnotation } from "@/session/files/artifact-
 import { useComments } from "@/composer/comments"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useComposerState } from "@/composer/persistence"
+import { createBlobReference } from "@/runtime/persistence/drafts"
 import { getSessionHandoff } from "@/session/handoff"
 import { useSessionLayout } from "@/session/session-layout"
 import { createSessionTabs } from "@/session/helpers"
@@ -235,13 +236,28 @@ export function SessionFileView(props: SessionFileViewProps) {
     return selectionPreview(source, selectionFromLines(lines))
   }
 
-  const addArtifactAnnotation = (annotation: ArtifactAnnotation) => {
+  const addArtifactAnnotation = async (annotation: ArtifactAnnotation) => {
     const filePath = path()
-    if (!filePath || !annotation.text.trim()) return
+    if (!filePath) return
+    if (annotation.kind === "media") {
+      const blob = await createBlobReference(annotation.blob)
+      prompt.context.add({
+        type: "media-annotation",
+        surface: "file-preview",
+        imageID: blob.id,
+        blob,
+        mime: annotation.mime,
+        comment: annotation.comment,
+        sourcePath: filePath,
+      })
+      return
+    }
+    if (!annotation.text.trim()) return
     prompt.context.add({
       type: "page-text-annotation",
       sourcePath: filePath,
       text: annotation.text,
+      html: annotation.html,
       comment: annotation.comment,
     })
   }

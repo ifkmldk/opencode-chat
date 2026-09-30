@@ -18,6 +18,7 @@ import {
 import stripAnsi from "strip-ansi"
 import { createTwoFilesPatch, diffLines } from "diff"
 import { Dynamic } from "solid-js/web"
+import { MapsToolOutput } from "../fork/places/maps-output"
 import { type SessionSummary, useData } from "../context"
 import { useFileComponent } from "@opencode/ui/context/file"
 import { type UiI18n, useI18n } from "@opencode/ui/context/i18n"
@@ -53,17 +54,7 @@ import {
 } from "../message/current-tool-state"
 import { AssistantReasoningContent, writeClipboard } from "../message/message-content"
 import { followShellOutput } from "./shell-output"
-import {
-  draftActionPrompt,
-  formatRouteMeta,
-  mapEmbedUrl,
-  placeOpenUrl,
-  removeShortlistPrompt,
-  requestResearchAskChat,
-  routeDirectionsUrl,
-  routeEmbedUrl,
-  shortlistPrompt,
-} from "./research-events"
+import { draftActionPrompt, removeShortlistPrompt, requestResearchAskChat, shortlistPrompt } from "./research-events"
 
 function ShellSubmessage(props: { text: string; animate?: boolean }) {
   let widthRef: HTMLSpanElement | undefined
@@ -2170,6 +2161,7 @@ function ResultCard(props: {
   actions?: JSX.Element
   children?: JSX.Element
 }) {
+  const i18n = useI18n()
   return (
     <div data-component="assistant-result-card" class="group">
       <div class="flex min-w-0 flex-1 items-start gap-3">
@@ -2178,14 +2170,14 @@ function ResultCard(props: {
         </div>
         <div class="min-w-0 flex-1">
           <Show when={props.eyebrow}>
-            <div class="mb-1 text-10-medium uppercase tracking-[0.12em] text-text-faint">{props.eyebrow}</div>
+            <div class="mb-1 text-10-medium uppercase tracking-[0.12em] text-text-weaker">{props.eyebrow}</div>
           </Show>
           <div class="truncate text-13-semibold text-text-strong">{props.title}</div>
           <Show when={props.value}>
             <div class="mt-1 line-clamp-2 text-12-regular leading-5 text-text-weak">{props.value}</div>
           </Show>
           <Show when={props.meta}>
-            <div class="mt-2 text-11-regular text-text-faint">{props.meta}</div>
+            <div class="mt-2 text-11-regular text-text-weaker">{props.meta}</div>
           </Show>
           {props.children}
         </div>
@@ -2199,118 +2191,41 @@ function ResultCard(props: {
           href={props.href}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open ${props.title}`}
+          aria-label={i18n.t("ui.resultCard.openLabel", { title: props.title })}
         >
-          Open
+          {i18n.t("ui.resultCard.open")}
         </a>
       </Show>
     </div>
   )
 }
 
-function MapsToolOutput(props: ToolProps) {
-  const result = createMemo(() => toolJson(props.output))
-  const places = createMemo(() => {
-    const value = result()?.places
-    return Array.isArray(value) ? value : []
-  })
-  const route = createMemo(() => result()?.provider === "osrm" ? result() : undefined)
-  const routeMeta = createMemo(() => formatRouteMeta(route()?.distanceMeters, route()?.durationSeconds))
-  const routeEndpoints = createMemo(() => {
-    const value = route()
-    if (!value || typeof value !== "object") return undefined
-    const origin = "origin" in value ? (value.origin as Record<string, unknown>) : undefined
-    const destination = "destination" in value ? (value.destination as Record<string, unknown>) : undefined
-    if (typeof origin?.latitude !== "number" || typeof origin?.longitude !== "number") return undefined
-    if (typeof destination?.latitude !== "number" || typeof destination?.longitude !== "number") return undefined
-    return { origin: { latitude: origin.latitude, longitude: origin.longitude }, destination: { latitude: destination.latitude, longitude: destination.longitude } }
-  })
-  const routeNames = createMemo(() => {
-    const value = route()
-    if (!value || typeof value !== "object") return ""
-    const origin = "origin" in value && value.origin && typeof value.origin === "object" ? String((value.origin as Record<string, unknown>).name ?? "") : ""
-    const destination = "destination" in value && value.destination && typeof value.destination === "object" ? String((value.destination as Record<string, unknown>).name ?? "") : ""
-    return `${origin} → ${destination}`
-  })
-  return (
-    <BasicTool {...props} icon="globe" hasContent={places().length > 0 || !!route()} trigger={{ title: route() ? "Route" : `Search places${props.input.query ? `: ${String(props.input.query)}` : ""}`, subtitle: route() ? routeMeta() || `${Math.round(Number(route()?.distanceMeters ?? 0) / 100) / 10} km` : `${places().length} places` }}>
-      <div class="flex flex-col gap-2 p-3">
-        <For each={places()}>
-          {(place) => {
-            const value = place as Record<string, unknown>
-            const latitude = typeof value.latitude === "number" ? value.latitude : undefined
-            const longitude = typeof value.longitude === "number" ? value.longitude : undefined
-            return (
-              <div class="flex flex-col gap-2">
-                <ResultCard
-                title={String(value.name ?? "Place")}
-                value={String(value.address ?? "")}
-                href={latitude !== undefined && longitude !== undefined ? placeOpenUrl(latitude, longitude, value.url) : typeof value.url === "string" ? value.url : undefined}
-                eyebrow="Map result"
-                meta={
-                  latitude !== undefined && longitude !== undefined
-                    ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-                    : undefined
-                }
-              />
-                <Show when={latitude !== undefined && longitude !== undefined}>
-                  <iframe
-                    title={`Map of ${String(value.name ?? "place")}`}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    class="h-48 w-full rounded-md border border-v2-border-border-muted"
-                    src={mapEmbedUrl(latitude!, longitude!)}
-                  />
-                </Show>
-              </div>
-            )
-          }}
-        </For>
-        <Show when={route()}>
-          {(value) => (
-            <div class="flex flex-col gap-2">
-              <ResultCard title={`${value().mode} route`} value={routeNames()} meta={routeMeta() || undefined} href={routeEndpoints() ? routeDirectionsUrl(routeEndpoints()!.origin, routeEndpoints()!.destination) : undefined} />
-              <Show when={routeEndpoints()}>
-                {(points) => (
-                  <iframe
-                    title={`Route map ${routeNames()}`}
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                    class="h-48 w-full rounded-md border border-v2-border-border-muted"
-                    src={routeEmbedUrl(points().origin, points().destination)}
-                  />
-                )}
-              </Show>
-            </div>
-          )}
-        </Show>
-      </div>
-    </BasicTool>
-  )
-}
-
 function JobsToolOutput(props: ToolProps) {
+  const i18n = useI18n()
   const result = createMemo(() => toolJson(props.output))
   const jobs = createMemo(() => {
     const value = result()?.jobs
-    return Array.isArray(value) ? value : []
+    return Array.isArray(value) ? (value as Record<string, unknown>[]) : []
   })
   return (
-    <BasicTool {...props} icon="bullet-list" hasContent={jobs().length > 0} trigger={{ title: "Job search", subtitle: `${jobs().length} results` }}>
+    <BasicTool
+      {...props}
+      icon="bullet-list"
+      hasContent={jobs().length > 0}
+      defaultOpen
+      trigger={{ title: i18n.t("ui.tool.jobs.search"), subtitle: i18n.plural("ui.tool.jobs.results", jobs().length) }}
+    >
       <div class="flex flex-col gap-2 p-3">
         <For each={jobs()}>
-          {(job) => {
-            const value = job as Record<string, unknown>
-            return (
-              <ResultCard
-                title={String(value.title ?? "Job")}
-                value={[value.company, value.location].filter(Boolean).map(String).join(" · ")}
-                href={typeof value.url === "string" ? value.url : undefined}
-                eyebrow="Opportunity"
-                meta={typeof value.description === "string" ? value.description.slice(0, 180) : undefined}
-              />
-            )
-          }}
+          {(value) => (
+            <ResultCard
+              title={String(value.title ?? i18n.t("ui.tool.jobs.job"))}
+              value={[value.company, value.location].filter(Boolean).map(String).join(" · ")}
+              href={typeof value.url === "string" ? value.url : undefined}
+              eyebrow={i18n.t("ui.tool.jobs.opportunity")}
+              meta={typeof value.description === "string" ? value.description.slice(0, 180) : undefined}
+            />
+          )}
         </For>
       </div>
     </BasicTool>
@@ -2318,29 +2233,56 @@ function JobsToolOutput(props: ToolProps) {
 }
 
 function JobsMatchToolOutput(props: ToolProps) {
+  const i18n = useI18n()
   const result = createMemo(() => toolJson(props.output))
   const score = createMemo(() => Math.max(0, Math.min(100, Number(result()?.score ?? 0))))
-  const matches = createMemo(() => Array.isArray(result()?.matches) ? (result()!.matches as unknown[]).map(String) : [])
-  const missing = createMemo(() => Array.isArray(result()?.missing) ? (result()!.missing as unknown[]).map(String) : [])
-  const tone = createMemo(() => score() >= 75 ? "strong" : score() >= 50 ? "possible" : "review")
+  const list = (value: unknown) => (Array.isArray(value) ? value.map(String) : [])
+  const matches = createMemo(() => list(result()?.matches))
+  const missing = createMemo(() => list(result()?.missing))
+  const tone = createMemo(() => (score() >= 75 ? "strong" : score() >= 50 ? "possible" : "review"))
+  const recommendation = () => String(result()?.recommendation ?? i18n.t("ui.tool.jobs.reviewCarefully"))
+  const heading = "mb-1 text-11-semibold uppercase tracking-wide text-text-weaker"
   return (
-    <BasicTool {...props} icon="target" hasContent defaultOpen trigger={{ title: "CV match", subtitle: `${score()}% · ${String(result()?.recommendation ?? "Review carefully")}` }}>
+    <BasicTool
+      {...props}
+      icon="target"
+      hasContent
+      defaultOpen
+      trigger={{ title: i18n.t("ui.tool.jobs.match"), subtitle: `${score()}% · ${recommendation()}` }}
+    >
       <div class="flex flex-col gap-3 p-3" data-component="jobs-match-result" data-tone={tone()}>
         <div class="flex items-center gap-3">
           <div class="text-20-semibold tabular-nums text-text-strong">{score()}%</div>
-          <div class="text-12-regular text-text-weak">{String(result()?.recommendation ?? "Review carefully")}</div>
+          <div class="text-12-regular text-text-weak">{recommendation()}</div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
-          <div><div class="mb-1 text-11-semibold uppercase tracking-wide text-text-faint">Matches</div><div class="text-12-regular leading-5 text-text-weak">{matches().slice(0, 12).join(", ") || "No exact keyword matches"}</div></div>
-          <div><div class="mb-1 text-11-semibold uppercase tracking-wide text-text-faint">Review</div><div class="text-12-regular leading-5 text-text-weak">{missing().slice(0, 12).join(", ") || "No missing terms detected"}</div></div>
+          <div>
+            <div class={heading}>{i18n.t("ui.tool.jobs.matches")}</div>
+            <div class="text-12-regular leading-5 text-text-weak">
+              {matches().slice(0, 12).join(", ") || i18n.t("ui.tool.jobs.noMatches")}
+            </div>
+          </div>
+          <div>
+            <div class={heading}>{i18n.t("ui.tool.jobs.review")}</div>
+            <div class="text-12-regular leading-5 text-text-weak">
+              {missing().slice(0, 12).join(", ") || i18n.t("ui.tool.jobs.noMissing")}
+            </div>
+          </div>
         </div>
-        <div class="text-11-regular text-text-faint">This comparison is local and explainable. It does not submit your CV anywhere.</div>
+        <div class="text-11-regular text-text-weaker">{i18n.t("ui.tool.jobs.privacy")}</div>
       </div>
     </BasicTool>
   )
 }
 
-function ResearchActionButtons(props: { primary: string; primaryLabel: string; primaryTitle: string; secondary?: string; secondaryLabel?: string; secondaryTitle?: string }) {
+function ResearchActionButtons(props: {
+  primary: string
+  primaryLabel: string
+  primaryTitle: string
+  secondary?: string
+  secondaryLabel?: string
+  secondaryTitle?: string
+}) {
   return (
     <>
       <button
@@ -2370,60 +2312,175 @@ function ResearchActionButtons(props: { primary: string; primaryLabel: string; p
 }
 
 function ResearchToolOutput(props: ToolProps) {
+  const i18n = useI18n()
   const result = createMemo(() => toolJson(props.output))
-  const candidates = createMemo(() => Array.isArray(result()?.candidates) ? result()!.candidates as Record<string, unknown>[] : [])
-  const rankings = createMemo(() => Array.isArray(result()?.rankings) ? result()!.rankings as Record<string, unknown>[] : [])
-  const providers = createMemo(() => Array.isArray(result()?.providers) ? result()!.providers as Record<string, unknown>[] : [])
-  const shortlist = createMemo(() => Array.isArray(result()?.items) ? result()!.items as Record<string, unknown>[] : [])
-  const title = () => candidates().length || rankings().length ? "Research result" : shortlist().length ? "Research shortlist" : "Research status"
+  const records = (value: unknown) => (Array.isArray(value) ? (value as Record<string, unknown>[]) : [])
+  const candidates = createMemo(() => records(result()?.candidates))
+  const rankings = createMemo(() => records(result()?.rankings))
+  const providers = createMemo(() => records(result()?.providers))
+  const shortlist = createMemo(() => records(result()?.items))
+  const title = () => {
+    if (candidates().length || rankings().length) return i18n.t("ui.tool.research.result")
+    if (shortlist().length) return i18n.t("ui.tool.research.shortlist")
+    return i18n.t("ui.tool.research.status")
+  }
+  const subtitle = () => {
+    if (candidates().length) return i18n.plural("ui.tool.research.candidates", candidates().length)
+    if (rankings().length) return i18n.t("ui.tool.research.ranked", { count: rankings().length })
+    if (shortlist().length) return i18n.t("ui.tool.research.shortlisted", { count: shortlist().length })
+    return i18n.t("ui.tool.research.none")
+  }
+  const candidateMeta = (candidate: Record<string, unknown>) =>
+    [
+      candidate.provider ? String(candidate.provider) : undefined,
+      candidate.price !== undefined ? `${candidate.price}${candidate.currency ? ` ${candidate.currency}` : ""}` : undefined,
+      candidate.rating !== undefined ? i18n.t("ui.tool.research.rating", { rating: String(candidate.rating) }) : undefined,
+      candidate.location ? String(candidate.location) : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+  const draft = (candidate: Record<string, unknown>) => ({
+    secondary: draftActionPrompt(candidate),
+    secondaryLabel: i18n.t("ui.tool.research.draftAction"),
+    secondaryTitle: i18n.t("ui.tool.research.draftActionHint"),
+  })
   return (
-    <BasicTool {...props} icon="sparkles" hasContent defaultOpen trigger={{ title: title(), subtitle: candidates().length ? `${candidates().length} candidates` : rankings().length ? `${rankings().length} ranked` : shortlist().length ? `${shortlist().length} shortlisted` : "No results" }}>
+    <BasicTool {...props} icon="sparkles" hasContent defaultOpen trigger={{ title: title(), subtitle: subtitle() }}>
       <div class="flex flex-col gap-2 p-3">
-        <For each={providers()}>{(provider) => <div class="flex items-center justify-between rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-11-regular text-text-weak"><span>{String(provider.provider ?? "provider")}</span><span class={provider.status === "configured" ? "text-v2-state-fg-success" : "text-text-faint"}>{String(provider.status ?? "unknown")}</span></div>}</For>
-        <For each={candidates()}>{(candidate) => <ResultCard title={String(candidate.title ?? "Candidate")} value={String(candidate.summary ?? "")} href={typeof candidate.url === "string" ? candidate.url : undefined} eyebrow={`${String(candidate.category ?? "research")} option`} meta={[candidate.provider ? String(candidate.provider) : undefined, candidate.price !== undefined ? `${candidate.price}${candidate.currency ? ` ${candidate.currency}` : ""}` : undefined, candidate.rating !== undefined ? `${candidate.rating} rating` : undefined, candidate.location ? String(candidate.location) : undefined].filter(Boolean).join(" · ")} actions={<ResearchActionButtons primary={shortlistPrompt(candidate)} primaryLabel="Shortlist" primaryTitle="Ask Chat to save this option to the research shortlist" secondary={draftActionPrompt(candidate)} secondaryLabel="Draft action" secondaryTitle="Ask Chat to prepare an approval-gated action for this option" />} />}</For>
-        <For each={rankings()}>{(ranking) => <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-3"><div class="flex items-center justify-between gap-2"><span class="text-12-semibold text-text-strong">{String(ranking.id ?? "Candidate")}</span><span class="text-12-semibold tabular-nums text-text-strong">{Math.round(Number(ranking.score ?? 0))}%</span></div><div class="mt-1 text-11-regular text-text-weak">{String(ranking.confidence ?? "confidence unavailable")}</div><div class="mt-2 flex flex-wrap gap-1"><For each={Array.isArray(ranking.reasons) ? ranking.reasons as string[] : []}>{(reason) => <span class="rounded-full bg-v2-overlay-simple-overlay-hover px-2 py-0.5 text-10-regular text-text-weak">{reason}</span>}</For></div></div>}</For>
-        <For each={shortlist()}>{(candidate) => <ResultCard title={String(candidate.title ?? "Shortlisted option")} value={String(candidate.summary ?? "")} href={typeof candidate.url === "string" ? candidate.url : undefined} eyebrow="Shortlisted" actions={typeof candidate.id === "string" && candidate.id.trim() ? <ResearchActionButtons primary={removeShortlistPrompt(candidate.id)} primaryLabel="Remove" primaryTitle="Ask Chat to remove this option from the research shortlist" secondary={draftActionPrompt(candidate)} secondaryLabel="Draft action" secondaryTitle="Ask Chat to prepare an approval-gated action for this option" /> : undefined} />}</For>
-        <Show when={!candidates().length && !rankings().length && !shortlist().length}><div class="text-12-regular text-text-weak">No research results yet. Configure a provider or ask Chat to use available web research.</div></Show>
+        <For each={providers()}>
+          {(provider) => (
+            <div class="flex items-center justify-between rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-11-regular text-text-weak">
+              <span>{String(provider.provider ?? i18n.t("ui.tool.research.provider"))}</span>
+              <span class={provider.status === "configured" ? "text-v2-state-fg-success" : "text-text-weaker"}>
+                {String(provider.status ?? i18n.t("ui.tool.research.unknown"))}
+              </span>
+            </div>
+          )}
+        </For>
+        <For each={candidates()}>
+          {(candidate) => (
+            <ResultCard
+              title={String(candidate.title ?? i18n.t("ui.tool.research.candidate"))}
+              value={String(candidate.summary ?? "")}
+              href={typeof candidate.url === "string" ? candidate.url : undefined}
+              eyebrow={i18n.t("ui.tool.research.option", { category: String(candidate.category ?? "research") })}
+              meta={candidateMeta(candidate)}
+              actions={
+                <ResearchActionButtons
+                  primary={shortlistPrompt(candidate)}
+                  primaryLabel={i18n.t("ui.tool.research.shortlistAction")}
+                  primaryTitle={i18n.t("ui.tool.research.shortlistHint")}
+                  {...draft(candidate)}
+                />
+              }
+            />
+          )}
+        </For>
+        <For each={rankings()}>
+          {(ranking) => (
+            <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-12-semibold text-text-strong">
+                  {String(ranking.id ?? i18n.t("ui.tool.research.candidate"))}
+                </span>
+                <span class="text-12-semibold tabular-nums text-text-strong">
+                  {Math.round(Number(ranking.score ?? 0))}%
+                </span>
+              </div>
+              <div class="mt-1 text-11-regular text-text-weak">
+                {String(ranking.confidence ?? i18n.t("ui.tool.research.confidenceUnavailable"))}
+              </div>
+              <div class="mt-2 flex flex-wrap gap-1">
+                <For each={Array.isArray(ranking.reasons) ? (ranking.reasons as string[]) : []}>
+                  {(reason) => (
+                    <span class="rounded-full bg-v2-overlay-simple-overlay-hover px-2 py-0.5 text-10-regular text-text-weak">
+                      {reason}
+                    </span>
+                  )}
+                </For>
+              </div>
+            </div>
+          )}
+        </For>
+        <For each={shortlist()}>
+          {(candidate) => (
+            <ResultCard
+              title={String(candidate.title ?? i18n.t("ui.tool.research.shortlistedOption"))}
+              value={String(candidate.summary ?? "")}
+              href={typeof candidate.url === "string" ? candidate.url : undefined}
+              eyebrow={i18n.t("ui.tool.research.shortlistedEyebrow")}
+              actions={
+                typeof candidate.id === "string" && candidate.id.trim() ? (
+                  <ResearchActionButtons
+                    primary={removeShortlistPrompt(candidate.id)}
+                    primaryLabel={i18n.t("ui.tool.research.remove")}
+                    primaryTitle={i18n.t("ui.tool.research.removeHint")}
+                    {...draft(candidate)}
+                  />
+                ) : undefined
+              }
+            />
+          )}
+        </For>
+        <Show when={!candidates().length && !rankings().length && !shortlist().length}>
+          <div class="text-12-regular text-text-weak">{i18n.t("ui.tool.research.empty")}</div>
+        </Show>
       </div>
     </BasicTool>
   )
 }
 
 function ActionToolOutput(props: ToolProps) {
+  const i18n = useI18n()
   const result = createMemo(() => toolJson(props.output)?.action as Record<string, unknown> | undefined)
   const status = createMemo(() => String(result()?.status ?? props.status ?? "pending"))
   const failed = createMemo(() => status() === "failed" || !!result()?.error)
   const approved = createMemo(() => ["approved", "running", "completed"].includes(status()))
   const label = createMemo(() => {
-    if (failed()) return "Action failed"
-    if (status() === "completed") return "Action completed"
-    if (status() === "cancelled" || status() === "rejected") return "Action stopped"
-    if (approved()) return "Action approved"
-    return "Waiting for your approval"
+    if (failed()) return i18n.t("ui.tool.action.failed")
+    if (status() === "completed") return i18n.t("ui.tool.action.completed")
+    if (status() === "cancelled" || status() === "rejected") return i18n.t("ui.tool.action.stopped")
+    if (approved()) return i18n.t("ui.tool.action.approved")
+    return i18n.t("ui.tool.action.waiting")
   })
   return (
-    <BasicTool {...props} icon={failed() ? "warning" : "shield-check"} hasContent defaultOpen={status() !== "completed"} trigger={{ title: label(), subtitle: String(result()?.summary ?? "External action") }}>
+    <BasicTool
+      {...props}
+      icon={failed() ? "warning" : "shield-check"}
+      hasContent
+      defaultOpen={status() !== "completed"}
+      trigger={{ title: label(), subtitle: String(result()?.summary ?? i18n.t("ui.tool.action.external")) }}
+    >
       <div class="flex flex-col gap-3 p-3">
         <div class="flex items-center gap-2">
-          <span data-component="action-status-dot" data-status={status()} class="size-2 rounded-full bg-v2-icon-icon-muted" />
+          <span
+            data-component="action-status-dot"
+            data-status={status()}
+            class="size-2 rounded-full bg-v2-icon-icon-muted"
+          />
           <span class="text-12-semibold text-text-strong">{label()}</span>
           <Show when={result()?.id}>
-            <span class="ml-auto text-11-regular text-text-faint">{String(result()?.id)}</span>
+            <span class="ml-auto text-11-regular text-text-weaker">{String(result()?.id)}</span>
           </Show>
         </div>
         <Show when={result()?.error}>
-          <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-12-regular text-text-weak">{String(result()?.error)}</div>
+          <div class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-12-regular text-text-weak">
+            {String(result()?.error)}
+          </div>
         </Show>
         <Show when={!failed() && status() !== "completed"}>
-          <div class="text-12-regular leading-5 text-text-weak">Review the action details before it runs. OpenCode never submits external actions without explicit approval.</div>
+          <div class="text-12-regular leading-5 text-text-weak">{i18n.t("ui.tool.action.review")}</div>
         </Show>
       </div>
     </BasicTool>
   )
 }
 
+// fork: place and route cards live in fork/places.
 ToolRegistry.register({ name: "maps_search", render: MapsToolOutput })
 ToolRegistry.register({ name: "maps_route", render: MapsToolOutput })
+ToolRegistry.register({ name: "maps_poi", render: MapsToolOutput })
+ToolRegistry.register({ name: "map_show", render: MapsToolOutput })
 ToolRegistry.register({ name: "jobs_search", render: JobsToolOutput })
 ToolRegistry.register({ name: "jobs_match", render: JobsMatchToolOutput })
 ToolRegistry.register({ name: "research_status", render: ResearchToolOutput })

@@ -13,21 +13,20 @@ import {
 } from "@opencode/session-ui/research-events"
 import { useArtifactOpener } from "@/session/files/open-artifact"
 import { useComposerState } from "@/composer/persistence"
+import { appendDraftText, promptLength } from "@/composer/prompt-parts"
+import { useLanguage } from "@/runtime/i18n/language"
 
-const categories = [
-  ["job", "Jobs", "briefcase"],
-  ["hotel", "Hotels", "building"],
-  ["flight", "Flights", "airplane"],
-  ["product", "Products", "box"],
-  ["youtube", "YouTube", "globe"],
-  ["place", "Places", "map-pin"],
-  ["event", "Events", "calendar"],
-  ["course", "Courses", "book-open"],
-  ["service", "Services", "wrench"],
-] as const
+const categories = ["job", "hotel", "flight", "product", "youtube", "place", "event", "course", "service"] as const
+type Category = (typeof categories)[number]
+
+const field =
+  "h-9 rounded-md border border-v2-border-border-base bg-v2-background-bg-base px-3 text-12-regular text-v2-text-text-base outline-none focus:border-v2-border-border-focus"
+const listItem =
+  "truncate rounded-md px-2 py-1 text-left text-12-regular text-v2-text-text-muted transition hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-text-text-base"
 
 export function SessionResearchPanel() {
   const composer = useComposerState()
+  const language = useLanguage()
   let artifacts: ReturnType<typeof useArtifactOpener> | undefined
   try {
     artifacts = useArtifactOpener()
@@ -36,28 +35,34 @@ export function SessionResearchPanel() {
   }
   const gallery = () => artifacts?.gallery() ?? []
   const [query, setQuery] = createSignal("")
-  const [category, setCategory] = createSignal<(typeof categories)[number][0]>("job")
+  const [category, setCategory] = createSignal<Category>("job")
   const [location, setLocation] = createSignal("")
   const [budget, setBudget] = createSignal("")
+
+  // Prefill appends to the draft; never wipe what the user already wrote.
+  const insert = (text: string) => {
+    const next = appendDraftText(composer.current(), text)
+    composer.set(next, promptLength(next))
+  }
 
   const ask = () => {
     const value = query().trim()
     if (!value) return
-    const text = researchSearchPrompt({ query: value, category: category(), location: location(), budget: budget() })
-    saveResearchHistory(
-      addResearchHistory(loadResearchHistory(), { query: value, category: category(), location: location(), budget: budget() }),
-    )
-    composer.set([{ type: "text", content: text, start: 0, end: text.length }])
+    const filters = { query: value, category: category(), location: location(), budget: budget() }
+    saveResearchHistory(addResearchHistory(loadResearchHistory(), filters))
+    insert(researchSearchPrompt(filters))
   }
 
   const hint = createMemo(() => RESEARCH_CATEGORY_HINTS[category()] ?? "")
-  const warning = createMemo(() => validateResearchFilters({ query: query(), category: category(), location: location(), budget: budget() }))
+  const warning = createMemo(() =>
+    validateResearchFilters({ query: query(), category: category(), location: location(), budget: budget() }),
+  )
   const [history, setHistory] = createSignal(loadResearchHistory())
   const templates = RESEARCH_PROMPT_TEMPLATES
 
   const applyHistory = (entry: { query: string; category: string; location: string; budget: string }) => {
     setQuery(entry.query)
-    setCategory(entry.category as (typeof categories)[number][0])
+    setCategory(entry.category as Category)
     setLocation(entry.location)
     setBudget(entry.budget)
   }
@@ -73,58 +78,150 @@ export function SessionResearchPanel() {
   return (
     <div class="flex h-full min-h-0 flex-col gap-4 overflow-y-auto p-4" data-slot="session-research-panel">
       <div class="flex items-start gap-3">
-        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-raised text-accent"><Icon name="sparkles" class="size-4" /></div>
+        <div class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-v2-background-bg-layer-01 text-v2-text-text-accent">
+          <Icon name="sparkles" class="size-4" />
+        </div>
         <div class="min-w-0">
-          <div class="text-13-medium text-text-strong">Research workspace</div>
-          <div class="mt-1 text-11-regular text-text-weak">Find candidates, compare them, and shortlist the best option.</div>
+          <div class="text-13-medium text-v2-text-text-base">{language.t("session.research.title")}</div>
+          <div class="mt-1 text-12-regular text-v2-text-text-muted">{language.t("session.research.description")}</div>
         </div>
       </div>
       <div class="flex flex-col gap-2">
-        <label class="text-11-medium text-text-weak" for="research-query">What should we find?</label>
-        <input id="research-query" data-action="research-query" value={query()} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Cheapest hotel in Bali…" class="h-9 rounded-md border border-border-weaker-base bg-background-base px-3 text-12-regular text-text-strong outline-none focus:border-border-focus" />
+        <label class="text-12-medium text-v2-text-text-muted" for="research-query">
+          {language.t("session.research.query.label")}
+        </label>
+        <input
+          id="research-query"
+          data-action="research-query"
+          value={query()}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+          placeholder={language.t("session.research.query.placeholder")}
+          class={field}
+        />
       </div>
       <div class="grid grid-cols-2 gap-2">
-        <label class="flex flex-col gap-1 text-11-medium text-text-weak">Category<select data-action="research-category" value={category()} onChange={(event) => setCategory(event.currentTarget.value as (typeof categories)[number][0])} class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong">{categories.map(([value, label]) => <option value={value}>{label}</option>)}</select></label>
-        <label class="flex flex-col gap-1 text-11-medium text-text-weak">Location<input data-action="research-location" value={location()} onInput={(event) => setLocation(event.currentTarget.value)} placeholder="Optional" class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong" /></label>
+        <label class="flex flex-col gap-1 text-12-medium text-v2-text-text-muted">
+          {language.t("session.research.category")}
+          <select
+            data-action="research-category"
+            value={category()}
+            onChange={(event) => setCategory(event.currentTarget.value as Category)}
+            class={field}
+          >
+            {categories.map((value) => (
+              <option value={value}>{language.t(`session.research.category.${value}`)}</option>
+            ))}
+          </select>
+        </label>
+        <label class="flex flex-col gap-1 text-12-medium text-v2-text-text-muted">
+          {language.t("session.research.location")}
+          <input
+            data-action="research-location"
+            value={location()}
+            onInput={(event) => setLocation(event.currentTarget.value)}
+            placeholder={language.t("session.research.optional")}
+            class={field}
+          />
+        </label>
       </div>
-      <label class="flex flex-col gap-1 text-11-medium text-text-weak">Budget<input data-action="research-budget" value={budget()} onInput={(event) => setBudget(event.currentTarget.value)} placeholder="Optional, e.g. max 150 USD/night" class="h-9 rounded-md border border-border-weaker-base bg-background-base px-2 text-12-regular text-text-strong" /></label>
-      <Show when={hint()}><div data-action="research-hint" class="text-11-regular text-text-weak">{hint()}</div></Show>
-      <Show when={warning()}><div data-action="research-warning" class="text-11-regular text-text-warning">{warning()}</div></Show>
-      <Button data-action="research-ask-chat" onClick={() => { ask(); refreshHistory() }} disabled={!query().trim()} class="w-full justify-center"><Icon name="sparkles" class="size-4" />Ask Chat to research</Button>
+      <label class="flex flex-col gap-1 text-12-medium text-v2-text-text-muted">
+        {language.t("session.research.budget")}
+        <input
+          data-action="research-budget"
+          value={budget()}
+          onInput={(event) => setBudget(event.currentTarget.value)}
+          placeholder={language.t("session.research.budget.placeholder")}
+          class={field}
+        />
+      </label>
+      <Show when={hint()}>
+        <div data-action="research-hint" class="text-12-regular text-v2-text-text-muted">
+          {hint()}
+        </div>
+      </Show>
+      <Show when={warning()}>
+        <div data-action="research-warning" class="text-12-regular text-icon-warning-base">
+          {warning()}
+        </div>
+      </Show>
+      <Button
+        data-action="research-ask-chat"
+        onClick={() => {
+          ask()
+          refreshHistory()
+        }}
+        disabled={!query().trim()}
+        class="w-full justify-center"
+      >
+        <Icon name="sparkles" class="size-4" />
+        {language.t("session.research.ask")}
+      </Button>
       <div class="flex flex-col gap-2">
-        <div class="text-11-medium text-text-weak">Prompt library</div>
+        <div class="text-12-medium text-v2-text-text-muted">{language.t("session.research.templates")}</div>
         <div class="flex flex-wrap gap-1">
           {templates.map((template) => (
-            <Button size="small" variant="ghost" data-action="research-template" data-template={template.id} title={template.body} onClick={() => composer.set([{ type: "text", content: template.body, start: 0, end: template.body.length }])}>{template.title}</Button>
+            <Button
+              size="small"
+              variant="ghost"
+              data-action="research-template"
+              data-template={template.id}
+              title={template.body}
+              onClick={() => insert(template.body)}
+            >
+              {template.title}
+            </Button>
           ))}
         </div>
       </div>
       <Show when={history().length > 0}>
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <div class="text-11-medium text-text-weak">Recent workspace queries</div>
-            <Button size="small" variant="ghost" data-action="research-history-clear" onClick={clearHistory}>Clear</Button>
+            <div class="text-12-medium text-v2-text-text-muted">{language.t("session.research.history")}</div>
+            <Button size="small" variant="ghost" data-action="research-history-clear" onClick={clearHistory}>
+              {language.t("session.research.history.clear")}
+            </Button>
           </div>
           <div class="flex flex-col gap-1">
-            {history().slice(0, 5).map((entry) => (
-              <button type="button" data-action="research-history" class="truncate rounded-md px-2 py-1 text-left text-11-regular text-text-weak transition hover:bg-v2-overlay-simple-overlay-hover hover:text-text-strong" title={`${entry.query} · ${entry.category}`} onClick={() => applyHistory(entry)}>{entry.query}</button>
-            ))}
+            {history()
+              .slice(0, 5)
+              .map((entry) => (
+                <button
+                  type="button"
+                  data-action="research-history"
+                  class={listItem}
+                  title={`${entry.query} · ${entry.category}`}
+                  onClick={() => applyHistory(entry)}
+                >
+                  {entry.query}
+                </button>
+              ))}
           </div>
         </div>
       </Show>
       <Show when={gallery().length > 0}>
         <div class="flex flex-col gap-2">
-          <div class="text-11-medium text-text-weak">Recently opened previews</div>
+          <div class="text-12-medium text-v2-text-text-muted">{language.t("session.research.gallery")}</div>
           <div class="flex flex-col gap-1">
-            {gallery().slice(0, 8).map((entry) => (
-              <button type="button" data-action="research-gallery" data-kind={entry.kind} class="truncate rounded-md px-2 py-1 text-left text-11-regular text-text-weak transition hover:bg-v2-overlay-simple-overlay-hover hover:text-text-strong" title={`${entry.path} · ${entry.kind}`} onClick={() => artifacts?.open(entry.path)}>{entry.path}</button>
-            ))}
+            {gallery()
+              .slice(0, 8)
+              .map((entry) => (
+                <button
+                  type="button"
+                  data-action="research-gallery"
+                  data-kind={entry.kind}
+                  class={listItem}
+                  title={`${entry.path} · ${entry.kind}`}
+                  onClick={() => artifacts?.open(entry.path)}
+                >
+                  {entry.path}
+                </button>
+              ))}
           </div>
         </div>
       </Show>
-      <div class="rounded-lg border border-border-weaker-base bg-surface-raised/50 p-3 text-11-regular text-text-weak">
-        <div class="mb-1 font-medium text-text-strong">How it works</div>
-        Chat will use the configured provider, then call the Laya classifier or an explicit local fallback. The shortlist is safe to review; bookings, purchases, and applications still require approval.
+      <div class="rounded-lg bg-v2-background-bg-layer-01 p-3 text-12-regular text-v2-text-text-muted">
+        <div class="mb-1 text-12-medium text-v2-text-text-base">{language.t("session.research.how.title")}</div>
+        {language.t("session.research.how.body")}
       </div>
     </div>
   )

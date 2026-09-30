@@ -18,6 +18,7 @@ import { showToast } from "@/shell/notifications/toast"
 import { SessionRouteKey, SessionStateKey } from "@/runtime/server/scope"
 import { clearSessionMessageHandoff, setSessionMessageHandoff } from "@/session/handoff"
 import type { DraftMcpControls } from "./mcp"
+import { Topics } from "@/fork/topics/model"
 
 export function createNewSessionComposerAdapter(props: {
   draftID: string
@@ -95,6 +96,8 @@ export function createNewSessionComposerAdapter(props: {
         },
         location: { directory: sessionDirectory },
       })
+      // fork: a session started while a Home topic filter is active joins that topic.
+      Topics.adopt(id)
       const creation = created.request.then(
         () => ({ ok: true as const }),
         (error) => {

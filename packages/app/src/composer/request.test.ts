@@ -41,6 +41,27 @@ describe("buildPromptRequest", () => {
     expect(result.text).toContain("Browser annotation")
     expect(result.text).toContain("Important paragraph")
     expect(result.files).toEqual(expect.arrayContaining([expect.objectContaining({ name: "browser-annotation-img.png" })]))
+    expect(result.annotations).toEqual([
+      { kind: "media", comment: "Focus here", source: "https://example.com" },
+      { kind: "page-text", text: "Important paragraph", comment: undefined, source: "https://example.com" },
+    ])
+    // The visible bubble keeps only what the user typed; annotations render as cards from metadata.
+    expect(result.displayText).toBe("review this")
+  })
+
+  test("carries message quotes for the sent-message cards", () => {
+    const result = buildPromptRequest({
+      prompt: [],
+      context: [
+        { key: "quote", type: "message-quote", messageID: "msg_1", quotedText: "  the answer  ", role: "assistant" },
+        { key: "empty", type: "message-quote", messageID: "msg_2", quotedText: "   " },
+      ],
+      images: [],
+      text: "why?",
+      sessionDirectory: "/repo",
+    })
+    expect(result.text).toContain("Quoted message (assistant): the answer")
+    expect(result.annotations).toEqual([{ kind: "quote", text: "the answer", comment: undefined, role: "assistant" }])
   })
 
   test("builds text, files, and agents from the prompt", () => {

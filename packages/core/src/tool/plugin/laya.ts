@@ -22,12 +22,36 @@ payload=json.loads(os.environ["LAYA_PAYLOAD"]); agent=laya.load(os.environ.get("
 const fallback = (input: typeof Input.Type) => {
   const state = typeof input.state === "string" ? input.state : JSON.stringify(input.state)
   const answers: Record<string, { type: string; decision: string; confidence: number; rationale: string }> = {}
+  const ranking = stateRanking(input.state)
   for (const [key, question] of Object.entries(input.questions) as [string, typeof Question.Type][]) {
     const criteria: string[] = Array.isArray(question.criteria) ? question.criteria.filter((item: unknown): item is string => typeof item === "string") : []
+    const spatial = rankedChoice(ranking, criteria)
+    if (spatial) { answers[key] = { type: question.type, ...spatial }; continue }
     const lower = state.toLowerCase(); const ranked = criteria.map((criterion: string) => ({ criterion, score: lower.includes(criterion.toLowerCase()) ? 1 : 0 })).sort((a: { criterion: string; score: number }, b: { criterion: string; score: number }) => b.score - a.score)
     answers[key] = { type: question.type, decision: ranked[0]?.criterion ?? "noul", confidence: criteria.length ? ranked[0]?.score ?? 0 : 0.5, rationale: "Explicit deterministic fallback; native Laya-MLX is unavailable on this host." }
   }
   return { engine: "deterministic-fallback" as const, available: false, answers, usage: { input_tokens: 0, output_tokens: 0 }, warnings: ["Laya-MLX requires macOS 14+ on Apple Silicon. Configure OPENCODE_LAYA_PYTHON on a Mac to use native inference."] }
+}
+// fork: when the state carries a geo_compute rank result ({ ranking: [{ id, name, score }] }), the fallback decides by that
+// explicit weighted score instead of matching words, so place choices off Apple Silicon still follow travel time, rating
+// and the other criteria. Confidence is the score margin over the runner-up.
+const RankingEntry = Schema.Struct({ id: Schema.optional(Schema.String), name: Schema.optional(Schema.String), score: Schema.Number })
+const decodeRanking = Schema.decodeUnknownOption(Schema.Struct({ ranking: Schema.Array(RankingEntry) }))
+function stateRanking(state: unknown) {
+  const direct = decodeRanking(state)
+  if (direct._tag === "Some") return direct.value.ranking
+  const nested = typeof state === "object" && state !== null ? Object.values(state).map((value) => decodeRanking(value)).find((value) => value._tag === "Some") : undefined
+  return nested?._tag === "Some" ? nested.value.ranking : undefined
+}
+function rankedChoice(ranking: ReturnType<typeof stateRanking>, criteria: readonly string[]) {
+  if (!ranking?.length) return
+  const matches = (entry: (typeof ranking)[number], criterion: string) => [entry.name, entry.id].some((label) => label?.toLowerCase() === criterion.toLowerCase())
+  const scored = ranking.filter((entry) => !criteria.length || criteria.some((criterion) => matches(entry, criterion))).toSorted((a, b) => b.score - a.score)
+  const best = scored[0]
+  if (!best) return
+  const decision = criteria.find((criterion) => matches(best, criterion)) ?? best.name ?? best.id ?? "noul"
+  const margin = best.score - (scored[1]?.score ?? 0)
+  return { decision, confidence: Math.min(1, 0.5 + margin), rationale: `Highest weighted score ${best.score.toFixed(3)} in the supplied ranking (margin ${margin.toFixed(3)}); deterministic fallback, native Laya-MLX is unavailable on this host.` }
 }
 const readResult = (value: unknown, input: typeof Input.Type) => {
   if (!value || typeof value !== "object" || !(value as any).available) return fallback(input)

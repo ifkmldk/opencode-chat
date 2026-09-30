@@ -29,3 +29,37 @@ describe("research classifier", () => {
     expect(candidate.url).toBe("https://example.test/hotel")
   })
 })
+
+// fork: place, hotel and event research without a provider comes from Maps.
+describe("research from maps", () => {
+  test("maps places become candidates with rating, hours and a Google Maps link", () => {
+    const candidate = __test.placeCandidate(
+      {
+        id: "ChIJabc",
+        name: "Hotel Santika BSD",
+        address: "Jl. Pahlawan Seribu, BSD",
+        latitude: -6.3,
+        longitude: 106.66,
+        category: "Hotel",
+        rating: 4.5,
+        ratingCount: 3210,
+        priceLevel: "$$",
+        openNow: true,
+        hoursToday: "Open 24 hours",
+        googleMapsUrl: "https://maps.google.com/?cid=1",
+        source: "google",
+      },
+      "hotel",
+    )
+    expect(candidate).toMatchObject({ id: "ChIJabc", provider: "google-maps", rating: 4.5, reviewCount: 3210, url: "https://maps.google.com/?cid=1" })
+    expect(candidate.summary).toContain("open now")
+    expect((candidate.details as { latitude: number }).latitude).toBe(-6.3)
+  })
+
+  test("only place, hotel and event use maps; the category is added to the query", () => {
+    expect([...__test.MAP_CATEGORIES].toSorted()).toEqual(["event", "hotel", "place"])
+    expect(__test.mapsQuery({ query: "murah dekat BSD", category: "hotel" })).toBe("hotel murah dekat BSD")
+    expect(__test.mapsQuery({ query: "cheap hotel BSD", category: "hotel" })).toBe("cheap hotel BSD")
+    expect(__test.mapsQuery({ query: "kopi enak", category: "place" })).toBe("kopi enak")
+  })
+})

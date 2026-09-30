@@ -2,6 +2,7 @@ import { base64Encode } from "@opencode/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
+import { openFileBrowser } from "../utils/side-panel"
 
 const directory = "C:/OpenCode/ReviewStatePersistence"
 const projectID = "proj_review_state_persistence"
@@ -48,7 +49,7 @@ for (const tab of ["Context", "Open file", "README.md"]) {
 
     const panel = page.locator("#review-panel")
     if (tab === "Context") await page.getByRole("button", { name: "View context usage" }).click()
-    if (tab !== "Context") await panel.getByRole("button", { name: "Open file" }).click()
+    if (tab !== "Context") await openFileBrowser(panel)
     if (tab === "README.md") await panel.getByRole("button", { name: "README.md" }).click()
     await expect(panel.getByRole("tab", { name: tab, selected: true })).toBeVisible()
 

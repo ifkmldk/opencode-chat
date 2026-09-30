@@ -6,6 +6,7 @@ import { SessionRestart } from "@opencode/core/session/execution/restart"
 import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
+import { hasBrowserProxyTicketURL } from "@opencode/protocol/groups/browser-proxy"
 import { Global } from "@opencode/util/global"
 import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -186,7 +187,9 @@ function dispatch(
       return yield* infoResponse(status, version, urls, tmp)
     }
     if (
-      (!ready || (!hasPtyConnectTicketURL(url) && !hasPersistentPtyConnectTicketURL(url))) &&
+      // fork: browser-proxy iframe requests carry a single-use ticket instead of credentials.
+      (!ready ||
+        (!hasPtyConnectTicketURL(url) && !hasPersistentPtyConnectTicketURL(url) && !hasBrowserProxyTicketURL(url))) &&
       !(yield* authorizedRequest(request, auth))
     )
       return unauthorized()

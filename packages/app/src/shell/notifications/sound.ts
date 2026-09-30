@@ -3,7 +3,9 @@ let loads: Record<SoundID, () => Promise<string>> | undefined
 
 function getFiles() {
   if (files) return files
-  files = import.meta.glob("../../../../ui/src/assets/audio/*.aac", { import: "default" }) as Record<
+  // fork: inline as data URIs. Separate .aac files get precached by the service worker at every start, and
+  // download managers (IDM) grab those requests and pop up a "download this file" dialog.
+  files = import.meta.glob("../../../../ui/src/assets/audio/*.aac", { query: "?inline", import: "default" }) as Record<
     string,
     () => Promise<string>
   >

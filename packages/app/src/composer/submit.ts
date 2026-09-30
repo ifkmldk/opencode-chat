@@ -7,6 +7,7 @@ import { clonePrompt, promptLength } from "./prompt-parts"
 import type { ComposerAdapter, ComposerDelivery, ComposerSelection, ComposerSession } from "./adapter"
 import { createComposerSubmission } from "./submission-state"
 import { buildPromptRequest } from "./request"
+import { promptAnnotations } from "./comment-note"
 import { setCursorPosition } from "./editor/dom"
 import { blobDataUrl, resolveBlobUrl } from "@/runtime/persistence/drafts"
 import { isAttachment } from "./prompt-parts"
@@ -127,8 +128,9 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
         await started.cleanupReady
         await started.complete?.()
         input.adapter.submitted()
+        // fork: quotes and annotations are one-shot; only plain file context stays attached.
         submission.context
-          .filter((item) => !!item.comment?.trim())
+          .filter((item) => item.type !== "file" || !!item.comment?.trim())
           .forEach((item) => submission.target().context.remove(item.key))
         input.comments.clear()
         clearSubmission(input, submission)
@@ -193,6 +195,7 @@ function handoffMessage(value: ComposerSubmission): SessionMessageUser {
     })),
     metadata: {
       displayText: value.text,
+      annotations: promptAnnotations(value.context),
       attachments: value.prompt.flatMap((part) =>
         part.type === "path" ? [{ name: part.filename, mime: part.mime, path: part.path }] : [],
       ),
@@ -403,6 +406,7 @@ async function sendPrompt(
       displayText: request.displayText,
       comments: request.comments,
       attachments: request.attachments,
+      annotations: request.annotations,
       agent: value.selection.agent,
       model: {
         ...value.selection.model,

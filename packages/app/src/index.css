@@ -2,6 +2,8 @@
 @import "@opencode/session-ui/styles";
 @import "@opencode/ui/styles/tokens";
 @import "tw-animate-css";
+/* fork: v1 UX layer styles */
+@import "./fork/fork.css";
 
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";

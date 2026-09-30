@@ -34,6 +34,7 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     keywords: "display sleep awake local",
     available: "desktop",
   },
+  { tab: "maps", label: "settings.tab.maps", keywords: "google gemini openstreetmap osm map peta route rute api key" },
   { tab: "experimental", label: "settings.tab.experimental" },
   { tab: "about", label: "settings.tab.about", keywords: "version license credits" },
   { tab: "general", label: "settings.general.row.language.title", target: "settings-language" },

@@ -104,11 +104,15 @@ export function createTimelineController(input: { session: TimelineSessionSource
     })
   })
   const showHeader = createMemo(() => !!input.session.identity.sessionID())
+  // fork: equal by content. The view-mode store notifies while it hydrates and on every write, and the
+  // virtualizer treats any detail notification as a new presentation, which resets expanded tools.
   const timelineDetail = createMemo(() => {
+    // fork: Chat/Laya hide process (reasoning, shell, reads) but keep a collapsed summary of file edits;
+    // result cards (maps, jobs, research, sources) stay visible via timelineResultTool.
     if (input.viewMode.current() === "chat" || input.viewMode.current() === "laya") {
       return {
         shell: { placement: "hidden", details: "collapsed" },
-        edit: { placement: "hidden", details: "collapsed" },
+        edit: { placement: "grouped", details: "collapsed" },
         thinking: { placement: "hidden", details: "collapsed" },
         subagents: { placement: "hidden" },
         notices: { placement: "grouped" },
@@ -124,7 +128,7 @@ export function createTimelineController(input: { session: TimelineSessionSource
       notices: { ...detail.notices },
       tools: { ...detail.tools },
     }
-  })
+  }, undefined, { equals: (previous, next) => JSON.stringify(previous) === JSON.stringify(next) })
   const reasoningMode = (): ReasoningMode =>
     timelineDetail().thinking.placement === "hidden"
       ? "hidden"

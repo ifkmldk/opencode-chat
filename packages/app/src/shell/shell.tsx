@@ -13,6 +13,7 @@ import { SshAuthentication } from "@/servers/ssh/authentication"
 import { useUpdaterInstall } from "@/shell/updates/download"
 import { useCommand } from "@/shell/commands/command"
 import { useLanguage } from "@/runtime/i18n/language"
+import { ServiceWorkerUpdate } from "@/fork/sw-update"
 
 const DebugBar = lazy(() => import("@/shell/debug/debug-bar").then((module) => ({ default: module.DebugBar })))
 
@@ -123,6 +124,7 @@ export default function Layout(props: ParentProps) {
           </Suspense>
         </Show>
         <ToastRegion />
+        <ServiceWorkerUpdate />
         <UploadToastHost />
       </div>
     </TitlebarRightProvider>

@@ -254,11 +254,19 @@ import type {
   WebsearchProvidersOutput,
   WebsearchQueryInput,
   WebsearchQueryOutput,
+  MapsStatusInput,
+  MapsStatusOutput,
+  MapsSettingsInput,
+  MapsSettingsOutput,
+  MapsTestInput,
+  MapsTestOutput,
   ConfigGetInput,
   ConfigGetOutput,
   ConfigShellsOutput,
   ConfigUpdateInput,
   ConfigUpdateOutput,
+  BrowserProxyTicketInput,
+  BrowserProxyTicketOutput,
 } from "../api/api.js"
 import { ClientError } from "./client-error.js"
 
@@ -1507,6 +1515,35 @@ const adaptGroupWebsearch = (raw: RawClient["server.websearch"]) => ({
   query: EndpointWebsearchQuery(raw),
 })
 
+const EndpointMapsStatus = (raw: RawClient["server.maps"]) => (input?: MapsStatusInput) =>
+  preserveEffect<MapsStatusOutput>()(
+    raw["maps.status"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMapsSettings = (raw: RawClient["server.maps"]) => (input?: MapsSettingsInput) =>
+  preserveEffect<MapsSettingsOutput>()(
+    raw["maps.settings"]({
+      query: { location: input?.["location"] },
+      payload: {
+        googleEnabled: input?.["googleEnabled"],
+        confirmedFree: input?.["confirmedFree"],
+        dailyLimit: input?.["dailyLimit"],
+        osmEnabled: input?.["osmEnabled"],
+      },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const EndpointMapsTest = (raw: RawClient["server.maps"]) => (input?: MapsTestInput) =>
+  preserveEffect<MapsTestOutput>()(
+    raw["maps.test"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const adaptGroupMaps = (raw: RawClient["server.maps"]) => ({
+  status: EndpointMapsStatus(raw),
+  settings: EndpointMapsSettings(raw),
+  test: EndpointMapsTest(raw),
+})
+
 const EndpointConfigGet = (raw: RawClient["server.config"]) => (input?: ConfigGetInput) =>
   preserveEffect<ConfigGetOutput>()(
     raw["config.get"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
@@ -1525,6 +1562,16 @@ const adaptGroupConfig = (raw: RawClient["server.config"]) => ({
   shells: EndpointConfigShells(raw),
   update: EndpointConfigUpdate(raw),
 })
+
+const EndpointBrowserProxyTicket = (raw: RawClient["server.browserProxy"]) => (input: BrowserProxyTicketInput) =>
+  preserveEffect<BrowserProxyTicketOutput>()(
+    raw["browserProxy.ticket"]({
+      headers: { "x-opencode-ticket": input["x-opencode-ticket"] },
+      payload: { url: input["url"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const adaptGroupBrowserProxy = (raw: RawClient["server.browserProxy"]) => ({ ticket: EndpointBrowserProxyTicket(raw) })
 
 const adaptClient = (raw: RawClient) => ({
   server: adaptGroupServer(raw["server.server"]),
@@ -1556,7 +1603,9 @@ const adaptClient = (raw: RawClient) => ({
   debug: adaptGroupDebug(raw["server.debug"]),
   migration: adaptGroupMigration(raw["server.migration"]),
   websearch: adaptGroupWebsearch(raw["server.websearch"]),
+  maps: adaptGroupMaps(raw["server.maps"]),
   config: adaptGroupConfig(raw["server.config"]),
+  browserProxy: adaptGroupBrowserProxy(raw["server.browserProxy"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>

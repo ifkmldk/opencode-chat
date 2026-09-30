@@ -33,6 +33,14 @@ const pendingMarkdown = '[data-component="markdown"]:not([data-markdown-ready])'
 // Distance from the bottom that counts as "at the end". Deliberately tight: a collapse clamps
 // exactly to the end, while a one-pixel nudge upward is a deliberate move away from it.
 const endEpsilon = 0.5
+// fork: one device pixel in CSS pixels. Scroll offsets land on device pixels, so under browser zoom or display
+// scaling the reachable end sits up to a device pixel (plus the integer rounding of scrollHeight/clientHeight)
+// short of scrollHeight - clientHeight. At 125% scaling with 75% zoom that is 1.07px, which the fixed 1px checks
+// never accepted: the hidden cold mount re-pinned forever in microtasks and froze the whole tab.
+const devicePixel = () => 1 / (globalThis.devicePixelRatio || 1)
+// fork: a healthy cold mount settles in a few passes. More passes than this without the event loop getting a
+// turn means layout keeps disagreeing, so reveal what is there instead of never painting or taking input again.
+const maxSettleSpins = 200
 const upwardKeys = new Set(["up", "page-up", "home"])
 const cache = new Map<
   string,
@@ -403,11 +411,29 @@ export function createTimelineVirtualizer(input: Input) {
       items.some((item) => !virtualizer.elementsCache.get(item.key)?.isConnected)
     )
   }
+  const finishColdBottom = () => {
+    coldPending = false
+    contentObserver?.disconnect()
+    viewportObserver?.disconnect()
+    virtualContent?.style.removeProperty("visibility")
+  }
+  let settleSpins = 0
+  let spinReset: ReturnType<typeof setTimeout> | undefined
   const settleColdBottom = () => {
     if (!active() || !coldPending || settleQueued) return
     settleQueued = true
     queueMicrotask(() => {
       settleQueued = false
+      // Microtasks never yield; a timer only runs once they stop, so it resets the count only between real turns.
+      spinReset ??= setTimeout(() => {
+        spinReset = undefined
+        settleSpins = 0
+      })
+      if (++settleSpins > maxSettleSpins) {
+        setRendering("initialTail", false)
+        finishColdBottom()
+        return
+      }
       const root = listRoot()
       if (!coldPending || !virtualContent?.isConnected || !root) return
       if (virtualContent.querySelector(pendingMarkdown)) return
@@ -420,9 +446,10 @@ export function createTimelineVirtualizer(input: Input) {
       })
       if (pendingSizes.size || pendingMeasurements()) return
       pinColdBottom()
-      if (input.pinned() && Math.abs(root.scrollHeight - root.clientHeight - root.scrollTop) > 1) return
+      const reach = 1 + devicePixel()
+      if (input.pinned() && Math.abs(root.scrollHeight - root.clientHeight - root.scrollTop) > reach) return
       // The scroll event must update the range before newly exposed rows can reveal.
-      if (root.scrollHeight > root.clientHeight && Math.abs((virtualizer.scrollOffset ?? 0) - root.scrollTop) > 1)
+      if (root.scrollHeight > root.clientHeight && Math.abs((virtualizer.scrollOffset ?? 0) - root.scrollTop) > reach)
         return
       if (rendering.initialTail) {
         setRendering("initialTail", false)
@@ -430,10 +457,7 @@ export function createTimelineVirtualizer(input: Input) {
         return
       }
       if (pendingSizes.size || pendingMeasurements() || virtualContent.querySelector(pendingMarkdown)) return
-      coldPending = false
-      contentObserver?.disconnect()
-      viewportObserver?.disconnect()
-      virtualContent.style.removeProperty("visibility")
+      finishColdBottom()
     })
   }
   onMount(() => {
@@ -449,6 +473,13 @@ export function createTimelineVirtualizer(input: Input) {
     const root = listRoot()
     if (root) viewportObserver.observe(root)
     settleColdBottom()
+    // fork: a mount that never settles must not leave the timeline invisible; show it after a few seconds.
+    const reveal = setTimeout(() => {
+      if (!coldPending) return
+      setRendering("initialTail", false)
+      finishColdBottom()
+    }, 3000)
+    onCleanup(() => clearTimeout(reveal))
   })
 
   let measuredSessionKey = input.sessionKey()
@@ -564,7 +595,9 @@ export function createTimelineVirtualizer(input: Input) {
     const previousMaxScroll = maxScroll
     scrollTop = root.scrollTop
     maxScroll = root.scrollHeight - root.clientHeight
-    const atEnd = maxScroll - scrollTop <= endEpsilon
+    // fork: when a device pixel is coarser than a CSS pixel (zoomed out), the true end is out of reach by up to
+    // one device pixel, so allow that much or following could never resume.
+    const atEnd = maxScroll - scrollTop <= (devicePixel() > 1 ? devicePixel() + endEpsilon : endEpsilon)
     const arrived = scrollTop > previousTop + endEpsilon || maxScroll < previousMaxScroll
     if (maxScroll <= 1 || (atEnd && arrived)) input.onPin()
     else if ((pointerHeld || touchScrolling) && scrollTop < previousTop - endEpsilon) input.onUnpin()

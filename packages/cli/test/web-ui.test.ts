@@ -4,6 +4,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { HttpServer, HttpServerError, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createServer } from "node:http"
+import { createHash } from "node:crypto"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -68,6 +69,26 @@ describe("web UI", () => {
       )
       expect(response.status).toBe(200)
       expect(yield* Effect.promise(() => response.json())).toHaveProperty("pid")
+    }).pipe(Effect.provide(NodeFileSystem.layer)),
+  )
+
+  it.live("hashes the theme preload script the way browsers do, even with CRLF line endings", () =>
+    Effect.gen(function* () {
+      const script = ";(function () {\r\n  document.documentElement.dataset.theme = 'dark'\r\n})()\r\n"
+      const transform = yield* WebUi.handler({
+        assets: {
+          "index.html": `<html><head><script id="oc-theme-preload-script">${script}</script></head><body></body></html>`,
+        },
+      })
+      const server = yield* ServerProcess.start<never, never>(
+        { hostname: "127.0.0.1", port: 0, password: "secret", database: { path: ":memory:" } },
+        undefined,
+        transform,
+      )
+      const response = yield* Effect.promise(() => fetch(new URL("/", HttpServer.formatAddress(server.address))))
+      const hash = createHash("sha256").update(script.replaceAll("\r\n", "\n")).digest("base64")
+      expect(response.headers.get("content-security-policy")).toContain(`'sha256-${hash}'`)
+      yield* Effect.promise(() => response.arrayBuffer())
     }).pipe(Effect.provide(NodeFileSystem.layer)),
   )
 

@@ -350,7 +350,6 @@ export const SettingsGeneral: Component = () => {
         <LanguageSetting />
 
         <WorkspaceDestinationSetting />
-        <ResearchProvidersSetting />
         <AutoApprovePermissionsSetting />
 
         <SettingsRow
@@ -410,6 +409,7 @@ export const SettingsGeneral: Component = () => {
           </SettingsRow>
         </Show>
       </SettingsList>
+      <ResearchProvidersSetting />
     </div>
   )
 

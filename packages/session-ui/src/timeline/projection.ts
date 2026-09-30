@@ -11,6 +11,7 @@ import { createMemo, mapArray, type Accessor } from "solid-js"
 import { currentContentDefaultOpen, currentToolFailed, currentToolHasLoadedFiles } from "../message/current-tool-state"
 import { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap } from "./timeline-row"
 import { timelineCategory, timelineNoticeRequired, type TimelineDetail } from "./detail"
+import { timelineCardTool, timelineResultTool } from "./result-tools"
 
 export { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap }
 
@@ -298,15 +299,26 @@ export namespace Timeline {
     const previousUserMessage = index > 0
     const compaction = entries.some((entry) => entry.type === "notice" && entry.message.type === "compaction")
     const lastContent = lastAssistant?.content.at(-1)
-    const thinking =
-      (detail ? detail.thinking.placement === "separate" : showReasoning) &&
+    const working =
       isActive &&
       status.type === "busy" &&
       lastAssistant?.time.completed === undefined &&
       !lastAssistant?.error &&
-      !lastAssistant?.retry &&
-      lastContent?.type === "reasoning" &&
-      lastContent.time?.completed === undefined
+      !lastAssistant?.retry
+    // fork: with reasoning hidden (Chat/Laya), show a generic "Thinking" row while the model works
+    // on anything the view hides — reasoning or a process tool — so the turn never looks stalled.
+    const hiddenWork =
+      detail?.thinking.placement === "hidden" &&
+      working &&
+      !!lastContent &&
+      lastContent.type !== "text" &&
+      !timelineResultTool(lastContent)
+    const thinking =
+      hiddenWork ||
+      ((detail ? detail.thinking.placement === "separate" : showReasoning) &&
+        working &&
+        lastContent?.type === "reasoning" &&
+        lastContent.time?.completed === undefined)
 
     if (previousUserMessage) rows.push(new TimelineRow.TurnGap({ userMessageID: turnID }))
     if (userMessage) rows.push(new TimelineRow.UserMessage({ userMessageID: turnID }))
@@ -586,6 +598,8 @@ function renderable(content: Content, showReasoning: boolean, detail?: TimelineD
   if (detail && currentToolFailed(content)) return true
   if (content.name === "todowrite") return false
   if (content.name === "question") return content.state.status !== "streaming" && content.state.status !== "running"
+  // fork: result cards stay visible even when their category is hidden (Chat/Laya views).
+  if (detail && timelineResultTool(content)) return true
   if (detail && detail[timelineCategory(content)!].placement === "hidden") return false
   return true
 }
@@ -662,6 +676,8 @@ function toolGroupType(
 ) {
   if (detail) {
     if (content.name === "question" && !currentToolFailed(content)) return undefined
+    // fork: result cards render on their own row instead of inside a collapsed tool group.
+    if (timelineCardTool(content)) return undefined
     const category = timelineCategory(content)!
     if (detail[category].placement === "grouped") return "context"
     if (currentToolFailed(content)) return undefined

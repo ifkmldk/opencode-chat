@@ -15,16 +15,17 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
           const fs = yield* FileSystem.Service
           const file = yield* fs
             .read({
-              path: RelativePath.make(
-                decodeURIComponent(new URL(ctx.request.url, "http://localhost").pathname.slice(13)),
-              ),
+              path: RelativePath.make(readPath(new URL(ctx.request.url, "http://localhost").pathname.slice(13))),
             })
             .pipe(
               Effect.mapError(
                 (error) => new FileNotFoundError({ path: error.path, message: `File not found: ${error.path}` }),
               ),
             )
-          return HttpServerResponse.uint8Array(file.content, { contentType: file.mime })
+          // fork: script reads (fetch) get plain bytes; a PDF or archive MIME type made download managers (IDM)
+          // take over the request. The app never renders this response by its type.
+          const script = ctx.request.headers["sec-fetch-dest"] === "empty"
+          return HttpServerResponse.uint8Array(file.content, { contentType: script ? "application/octet-stream" : file.mime })
         }),
       )
       .handle("fs.list", (ctx) =>
@@ -53,3 +54,10 @@ export const FileSystemHandler = HttpApiBuilder.group(Api, "server.fs", (handler
       )
   }),
 )
+
+// fork: the app sends "~b64~<base64url>" so the URL never names the file (download managers hijack those);
+// plain percent-encoded paths still work for other clients.
+function readPath(segment: string) {
+  if (!segment.startsWith("~b64~")) return decodeURIComponent(segment)
+  return Buffer.from(segment.slice(5), "base64url").toString("utf8")
+}

@@ -21,6 +21,7 @@ import { createConnectionSync, reconnectOrder } from "./server-sync/connection"
 import { usePlatform } from "@/runtime/platform/platform"
 import type { Data } from "@opencode/client/solid"
 import { createWorktreeInventory, withWorktreeInventory, worktreeInventoryViewKey } from "@/workspaces/inventory"
+import { assignProjectColors } from "@/fork/avatar-color"
 
 type GlobalStore = {
   path: Path
@@ -264,6 +265,15 @@ export function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
       children.projectIcon(directory, value)
     },
   }
+
+  // fork: v1 auto-assigned avatar colours for projects without an icon.
+  assignProjectColors({
+    projects: () => globalStore.project,
+    save: async (project, color) => {
+      if (project.id === "global") return projectApi.meta(project.worktree, { icon: { color } })
+      applyProjectUpdate(await serverSDK.api.project.update({ projectID: project.id, icon: { color } }))
+    },
+  })
 
   const updateConfigMutation = useMutation(() => ({
     mutationFn: async (config: Config) => {

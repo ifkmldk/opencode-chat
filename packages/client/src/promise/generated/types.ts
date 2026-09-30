@@ -420,11 +420,29 @@ export type WebSearchProvider = { id: string; name: string }
 
 export type WebSearchResult = { url: string; title?: string; content?: string; time: { published?: number } }
 
+export type MapsStatus = {
+  google: {
+    configured: boolean
+    source?: "credential" | "env" | undefined
+    enabled: boolean
+    confirmedFree: boolean
+    usedToday: number
+    exhaustedToday: boolean
+    dailyLimit: number
+    maxDailyLimit: number
+    freeDaily: number
+    resetsAt: string
+  }
+  osm: { enabled: boolean }
+}
+
 export type McpProtocol = "legacy" | "auto" | "2026-07-28"
 
 export type ConfigWorktree = { directory: string }
 
 export type ConfigShellOption = { path: string; name: string; acceptable: boolean }
+
+export type BrowserProxyTicket = { ticket: string; expiresIn: number }
 
 export type SessionMessageLocationSwitched = {
   id: string
@@ -1661,6 +1679,14 @@ export type WorktreeList = Array<WorktreeDirectory>
 
 export type VcsInfo = { provider?: string; branch: VcsBranch }
 
+export type MapsTestResult = {
+  ok: boolean
+  message: string
+  model?: string | undefined
+  grounded?: boolean | undefined
+  status: MapsStatus
+}
+
 export type SessionInboxMove = {
   id: string
   sessionID: string
@@ -1928,6 +1954,7 @@ export type AgentInfo = {
   id: string
   name: string
   model?: ModelRef
+  requireCompletionMarker?: boolean
   request: ProviderRequest
   system?: string
   description?: string
@@ -2014,6 +2041,7 @@ export type ConfigEntry =
             hidden?: boolean
             color?: string
             steps?: number
+            requireCompletionMarker?: boolean
             disabled?: boolean
             permissions?: PermissionRuleset
           }
@@ -2153,6 +2181,7 @@ export type ConfigEntry =
         experimental?: {
           portable_shell_scanner?: boolean
           subagent_depth?: number
+          laya?: { enabled?: boolean; modelDir?: string; subfolder?: string; timeoutMs?: number }
           policies?: Array<{ action: "provider.use" | "permission"; resource: string; effect: "allow" | "deny" }>
         }
       }
@@ -6334,6 +6363,48 @@ export type WebsearchQueryOutput = {
   data: { providerID: string; results: Array<WebSearchResult> }
 }
 
+export type MapsStatusInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type MapsStatusOutput = { location: LocationPublicRef; data: MapsStatus }
+
+export type MapsSettingsInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+  readonly googleEnabled?: {
+    readonly googleEnabled?: boolean | undefined
+    readonly confirmedFree?: boolean | undefined
+    readonly dailyLimit?: number | undefined
+    readonly osmEnabled?: boolean | undefined
+  }["googleEnabled"]
+  readonly confirmedFree?: {
+    readonly googleEnabled?: boolean | undefined
+    readonly confirmedFree?: boolean | undefined
+    readonly dailyLimit?: number | undefined
+    readonly osmEnabled?: boolean | undefined
+  }["confirmedFree"]
+  readonly dailyLimit?: {
+    readonly googleEnabled?: boolean | undefined
+    readonly confirmedFree?: boolean | undefined
+    readonly dailyLimit?: number | undefined
+    readonly osmEnabled?: boolean | undefined
+  }["dailyLimit"]
+  readonly osmEnabled?: {
+    readonly googleEnabled?: boolean | undefined
+    readonly confirmedFree?: boolean | undefined
+    readonly dailyLimit?: number | undefined
+    readonly osmEnabled?: boolean | undefined
+  }["osmEnabled"]
+}
+
+export type MapsSettingsOutput = { location: LocationPublicRef; data: MapsStatus }
+
+export type MapsTestInput = {
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type MapsTestOutput = { location: LocationPublicRef; data: MapsTestResult }
+
 export type ConfigGetInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
 }
@@ -6345,3 +6416,10 @@ export type ConfigShellsOutput = Array<ConfigShellOption>
 export type ConfigUpdateInput = { readonly shell: { readonly shell: string | null }["shell"] }
 
 export type ConfigUpdateOutput = void
+
+export type BrowserProxyTicketInput = {
+  readonly "x-opencode-ticket"?: { readonly "x-opencode-ticket"?: string | undefined }["x-opencode-ticket"]
+  readonly url: { readonly url: string }["url"]
+}
+
+export type BrowserProxyTicketOutput = BrowserProxyTicket

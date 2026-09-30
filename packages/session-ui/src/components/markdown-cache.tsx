@@ -32,6 +32,17 @@ if (typeof window !== "undefined" && purifier.isSupported) {
     if (node instanceof HTMLAnchorElement) {
       // Local file links never navigate the document; the host decides how to open them.
       node.removeAttribute("data-local-link")
+      node.removeAttribute("data-place-ref")
+      // fork: `[Name](place:<id>)` names a maps_search place; the app focuses it on the Map tab.
+      const place = /^place:(.+)$/i.exec(node.getAttribute("href")?.trim() ?? "")?.[1]
+      if (place) {
+        node.setAttribute("data-place-ref", placeRef(place))
+        node.setAttribute("role", "link")
+        node.setAttribute("tabindex", "0")
+        node.removeAttribute("href")
+        node.removeAttribute("target")
+        return
+      }
       const path = localLinkPath(node.getAttribute("href") ?? "")
       if (!path) return
       node.setAttribute("data-local-link", path)
@@ -60,6 +71,14 @@ if (typeof window !== "undefined" && purifier.isSupported) {
     set.add("noreferrer")
     node.setAttribute("rel", Array.from(set).join(" "))
   })
+}
+
+function placeRef(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 export function sanitizeMarkdown(html: string) {

@@ -75,16 +75,17 @@ for (const theme of ["light", "dark"] as const) {
         await expectBackground(view.send, "icon-button-contrast")
         const message = page.locator('[data-slot="user-message-text"]')
         await expect(message).toHaveText("Check this fixture workspace.")
+        // fork: local sessions use the grey v1 bubble; workspace sessions keep the accent.
         await expectToken(
           message,
           "background-color",
-          scenario.accent ? "--v2-background-bg-accent" : theme === "light" ? "--v2-blue-100" : "--v2-blue-1200",
+          scenario.accent
+            ? "--v2-background-bg-accent"
+            : theme === "light"
+              ? "--v2-background-bg-layer-02"
+              : "--v2-background-bg-layer-01",
         )
-        await expectToken(
-          message,
-          "color",
-          scenario.accent ? "--v2-text-text-contrast" : theme === "light" ? "--v2-blue-700" : "--v2-blue-300",
-        )
+        await expectToken(message, "color", scenario.accent ? "--v2-text-text-contrast" : "--v2-text-text-base")
       })
     }
 

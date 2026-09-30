@@ -17,6 +17,7 @@ export type SettingsRootTab =
   | "providers"
   | "models"
   | "extensions"
+  | "maps"
   | "servers"
   | "experimental"
   | "about"
@@ -51,6 +52,7 @@ const rootTabs: Record<SettingsRootTab, true> = {
   providers: true,
   models: true,
   extensions: true,
+  maps: true,
   servers: true,
   experimental: true,
   about: true,

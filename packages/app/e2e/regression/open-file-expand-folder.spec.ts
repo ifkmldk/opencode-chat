@@ -2,6 +2,7 @@ import { base64Encode } from "@opencode/util/encode"
 import { expect, test } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
+import { openFileBrowser } from "../utils/side-panel"
 
 const directory = "C:/OpenCode/OpenFileExpand"
 const projectID = "proj_open_file_expand"
@@ -126,7 +127,7 @@ test("expands Windows paths and horizontally scrolls long filenames", async ({ p
   await expectSessionTitle(page, title)
 
   const panel = page.locator("#review-panel")
-  await panel.getByRole("button", { name: "Open file" }).click()
+  await openFileBrowser(panel)
   await expect(panel.getByRole("tab", { name: "Open file" })).toHaveAttribute("data-selected", "")
 
   const sidebar = panel.locator('[data-component="session-review-v2-sidebar-root"]')

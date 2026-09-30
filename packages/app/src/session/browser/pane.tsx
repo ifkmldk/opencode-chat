@@ -8,6 +8,8 @@ import { createEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createEffect, createSignal, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Portal } from "solid-js/web"
+import { SelectionActionBar } from "@opencode/ui/selection-action-bar"
 import { useComposerState } from "@/composer/persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -159,14 +161,18 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
     schedule(100)
   }
 
-  const selectionStyle = () => {
+  // Page selection rect (native view pixels) mapped into app viewport coordinates.
+  const selectionRect = () => {
     const selection = store.selection
     if (!selection || !surface) return undefined
     const bounds = surface.getBoundingClientRect()
     const zoom = platform.webviewZoom?.() ?? 1
-    const x = bounds.left + selection.rect.x / zoom
-    const y = bounds.top + selection.rect.y / zoom - 42
-    return { left: `${Math.max(4, Math.min(window.innerWidth - 220, x))}px`, top: `${Math.max(4, y)}px` }
+    return new DOMRect(
+      bounds.left + selection.rect.x / zoom,
+      bounds.top + selection.rect.y / zoom,
+      selection.rect.width / zoom,
+      selection.rect.height / zoom,
+    )
   }
 
   const measure = () => {
@@ -342,11 +348,11 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
         </Tooltip>
         <button
           type="button"
-          class="rounded px-2 py-1 text-12-regular text-v2-text-text-weak hover:bg-v2-overlay-simple-overlay-hover disabled:opacity-50"
+          class="rounded px-2 py-1 text-12-regular text-v2-text-text-muted hover:bg-v2-overlay-simple-overlay-hover disabled:opacity-50"
           disabled={!state() || !!regionCapture()}
           onClick={beginRegion}
         >
-          Capture region
+          {language.t("session.browser.region.capture")}
         </button>
         <form
           dir="ltr"
@@ -397,15 +403,21 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
         </form>
       </div>
       <Show when={props.browser.error() && !failed()}>
-        <div class="shrink-0 px-3 py-1.5 text-12-regular text-text-danger-base border-b border-v2-border-border-muted">
+        <div class="shrink-0 px-3 py-1.5 text-12-regular text-icon-critical-base border-b border-v2-border-border-muted">
           {props.browser.error()}
         </div>
       </Show>
       <Show when={regionCapture()}>
         <div class="absolute inset-x-0 bottom-3 z-30 flex justify-center">
           <div class="flex items-center gap-2 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-1 shadow-lg">
-            <span class="px-2 text-12-regular text-v2-text-text-weak">Drag to select a region</span>
-            <IconButton icon={<Icon name="outline-xmark" size="small" />} size="small" variant="ghost" aria-label="Cancel region selection" onClick={cancelRegion} />
+            <span class="px-2 text-12-regular text-v2-text-text-muted">{language.t("session.browser.region.hint")}</span>
+            <IconButton
+              icon={<Icon name="outline-xmark" size="small" />}
+              size="small"
+              variant="ghost"
+              aria-label={language.t("session.browser.region.cancel")}
+              onClick={cancelRegion}
+            />
           </div>
         </div>
       </Show>
@@ -421,7 +433,7 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
             <Show when={region()}>
               {(value) => (
                 <div
-                  class="absolute rounded border-2 border-v2-blue-400 bg-v2-blue-400/15"
+                  class="absolute rounded border-2 border-v2-border-border-focus bg-v2-background-bg-accent/15"
                   style={{
                     left: `${value().region.x}px`,
                     top: `${value().region.y}px`,
@@ -433,41 +445,16 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
             </Show>
           </div>
         </Show>
-        <Show when={store.selection}>
-          {(selection) => (
-            <div
-              data-component="browser-selection-bar"
-              class="absolute z-20 flex -translate-y-full items-center gap-1 rounded-lg border border-v2-border-border-base bg-v2-background-bg-base p-1 shadow-lg"
-              style={selectionStyle()}
-            >
-              <button
-                type="button"
-                class="rounded px-2 py-1 text-12-regular text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => addSelection()}
-              >
-                Quote
-              </button>
-              <button
-                type="button"
-                class="rounded px-2 py-1 text-12-regular text-v2-text-text-weak hover:bg-v2-overlay-simple-overlay-hover"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  const note = window.prompt("Add a note about this selection")
-                  if (note) addSelection(note)
-                }}
-              >
-                Note
-              </button>
-              <IconButton
-                icon={<Icon name="outline-xmark" size="small" />}
-                size="small"
-                variant="ghost"
-                aria-label="Cancel browser selection"
-                onClick={() => setStore("selection", undefined)}
+        <Show when={selectionRect()}>
+          {(rect) => (
+            <Portal>
+              <SelectionActionBar
+                rect={rect()}
+                onQuote={() => addSelection()}
+                onNote={(note) => addSelection(note)}
+                onCancel={() => setStore("selection", undefined)}
               />
-              <span class="sr-only">{selection().text}</span>
-            </div>
+            </Portal>
           )}
         </Show>
         <Show when={(empty() || failed()) && !props.browser.suspended()}>
@@ -486,7 +473,7 @@ export function SessionBrowserPane(props: { browser: ReturnType<typeof createSes
           </div>
         </Show>
         <Show when={props.browser.suspended()}>
-          <p class="px-6 text-center text-13-regular text-v2-text-text-subtle" role="status">
+          <p class="px-6 text-center text-13-regular text-v2-text-text-faint" role="status">
             {language.t("session.browser.suspended")}
           </p>
         </Show>

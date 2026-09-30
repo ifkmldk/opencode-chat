@@ -6,9 +6,15 @@ import type {
 } from "@opencode/client/promise"
 import { useI18n } from "@opencode/ui/context/i18n"
 import { Tooltip } from "@opencode/ui/tooltip"
+import { TextShimmer } from "@opencode/ui/text-shimmer"
 import { For, Show, createMemo, type Accessor, type JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import type { SessionUserActions, SessionUserAttachmentReference, SessionUserComment } from "../actions"
+import type {
+  SessionUserActions,
+  SessionUserAnnotation,
+  SessionUserAttachmentReference,
+  SessionUserComment,
+} from "../actions"
 import { useData } from "../context"
 import { TimelineSeparator } from "../components/timeline-separator"
 import {
@@ -20,6 +26,8 @@ import {
   currentContentDefaultOpen,
 } from "../message/current-message"
 import { AssistantReasoningContent, SessionCompactionMessage } from "../message/message-content"
+import { AssistantArtifacts, type AssistantArtifactsProps } from "../message/assistant-artifacts"
+import { turnArtifacts } from "../message/assistant-artifact-model"
 import type { ContextGroupPart } from "../tools/tool-renderer"
 import { SessionRetry } from "../components/session-retry"
 import { SessionError } from "../components/session-error"
@@ -42,6 +50,7 @@ export type SessionUserPresentation = {
   displayText?: string
   comments?: SessionUserComment[]
   references?: SessionUserAttachmentReference[]
+  annotations?: SessionUserAnnotation[]
 }
 
 export function createSessionTimelineRowRenderer(input: {
@@ -117,6 +126,21 @@ export function createSessionTimelineRowRenderer(input: {
       : undefined
   }
   const padding = () => input.padding?.() ?? "px-4 md:px-5"
+  // fork: generated-file cards, once per turn. Only the row that shows them lexes the turn's text.
+  const createTurnArtifacts = (userMessageID: Accessor<string>, show: Accessor<boolean>) => {
+    const messages = createMemo(
+      () => input.projection.assistantMessagesByParent().get(userMessageID()) ?? emptyAssistantMessages,
+      emptyAssistantMessages,
+      { equals: (previous, next) => previous.length === next.length && previous.every((item, index) => item === next[index]) },
+    )
+    return createMemo((): AssistantArtifactsProps | undefined => {
+      const open = input.actions?.openArtifact
+      if (!open || !show()) return
+      const items = turnArtifacts(messages(), data.directory)
+      if (!items.length) return
+      return { items, onOpen: open, onDownload: input.actions?.downloadArtifact, exists: input.actions?.artifactsExist }
+    })
+  }
   const indexGroupContents = (refs: PartRef[]) => {
     const result = new Map<string, Map<string, SessionMessageAssistant["content"][number]>>()
     refs.forEach((ref) => {
@@ -265,6 +289,10 @@ export function createSessionTimelineRowRenderer(input: {
       return item ? contentDefaultOpen(item) : undefined
     })
     const disclosureKey = () => (content()?.type === "reasoning" ? ref()!.partID : row().group.key)
+    const artifacts = createTurnArtifacts(
+      () => row().userMessageID,
+      () => !!ref() && copyContentID(row().userMessageID) === ref()!.partID,
+    )
     return (
       <Show when={message()}>
         {(message) => (
@@ -280,8 +308,7 @@ export function createSessionTimelineRowRenderer(input: {
                 toolOpen={input.disclosure.value(disclosureKey()) ?? defaultOpen()}
                 onToolOpenChange={(open) => input.disclosure.set(disclosureKey(), open)}
                 onContentRendered={onSizeChange}
-                openArtifact={input.actions?.openArtifact}
-                downloadArtifact={input.actions?.downloadArtifact}
+                artifacts={artifacts()}
               />
             )}
           </Show>
@@ -600,6 +627,7 @@ export function createSessionTimelineRowRenderer(input: {
                       displayText={presentation()?.displayText}
                       comments={presentation()?.comments}
                       references={presentation()?.references}
+                      annotations={presentation()?.annotations}
                       historicalAgent={context()?.agent ?? ""}
                       historicalModel={context()?.model ?? { id: "", providerID: "" }}
                       actions={input.actions}
@@ -662,11 +690,19 @@ export function createSessionTimelineRowRenderer(input: {
       }
       // Construct once per row key, not inside JSX that reruns when group refs change.
       const content = renderAssistant(current, onSizeChange)
+      // fork: a turn without any text still gets its file cards, after its last row.
+      const fallbackArtifacts = createTurnArtifacts(
+        () => current().userMessageID,
+        () =>
+          copyContentID(current().userMessageID) === undefined &&
+          input.projection.lastAssistantGroupKey().get(current().userMessageID) === current().group.key,
+      )
       return (
         <Frame row={current()}>
           <div data-slot="session-turn-message-container" class={`w-full ${padding()}`}>
             <div data-slot="session-turn-assistant-content" aria-hidden={workingTurn(current().userMessageID)}>
               {content}
+              <Show when={fallbackArtifacts()}>{(artifacts) => <AssistantArtifacts {...artifacts()} />}</Show>
             </div>
           </div>
         </Frame>
@@ -687,7 +723,13 @@ export function createSessionTimelineRowRenderer(input: {
         <Frame row={current()}>
           <div data-slot="session-turn-message-container" class={`w-full ${padding()}`}>
             <div data-slot="session-turn-thinking-row">
-              <Show when={content()}>
+              {/* fork: reasoning hidden (Chat/Laya) — a generic indicator instead of the reasoning text */}
+              <Show when={input.timelineDetail?.().thinking.placement === "hidden"}>
+                <div data-slot="session-turn-thinking-generic" class="text-13-regular text-v2-text-text-muted">
+                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} active />
+                </div>
+              </Show>
+              <Show when={input.timelineDetail?.().thinking.placement !== "hidden" && content()}>
                 {(content) => (
                   <AssistantReasoningContent
                     id={current().ref.partID}
