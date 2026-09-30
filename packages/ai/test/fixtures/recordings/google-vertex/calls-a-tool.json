@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:google-vertex",
+      "provider:google-vertex",
+      "protocol:gemini"
+    ],
+    "name": "google-vertex/calls-a-tool",
+    "recordedAt": "2026-09-22T03:46:29.725Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-3.5-flash:streamGenerateContent?alt=sse",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"What is the weather in Paris? Use the lookup_weather tool.\"}]}],\"tools\":[{\"functionDeclarations\":[{\"name\":\"lookup_weather\",\"description\":\"Look up the current weather for a city\",\"parameters\":{\"required\":[\"city\"],\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}}}}]}]}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream"
+        },
+        "body": "data: {\"candidates\": [{\"content\": {\"role\": \"model\",\"parts\": [{\"functionCall\": {\"name\": \"lookup_weather\",\"args\": {\"city\": \"Paris\"},\"id\": \"call_28936\"},\"thoughtSignature\": \"AY89a1/MVeBxtwu9l/96clFobOrrd7Q5MTf5o8/A22fc++1EsFYVeCFx9WCGmJ+D3yW3FWlRXKtJECYfprSoxixCSOYBNiV9g8/IkejbAxF26k1vxTsHkoqts0O2s8GqqBSRAavJfKQ/taTRbPuIq+b+RKZ8SDJFoWDnFjXpdS5S164uJTjmgs4ALd8oB1oQRycMsTbAY51TmkcNUnhARpjKQfqiizz4KfSRFjx7xDnza0v4jj73m2GV86eLDhVT7trIT+Dl5DsJt6RBLOE2Amse54mcpIbsYaANlY1YDU6FKuUBqnuwpl0OfhMXwWuYMogv1tH/0rTXsqNwmHyt/b9ZZXqYCdFXpMGt8udmoZ0d\"}]}}],\"usageMetadata\": {\"trafficType\": \"ON_DEMAND\"},\"modelVersion\": \"gemini-3.5-flash\",\"createTime\": \"2026-09-22T03:46:28.953809Z\",\"responseId\": \"FPqxatGbOsSorb8PtY2z8Q4\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"role\": \"model\",\"parts\": [{\"text\": \"\"}]},\"finishReason\": \"STOP\"}],\"usageMetadata\": {\"promptTokenCount\": 39,\"candidatesTokenCount\": 16,\"totalTokenCount\": 93,\"trafficType\": \"ON_DEMAND\",\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 39}],\"candidatesTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 16}],\"thoughtsTokenCount\": 38},\"modelVersion\": \"gemini-3.5-flash\",\"createTime\": \"2026-09-22T03:46:28.953809Z\",\"responseId\": \"FPqxatGbOsSorb8PtY2z8Q4\"}\r\n\r\n"
+      }
+    }
+  ]
+}

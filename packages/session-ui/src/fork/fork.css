@@ -1,0 +1,592 @@
+/* fork: v1 UX layer. Kept in one file so upstream CSS merges stay conflict-free. */
+
+/* Quotes and annotations sent with a user message (v1 kept them visible on the bubble). */
+[data-component="user-message"] [data-slot="user-message-annotations"] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: min(420px, 82%);
+  margin-inline-start: auto;
+  margin-bottom: 6px;
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation-head"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  line-height: var(--line-height-compact);
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation-label"] {
+  flex: none;
+  font-weight: 530;
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation-source"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--v2-text-text-faint);
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation-text"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  padding-inline-start: 8px;
+  border-inline-start: 2px solid var(--v2-border-border-strong);
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  line-height: var(--line-height-compact);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+[data-component="user-message"] [data-slot="user-message-annotation-comment"] {
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  line-height: var(--line-height-base);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* v1 set message text in the system UI font (Segoe UI on Windows) while the chrome used Inter; v2 made
+   everything Inter, which reads heavier. Code keeps its mono font through its own rules. */
+[data-component="markdown"],
+[data-component="user-message"] [data-slot="user-message-text"] {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* v1 user bubble: local sessions keep upstream's neutral grey pill instead of the blue fill. Workspace
+   sessions keep their accent bubble, which marks a session running outside the local checkout. */
+:root[data-color-scheme="dark"]
+  body
+  [data-local-session]
+  [data-component="user-message"]
+  [data-slot="user-message-text"] {
+  background: var(--v2-background-bg-layer-01);
+  color: var(--v2-text-text-base);
+}
+
+:root[data-color-scheme="light"]
+  body
+  [data-local-session]
+  [data-component="user-message"]
+  [data-slot="user-message-text"] {
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+}
+
+/* Callouts: `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` (v1). */
+[data-component="markdown"] [data-callout] {
+  --callout-border: color-mix(in oklch, var(--callout-fg) 35%, transparent);
+  --callout-bg: color-mix(in oklch, var(--callout-fg) 8%, transparent);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 1rem 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 0.5px solid var(--callout-border);
+  border-inline-start-width: 3px;
+  background: var(--callout-bg);
+  color: var(--v2-text-text-base);
+}
+
+[data-component="markdown"] [data-callout="tip"] {
+  --callout-fg: var(--v2-state-fg-success);
+}
+
+[data-component="markdown"] [data-callout="warning"] {
+  --callout-fg: var(--v2-state-fg-warning);
+}
+
+[data-component="markdown"] [data-callout="caution"] {
+  --callout-fg: var(--v2-state-fg-danger);
+}
+
+[data-component="markdown"] [data-callout="note"],
+[data-component="markdown"] [data-callout="important"] {
+  --callout-fg: var(--v2-text-text-accent);
+}
+
+[data-component="markdown"] [data-callout-icon] {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--callout-fg);
+}
+
+/* The markdown sanitizer drops SVG paint attributes, so the icon strokes are styled here. */
+[data-component="markdown"] [data-callout-icon] svg {
+  display: block;
+  fill: none;
+}
+
+[data-component="markdown"] [data-callout-icon] path {
+  stroke: currentColor;
+  stroke-linecap: square;
+}
+
+[data-component="markdown"] [data-callout="caution"] [data-callout-icon] path {
+  stroke-linecap: round;
+}
+
+[data-component="markdown"] [data-callout-body] {
+  min-width: 0;
+  flex: 1;
+}
+
+[data-component="markdown"] [data-callout-body] > *:first-child {
+  margin-top: 0;
+}
+
+[data-component="markdown"] [data-callout-body] > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Generated-file cards at the end of a reply (Claude-style): icon, name, "Document · PDF", Download. */
+[data-component="assistant-artifacts"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+[data-component="assistant-artifact"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(360px, 100%);
+  min-width: 0;
+  padding-block: 6px;
+  padding-inline: 6px 8px;
+  border-radius: 12px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  color: var(--v2-text-text-base);
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+
+  &:hover {
+    background: var(--v2-background-bg-layer-02);
+    box-shadow: inset 0 0 0 0.5px var(--v2-border-border-strong);
+  }
+
+  /* The tooltip trigger wraps the open button; let it take the free width. */
+  > [data-component="tooltip-v2-trigger"] {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+:root[data-color-scheme="dark"] body [data-component="assistant-artifact"] {
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
+[data-slot="assistant-artifact-open"] {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px;
+  border-radius: 8px;
+  color: inherit;
+  text-align: start;
+
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+}
+
+[data-slot="assistant-artifact-icon"] {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--v2-overlay-simple-overlay-hover);
+  color: var(--v2-icon-icon-base);
+
+  [data-component="file-icon"] {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+[data-slot="assistant-artifact-image"] {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+[data-component="assistant-artifact"][data-kind="document"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-red-500) 14%, transparent);
+  color: var(--v2-red-600);
+}
+
+[data-component="assistant-artifact"][data-kind="spreadsheet"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-green-500) 14%, transparent);
+  color: var(--v2-green-600);
+}
+
+[data-component="assistant-artifact"][data-kind="presentation"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-orange-500) 14%, transparent);
+  color: var(--v2-orange-600);
+}
+
+[data-component="assistant-artifact"][data-kind="image"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-blue-500) 14%, transparent);
+  color: var(--v2-blue-600);
+}
+
+[data-component="assistant-artifact"][data-kind="video"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-purple-500) 14%, transparent);
+  color: var(--v2-purple-600);
+}
+
+[data-component="assistant-artifact"][data-kind="audio"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-pink-500) 14%, transparent);
+  color: var(--v2-pink-600);
+}
+
+[data-component="assistant-artifact"][data-kind="web"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-cyan-500) 14%, transparent);
+  color: var(--v2-cyan-600);
+}
+
+[data-component="assistant-artifact"][data-kind="archive"] [data-slot="assistant-artifact-icon"] {
+  background: color-mix(in oklch, var(--v2-yellow-500) 14%, transparent);
+  color: var(--v2-yellow-600);
+}
+
+[data-slot="assistant-artifact-copy"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+[data-slot="assistant-artifact-title"],
+[data-slot="assistant-artifact-type"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-slot="assistant-artifact-title"] {
+  font-size: 13px;
+  font-weight: 530;
+  line-height: var(--line-height-compact);
+}
+
+[data-slot="assistant-artifact-type"] {
+  color: var(--v2-text-text-muted);
+  font-size: 12px;
+  line-height: var(--line-height-compact);
+}
+
+[data-slot="assistant-artifact-download"] {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding-inline: 10px;
+  border-radius: 8px;
+  background: var(--v2-background-bg-base);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  font-weight: 530;
+  line-height: var(--line-height-compact);
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* fork: place carousel in maps tool cards (fork/places/maps-output.tsx). Fixed size; the map is the Map tab. */
+[data-slot="place-carousel"] {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+[data-component="place-card"] {
+  display: flex;
+  flex: 0 0 176px;
+  flex-direction: column;
+  gap: 2px;
+  height: 196px;
+  padding: 6px 6px 10px;
+  border-radius: 14px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  color: var(--v2-text-text-base);
+  text-align: start;
+  scroll-snap-align: start;
+  transition: background-color 150ms ease;
+
+  &:hover {
+    background: var(--v2-background-bg-layer-02);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+
+  > span:not([data-slot="place-card-media"]) {
+    overflow: hidden;
+    padding-inline: 4px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+:root[data-color-scheme="dark"] body [data-component="place-card"],
+:root[data-color-scheme="dark"] body [data-slot="place-card-media"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 104px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-02);
+  font-size: 36px;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+[data-slot="place-card-name"] {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--v2-text-text-strong);
+}
+
+[data-slot="place-card-meta"],
+[data-slot="place-card-hours"] {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="place-card-hours"][data-open="true"] {
+  color: #188038;
+}
+
+[data-slot="place-card-hours"][data-open="false"] {
+  color: #d93025;
+}
+
+:root[data-color-scheme="dark"] body [data-slot="place-card-hours"][data-open="true"] {
+  color: #81c995;
+}
+
+:root[data-color-scheme="dark"] body [data-slot="place-card-hours"][data-open="false"] {
+  color: #f28b82;
+}
+
+[data-slot="route-card"] {
+  background: var(--v2-background-bg-layer-01);
+}
+
+[data-slot="place-action"] {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--v2-text-text-strong);
+  background: var(--v2-background-bg-layer-02);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+
+  &[data-primary] {
+    color: #fff;
+    background: #1a73e8;
+    box-shadow: none;
+  }
+}
+
+/* `[Name](place:<id>)` links in replies: a chip that focuses the place on the map. */
+a[data-place-ref] {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding-inline: 6px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-strong);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+
+  &::before {
+    content: "📍";
+    font-size: 0.85em;
+  }
+
+  &:hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+}
+
+/* fork: Gemini-style place card inside a reply (fork/places/inline-cards.ts). Fixed height. */
+[data-component="place-inline-card"] {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  width: min(520px, 100%);
+  height: 124px;
+  margin-block: 12px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: inset 0 0 0 0.5px var(--v2-border-border-base);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms ease;
+
+  &:hover {
+    background: var(--v2-background-bg-layer-02);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+  }
+}
+
+:root[data-color-scheme="dark"] body [data-component="place-inline-card"] {
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
+li > [data-component="place-inline-card"] {
+  margin-block: 8px 4px;
+}
+
+[data-slot="place-inline-media"] {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 104px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--v2-background-bg-layer-02), var(--v2-background-bg-layer-03, var(--v2-background-bg-layer-02)));
+  font-size: 40px;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+[data-slot="place-inline-body"] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+
+  > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--v2-text-text-muted);
+  }
+}
+
+[data-slot="place-inline-name"] {
+  font-size: 16px !important;
+  font-weight: 600;
+  line-height: 22px !important;
+  color: var(--v2-text-text-strong) !important;
+}
+
+[data-slot="place-inline-rating"] {
+  color: var(--v2-text-text-base) !important;
+}
+
+[data-slot="place-inline-hours"][data-open="true"] {
+  color: #188038 !important;
+}
+
+[data-slot="place-inline-hours"][data-open="false"] {
+  color: #d93025 !important;
+}
+
+:root[data-color-scheme="dark"] body [data-slot="place-inline-hours"][data-open="true"] {
+  color: #81c995 !important;
+}
+
+:root[data-color-scheme="dark"] body [data-slot="place-inline-hours"][data-open="false"] {
+  color: #f28b82 !important;
+}
+
+[data-slot="place-inline-directions"] {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1a73e8;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+:root[data-color-scheme="dark"] body [data-slot="place-inline-directions"] {
+  color: #8ab4f8;
+}
