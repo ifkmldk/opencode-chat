@@ -1,6 +1,8 @@
 import { placeDirectionsUrl, requestMapShow } from "./map-events"
 
-// fork: Gemini-style place cards inside a reply. The first `[Name](place:<id>)` of each place gets a card after its
+// fork: Gemini-style place cards inside a reply. Classic DOM calls (appendChild, insertBefore) on purpose: the
+// enterprise build loads Cloudflare Worker types, whose Element.append/after take HTMLRewriter content.
+// The first `[Name](place:<id>)` of each place gets a card after its
 // paragraph or list item: photo (or a category tile), name, stars, category and whether it is open now. The card
 // has a fixed height, is plain DOM (the markdown pass owns this subtree), and a click focuses the place on the
 // side panel's Map tab.
@@ -57,12 +59,12 @@ export function decoratePlaces(container: HTMLElement, resolve: ResolvePlace | u
       const anchor = item ?? link.closest("p, h1, h2, h3, h4, blockquote") ?? link
       const existing = item ? item.lastElementChild : anchor.nextElementSibling
       if (existing instanceof HTMLElement && existing.dataset.placeCard === id) {
-        if (existing.dataset.version !== version(place)) existing.replaceWith(card(place, labels))
+        if (existing.dataset.version !== version(place)) existing.parentNode?.replaceChild(card(place, labels), existing)
         continue
       }
       container.querySelector(`[data-place-card="${CSS.escape(id)}"]`)?.remove()
-      if (item) item.append(card(place, labels))
-      else anchor.after(card(place, labels))
+      if (item) item.appendChild(card(place, labels))
+      else anchor.parentNode?.insertBefore(card(place, labels), anchor.nextSibling)
     }
   for (const stale of container.querySelectorAll<HTMLElement>("[data-place-card]"))
     if (!present.has(stale.dataset.placeCard ?? "")) stale.remove()
@@ -106,7 +108,7 @@ function card(place: InlinePlace, labels: CardLabels) {
       image.remove()
       media.textContent = placeIcon(place.category)
     })
-    media.append(image)
+    media.appendChild(image)
     if (place.photoCredit) media.title = place.photoCredit
   } else media.textContent = placeIcon(place.category)
 
@@ -117,7 +119,7 @@ function card(place: InlinePlace, labels: CardLabels) {
     const element = document.createElement("span")
     element.dataset.slot = slot
     element.textContent = text
-    body.append(element)
+    body.appendChild(element)
     return element
   }
   line("place-inline-name", place.name)
@@ -142,8 +144,9 @@ function card(place: InlinePlace, labels: CardLabels) {
   directions.target = "_blank"
   directions.rel = "noopener noreferrer"
   directions.textContent = labels.directions
-  body.append(directions)
+  body.appendChild(directions)
 
-  root.append(media, body)
+  root.appendChild(media)
+  root.appendChild(body)
   return root
 }
