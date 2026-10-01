@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.15-fork.2 (2026-10-01)
+
+- Chat quotes and notes capture the whole selection, even with a slow drag. Before, a pause during the drag kept
+  only the first word.
+- The quoted text stays highlighted while you write the note. The note box shows exactly what will be quoted
+  and sits below the selection.
+- The composer chip shows the quoted text, with the full quote and note on hover.
+- The canvas plugin (outside the repo, `~/.config/opencode/plugins/opencode-preview`) no longer hangs a turn when
+  two projects start the canvas at once. See `handoff.md`.
+
 ## 2.0.15-fork.1 (2026-09-30)
 
 This is the first versioned release. It is based on upstream opencode v2.0.15 plus Cline's chat stack.

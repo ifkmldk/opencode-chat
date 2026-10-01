@@ -432,6 +432,11 @@ copy the backup exe back and restart.
 If a smoke server is still running from `packages\cli\dist`, its exe is locked and the build fails with
 `EPERM` on `rm dist`. Build elsewhere with `--outdir=<folder>` instead.
 
+**Plugin fix 2026-09-30 10:52:** `~/.config/opencode/plugins/opencode-preview/canvas-server.ts` no longer hangs
+when two projects start the canvas at once. A failed `listen` on 51230 left `ensureCanvas` pending forever, so
+`canvas_list` and `artifact_list` froze the turn. The loser now reuses the running canvas. The backup is
+`backups/2026-09-29/opencode-preview-canvas-server.ts.bak`.
+
 ### Progress snapshot 2026-09-30 09:21 (deployed `0.0.0-custom/main-202609300218`, WIP ref `refs/wip/v1-ux-maps`)
 
 **Done since the Maps plan (all uncommitted on `v1-ux-restore`):**
