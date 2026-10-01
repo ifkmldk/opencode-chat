@@ -64,3 +64,9 @@
     width: 100%;
   }
 }
+
+/* fork: the chat text being quoted stays highlighted while the note box has focus (session/chat-selection.tsx). */
+::highlight(opencode-quote) {
+  background-color: rgb(26 115 232 / 0.35);
+  color: inherit;
+}

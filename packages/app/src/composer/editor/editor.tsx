@@ -1,4 +1,14 @@
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  onCleanup,
+  onMount,
+  Show,
+  type JSX,
+} from "solid-js"
 import { appendVoiceTranscript, isVoiceInputSupported, voiceRecognitionCtor, type VoiceRecognizer } from "../voice"
 import { createStore } from "solid-js/store"
 import { FileIcon } from "@opencode/ui/file-icon"
@@ -562,11 +572,20 @@ export function ComposerAttachments(props: {
           <For each={props.contextItems ?? []}>
             {(item) => (
               <Show when={item.type !== "file"}>
-                <div class="relative group shrink-0">
+                <div
+                  class="relative group shrink-0"
+                  title={
+                    item.type === "message-quote"
+                      ? [item.quotedText, item.comment ? `Note: ${item.comment}` : ""].filter(Boolean).join("\n\n")
+                      : undefined
+                  }
+                >
                   <AttachmentCard
                     title={
+                      // fork: the chip shows the quoted text itself (the note is the second line), so what goes
+                      // to the model is visible before sending.
                       item.type === "message-quote"
-                        ? item.comment || item.quotedText
+                        ? item.quotedText
                         : item.type === "page-text-annotation"
                           ? item.comment || item.text
                           : item.comment || i18n.t("prompt.context.annotation")
@@ -578,7 +597,9 @@ export function ComposerAttachments(props: {
                     <Show when={item.type !== "media-annotation"}>
                       <span>
                         {item.type === "message-quote"
-                          ? i18n.t("prompt.context.messageQuote")
+                          ? item.comment
+                            ? `${i18n.t("prompt.context.messageQuote")} · ${item.comment}`
+                            : i18n.t("prompt.context.messageQuote")
                           : i18n.t("prompt.context.pageText")}
                       </span>
                     </Show>
@@ -1053,7 +1074,6 @@ export function ComposerVoiceButton(props: {
     </Show>
   )
 }
-
 
 function ComposerSuggestionIcon(props: { item: ComposerSuggestion }) {
   if (props.item.kind === "agent") return <Icon name="brain" size="small" class="shrink-0 text-icon-info-active" />

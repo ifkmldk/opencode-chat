@@ -7,6 +7,8 @@ import { useI18n } from "../context/i18n"
 // each surface computes its own rect and funnels Quote / + Note into the composer context.
 export function SelectionActionBar(props: {
   rect: DOMRect
+  /** fork: the captured text, shown above the note box so the user sees exactly what will be quoted. */
+  preview?: string
   onQuote: () => void
   onNote: (text: string) => void
   onCancel: () => void
@@ -15,8 +17,12 @@ export function SelectionActionBar(props: {
   const [noteOpen, setNoteOpen] = createSignal(false)
   const [note, setNote] = createSignal("")
 
-  const top = () => Math.max(8, props.rect.top - 44)
-  const left = () => Math.min(Math.max(8, props.rect.left), window.innerWidth - 260)
+  // fork: with the note box open the bar moves below the selection, so the highlighted quote stays readable.
+  const top = () =>
+    noteOpen()
+      ? Math.max(8, Math.min(props.rect.bottom + 8, window.innerHeight - 220))
+      : Math.max(8, props.rect.top - 44)
+  const left = () => Math.min(Math.max(8, props.rect.left), window.innerWidth - 340)
 
   const submitNote = () => {
     const text = note().trim()
@@ -73,32 +79,45 @@ export function SelectionActionBar(props: {
         />
       </div>
       <Show when={noteOpen()}>
-        <div class="flex items-center gap-1 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01 p-1 shadow-[var(--v2-elevation-raised)]">
-          <input
-            autofocus
-            data-action="selection-note-input"
-            value={note()}
-            onInput={(event) => setNote(event.currentTarget.value)}
-            onKeyDown={(event: KeyboardEvent) => {
-              if (event.key === "Enter") {
-                event.preventDefault()
-                submitNote()
-              }
-              if (event.key === "Escape") {
-                event.preventDefault()
-                props.onCancel()
-              }
-            }}
-            placeholder={i18n.t("ui.selectionBar.notePlaceholder")}
-            class="w-56 rounded border-0 bg-transparent px-2 py-1 text-13-regular leading-[var(--line-height-compact)] text-v2-text-text-base outline-none"
-          />
-          <IconButton
-            icon={<Icon name="arrow-up" size="small" />}
-            size="small"
-            variant="ghost"
-            aria-label={i18n.t("ui.promptInput.send")}
-            onClick={submitNote}
-          />
+        <div class="flex w-80 flex-col gap-1 rounded-lg border border-v2-border-border-base bg-v2-background-bg-layer-01 p-1 shadow-[var(--v2-elevation-raised)]">
+          <Show when={props.preview?.trim()}>
+            {(text) => (
+              <div
+                data-slot="selection-preview"
+                title={text()}
+                class="mx-1 mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap border-s-2 border-v2-border-border-strong ps-2 text-12-regular text-v2-text-text-muted"
+              >
+                {text()}
+              </div>
+            )}
+          </Show>
+          <div class="flex items-center gap-1">
+            <input
+              autofocus
+              data-action="selection-note-input"
+              value={note()}
+              onInput={(event) => setNote(event.currentTarget.value)}
+              onKeyDown={(event: KeyboardEvent) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  submitNote()
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault()
+                  props.onCancel()
+                }
+              }}
+              placeholder={i18n.t("ui.selectionBar.notePlaceholder")}
+              class="min-w-0 flex-1 rounded border-0 bg-transparent px-2 py-1 text-13-regular leading-[var(--line-height-compact)] text-v2-text-text-base outline-none"
+            />
+            <IconButton
+              icon={<Icon name="arrow-up" size="small" />}
+              size="small"
+              variant="ghost"
+              aria-label={i18n.t("ui.promptInput.send")}
+              onClick={submitNote}
+            />
+          </div>
         </div>
       </Show>
     </div>
