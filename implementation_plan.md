@@ -69,7 +69,43 @@ Tidak tambah/ubah dependency. `bun 1.4.2`, `drizzle-kit v0.31.11` via catalog, `
 8. Kabar prod final per fitur + yang belum jujur + rollback.
 
 
-## [Appendix C — kenapa belum beres 2026-10-02 sore + unblock]
+## [Appendix D — 2026-10-02 malam: session error semua → sembuh]
+
+Gejala: Brave app window bisa dibuka, tapi daftar session kosong/error, dan teks
+"Check devtools for provider" (teks itu tidak ada di kode fork — kemungkinan toast
+upstream/console, bukan error fork).
+
+Root cause (terverifikasi, bukan tebakan): DB channel BARU
+`opencode-v1-ux-restore.db` masih kosong (`project=1`, `session_v2=0`,
+`session_message=0`), sementara 12 session lama hidup di DB channel LAMA
+`opencode-custom-main.db` (`project=16`, `session_v2=12`, `session_message=493`).
+Binary prod dibuild tanpa `OPENCODE_CHANNEL` eksplisit sehingga channel default =
+branch git saat build (`v1-ux-restore`) → `database-path.ts:4-12` → file DB baru.
+Auth + provider + model + agent semuanya sehat (`200`), jadi bukan masalah auth/model.
+
+Perbaikan (tanpa ubah kode, tanpa hapus data):
+- Backup: `opencode-v1-ux-restore.db.bak-20261002-sessionfix` +
+  `opencode-custom-main.db.bak-20261002-sessionfix`. DB lama read-only selamanya.
+- Migrasi offline via `bun:sqlite` (server stop dulu, WAL aman):
+  15 projects + 12 sessions + 493 messages disalin (`INSERT` skip-bila-ada,
+  id dipertahankan, `project_id` tetap valid karena semua project ikut disalin).
+  Hasil: `project=16`, `session_v2=12`, `session_message=493`, `memory=576`,
+  `migration=50`, `PRAGMA foreign_key_check` bersih.
+- Restart via launcher (password `service.json`, sudah benar sejak fix auth).
+  Server baru pid 33868, `GET /` → `200`.
+
+Verifikasi live (auth `service.json`):
+- `/api/project` → `200`, 16 projects.
+- `/api/session?directory=infokes-project` → `200`, 6 sessions
+  (Loker Tangerang, Reply Assisstant, Test Annotate, Cari Hotel BSD + 2 untitled).
+- `/api/session?directory=.Apply` → `200`, 2 sessions (Sociolla + Side chat).
+- `/api/session/ses_f0f7280ebffeOwuAipr1z46C0N/message` → `200`, 50 items
+  (idle + assistant `opencode-9router`, dst).
+- `/api/provider|model|agent` → `200` semua.
+- Cara buka di UI: pilih project sesuai direktori di atas (bukan `C:/Users/fadhi`
+  yang memang `count=0`), atau buka langsung URL session lama — id dipertahankan.
+- Rollback: restore `*.bak-20261002-sessionfix` + restart; DB lama tidak tersentuh.
+
 
 Status: kode fork.4 DONE + idempotent (`fd22004e50`), TAPI belum
 - Remote `fork/main` masih `e881dc04` (fork.3); tag `fork-v2.0.15-fork.4` belum ada.
