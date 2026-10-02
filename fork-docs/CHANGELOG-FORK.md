@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.15-fork.4 (2026-10-02)
+
+Repair `memory` yang hilang di DB: jurnal migrasi `m48` completed tapi tabel
+fisik tidak ada (snapshot drizzle basi) → migrasi repair idempotent
+`20261002082455_icy_meggan` + regenerasi `schema.json`/`schema.gen.ts`
+(`--check` hijau). Backfill 576 vault entries → DB. `memory_save/search/forget`
+bisa dipakai di prod.
+
+Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
+
 ## 2.0.15-fork.3-backfill (2026-10-02, staged — belum rilis)
 
 Penutup 5% sisa fork.3: tidak ada perubahan runtime, hanya backfill + docs.

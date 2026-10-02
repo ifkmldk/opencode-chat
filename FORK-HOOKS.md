@@ -61,7 +61,7 @@ The "Layer" column says who owns the hook: **chat** is layer 1, **v1** is layer 
 | `core/src/instructions/builtins.ts` | v1 | built-in instruction `core/output-files`: link produced files with absolute forward-slash paths (test `core/test/instructions/builtins.test.ts`); fork.3 adds `core/response-contract` + `core/memory` instruction sources |
 | `core/src/tool/plugin/research.ts` | maps | place/hotel/event without `OPENCODE_<CAT>_API_URL` search Maps first (`placeCandidate`), web search only when Maps finds nothing; fork.3 renames status to `classifier` (+ deprecated `laya` alias) |
 | `core/src/tool/plugin/laya.ts` | fork.3 | deprecated shim re-exporting `core/src/classifier/engine.ts`; registers `classifier_classify` + alias `laya_classify` for one release |
-| `core/src/plugin/internal.ts` | chat | "preserve v2 runtime and model completion behavior" (9Router/OpenAI-compatible completion fixes), tool registration in `core/src/plugin/internal.ts` (+ fork.3: `MemoryTool`, `ScrapeTool`, `ClassifierPlugin`), Laya flag in `schema/src/config/experimental.ts` |
+| `core/src/plugin/internal.ts` | chat | "preserve v2 runtime and model completion behavior" (9Router/OpenAI-compatible completion fixes), tool registration in `core/src/plugin/internal.ts` (+ fork.3: `MemoryTool`, `ScrapeTool`, `ClassifierPlugin`), Laya flag in `schema/src/config/experimental.ts`, DB memory-table repair migration (+ fork.4: `20261002082455_icy_meggan`, regenerate `schema.json`/`schema.gen.ts` via `bun run migration` from `packages/core`, never hand-merge) |
 
 ### Session UI (`packages/session-ui`)
 

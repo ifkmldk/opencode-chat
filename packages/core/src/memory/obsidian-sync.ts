@@ -2,6 +2,7 @@ export * as MemoryVault from "./obsidian-sync.js"
 
 import { createHash } from "crypto"
 import matter from "gray-matter"
+import { parse as parseMarkdown } from "../config/markdown.js"
 
 export type VaultEntry = {
   id: string
@@ -25,7 +26,9 @@ export const toMarkdown = (entry: VaultEntry) =>
 
 export const fromMarkdown = (id: string, raw: string): VaultEntry | undefined => {
   try {
-    const parsed = matter(raw)
+    // fork: vault notes were written by many agents; tolerate unquoted colons
+    // in frontmatter values via the shared ConfigMarkdown sanitize path.
+    const parsed = parseMarkdown(raw)
     const data = parsed.data as Record<string, unknown>
     if (typeof data.id !== "string" || data.id !== id) return undefined
     if (typeof data.kind !== "string" || typeof data.scope !== "string") return undefined
