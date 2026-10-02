@@ -1,19 +1,40 @@
-# Implementation Plan — fork `2.0.15-fork.4`: repair tabel `memory` + publish + verifikasi prod
+# Implementation Plan — fork `2.0.15-fork.4` closeout
 
 ## [Overview]
 
-Satu kalimat: memperbaiki bug tabel `memory` hilang di DB prod (jurnal migrasi `m48` completed tapi tabel fisik tidak ada) lewat migrasi repair idempotent + regenerasi snapshot drizzle, lalu rilis `2.0.15-fork.4`, backfill 576 vault entries ke DB, publish via SSH, redeploy pipeline, dan verifikasi live sampai prod 100% bisa dipakai.
+Menutup rilis `2.0.15-fork.4`: kode repair sudah commit dan idempotent
+(`fd22004e50`), tapi build-deploy-publish belum jalan, sehingga
+prod masih exe lama tanpa tabel `memory`. Scope hanya penutup:
+unblock build, 1x pipeline sekuensial, verifikasi `memory` +
+backfill 576 entries, publish via SSH, kabar prod. Tanpa ubah
+flow/UI/arsitektur dan isi vault.
 
-Scope: hanya lapisan DB-migrasi + snapshot + versioning + deploy; tanpa ubah flow/UI/arsitektur, tanpa ubah isi vault, tanpa tulis ke DB sumber impor. Root cause terverifikasi: `schema.gen.ts` (280 baris) dan `schema.json` (2067 baris) tidak mengandung `memory` karena snapshot tidak pernah diregenerasi setelah `MemoryTable` ditambah di `kv/sql.ts:11-25`; jalur bootstrap `migration.ts:22-52` menandai semua id completed tanpa menjalankan `up()` per migrasi, sehingga DB baru (dibuat canary 07:20:02) tidak pernah dapat tabelnya — restart saja tidak akan pernah memperbaiki. Pendekatan: regenerasi snapshot via `bun run migration`, tambah migrasi repair `m49` (`IF NOT EXISTS`), bump fork.4, backfill vault→DB (`INSERT OR IGNORE`, id asli dipertahankan), publish snapshot+tag ifkmldk-only, redeploy `pipeline.ps1`, verifikasi live + kabar prod.
+Konteks terverifikasi 2026-10-02: branch `v1-ux-restore` (HEAD
+`fd22004e50`), `M implementation_plan.md` saja, tag baru sampai
+`fork-v2.0.15-fork.3`, `FORK_VERSION=2.0.15-fork.4`, `pipeline.log`
+macet 15:32-15:44 tanpa OK/FAIL, `appbuild.log` mentok
+`transforming...`, `smoke/canary/promote.log` 0 bytes, tidak ada
+`bun.exe`, `app/dist=True` (lama 06:59), `cli/dist=False` (terhapus),
+DB prod 49 rows tanpa tabel `memory`, prod `4096 HTTP=200` pid 19620,
+`4097` bersih, vault 142 sessions + 576 entries ada.
 
 ## [Types]
 
-Tidak ada perubahan type system; yang diselaraskan hanya snapshot + jurnal.
-`MemoryTable` (`packages/core/src/kv/sql.ts:11-25`, tidak diubah), `schema.json` + `schema.gen.ts` diregenerasi agar memuat `memory` + index, `migration.gen.ts` tambah `m49` setelah `m48` (`m00–m48` dan id `m48` tidak diubah). Kontrak lain (`MemoryStore.Entry/Scope/Kind`, `VaultEntry/SyncState`, `ScrapeInput/Output`, `ClassifierEngine/Answer`, `LoopState/Verdict` 3/5/2) tidak berubah.
+Tidak ada perubahan type system. Acuan: `MemoryTable`
+(`kv/sql.ts:11-25`); `MemoryStore.Entry/Scope/Kind`;
+`VaultEntry/SyncState`; `ScrapeInput/Output`,
+`ClassifierEngine/Answer`, `LoopState/Verdict` (3/5/2) tidak berubah.
+Snapshot drizzle sudah memuat `memory`; jurnal `m00–m49`
+(`m48` + repair `m49=20261002082455_icy_meggan`, idempotent
+`IF NOT EXISTS`).
 
 ## [Files]
 
-BARU (fork-owned): `packages/core/src/database/migration/<repair>.ts` (idempotent `CREATE TABLE IF NOT EXISTS memory` + `CREATE INDEX IF NOT EXISTS`, kolom persis `kv/sql.ts`; file baru karena jurnal prod sudah menandai `m48` completed sehingga edit `m48` tidak akan dieksekusi), `packages/core/test/memory-repair.test.ts` (idempotency 2x + insert/select), `packages/core/script/memory-backfill.ts` (baca `entries/*.md` via `fromMarkdown`, `INSERT OR IGNORE` dengan id asli vault agar sitasi `(memory:xxxxxxxx)` sama).
+BARU (bila belum ada): `core/test/memory-repair.test.ts`
+(idempotency repair 2x + insert/select 1 row lalu hapus);
+`core/script/memory-backfill.ts` (baca `entries/*.md` via
+`fromMarkdown`, `INSERT OR IGNORE` dengan id vault asli agar sitasi
+`(memory:xxxxxxxx)` sama, output `{saved,skipped,errors}`).
 
 ## [Functions]
 
@@ -50,8 +71,7 @@ Tidak tambah/ubah dependency. `bun 1.4.2`, `drizzle-kit v0.31.11` via catalog, `
 
 ## [Appendix C — kenapa belum beres 2026-10-02 sore + unblock]
 
-Status: kode fork.4 DONE + commit `a63225fc4f` (repair migration masih perlu
-dijadikan idempotent — staged), TAPI:
+Status: kode fork.4 DONE + idempotent (`fd22004e50`), TAPI belum
 - Remote `fork/main` masih `e881dc04` (fork.3); tag `fork-v2.0.15-fork.4` belum ada.
 - Pipeline macet: `pipeline.log` hanya `PHASE START appbuild/clibuild/smoke/canary/promote`
   tanpa `PHASE OK/FAIL` setelah 15:32:08; `appbuild.log` mentok di `transforming...`;
@@ -61,9 +81,8 @@ dijadikan idempotent — staged), TAPI:
   berebut `dist` yang sama + vite build lambat + wrapper tool timeout 30s
   memutus pemantau sementara child build jalan, sisa lock menggantung.
   Prod pid 19620 (13:59) sehat `200`, DB `migration` 49 rows, tabel `memory` tetap hilang.
-- Repair `20261002082455_icy_meggan` non-idempotent (tanpa `IF NOT EXISTS`, bawaan generator).
-  Aman untuk sekali jalan (framework tidak rerun completed; fresh DB via bootstrap),
-  tapi jangan dijalankan manual 2x di DB yang sudah ada tabelnya.
+- Repair `20261002082455_icy_meggan` sudah idempotent (`IF NOT
+  EXISTS`, commit `fd22004e50`) — aman rerun; jangan ubah lagi.
 
 Unblock (tanpa ubah flow/UI): kill build nyangkut → 1x run sekuensial
 `install→appbuild→clibuild→smoke→canary→promote` dengan pantau log (bukan timeout 30s),
