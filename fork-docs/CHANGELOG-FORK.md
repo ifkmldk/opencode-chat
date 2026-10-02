@@ -1,5 +1,17 @@
 # Fork changelog
 
+## 2.0.15-fork.5 (2026-10-03, foundation — OSM-only + cards follow)
+
+Fondasi `research_deep` + scraper-first yang terintegrasi (jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data):
+
+- `research_deep`: `constraints.ts` (carport = filter keras, KRL Rangkasbitung = koridor jalan 1 km),
+  `transit.ts` (19 stasiun Tanah Abang→Rangkasbitung + `nearestStation`), `orchestrate.ts`
+  (extract→anchor→search→koridor→scrape-verify→SearchOut), tool `research_deep` + honesty schema/test.
+- `maps/search.ts`: `anchor`/`radiusKm` + filter radius Karney + sort + `distanceM` (yang jauh dibuang beneran).
+- `jobs.ts`: tanpa `OPENCODE_JOBS_API_URL` fallback web-search ber-lokasi (tidak `ToolFailure` buta).
+- Explicit BELUM di rilis ini: OSM-only removal, rich-info workaround, kontrak prompt, kartu UI,
+  live 3 kasus — menyusul sebelum closeout fork.5.
+
 ## 2.0.15-fork.4 (2026-10-02)
 
 Repair `memory` yang hilang di DB: jurnal migrasi `m48` completed tapi tabel

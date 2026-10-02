@@ -2,15 +2,10 @@
 
 ## [Overview]
 
-Menutup rilis `2.0.15-fork.4`: kode repair sudah commit dan idempotent
-(`fd22004e50`), tapi build-deploy-publish belum jalan, sehingga
-prod masih exe lama tanpa tabel `memory`. Scope hanya penutup:
-unblock build, 1x pipeline sekuensial, verifikasi `memory` +
-backfill 576 entries, publish via SSH, kabar prod. Tanpa ubah
-flow/UI/arsitektur dan isi vault. Catatan: Order research-deep +
-OSM-only di bawah adalah paket `2.0.15-fork.5` berikutnya (fondasi
-sudah ada sebagai untracked: `research/*`, `research-deep.ts`,
-`research-honesty.test.ts` — 14 pass, core typecheck hijau).
+Menutup rilis `2.0.15-fork.5` (fondasi `research_deep` + scraper-first yang terintegrasi,
+jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data — OSM-only removal, rich-info,
+kontrak prompt, kartu UI, live 3 kasus menyusul sebelum closeout): commit kode, verifikasi, snapshot
+publik via SSH, kabar push. Tanpa ubah launcher/bundle/vault/memory/loop-guard.
 
 Konteks terverifikasi 2026-10-02: branch `v1-ux-restore` (HEAD
 `fd22004e50`), `M implementation_plan.md` saja, tag baru sampai
