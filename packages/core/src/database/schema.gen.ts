@@ -77,6 +77,20 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`memory\` (
+          \`id\` text PRIMARY KEY,
+          \`scope\` text NOT NULL,
+          \`kind\` text NOT NULL,
+          \`title\` text NOT NULL,
+          \`body\` text NOT NULL,
+          \`project_id\` text,
+          \`session_id\` text,
+          \`source\` text DEFAULT 'agent' NOT NULL,
+          \`time_created\` integer NOT NULL,
+          \`time_updated\` integer NOT NULL
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`permission\` (
           \`id\` text PRIMARY KEY,
           \`project_id\` text NOT NULL,
@@ -241,6 +255,7 @@ const schema: Omit<DatabaseMigration.Migration, "id"> = {
       `)
       yield* tx.run(`CREATE UNIQUE INDEX \`event_aggregate_seq_idx\` ON \`event\` (\`aggregate_id\`,\`seq\`);`)
       yield* tx.run(`CREATE INDEX \`event_aggregate_type_seq_idx\` ON \`event\` (\`aggregate_id\`,\`type\`,\`seq\`);`)
+      yield* tx.run(`CREATE INDEX \`memory_scope_updated_idx\` ON \`memory\` (\`scope\`,\`time_updated\`);`)
       yield* tx.run(
         `CREATE UNIQUE INDEX \`permission_project_action_resource_idx\` ON \`permission\` (\`project_id\`,\`action\`,\`resource\`);`,
       )

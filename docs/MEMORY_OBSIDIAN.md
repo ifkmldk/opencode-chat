@@ -36,6 +36,19 @@ is the human-readable mirror. Default dir:
 `C:/Users/fadhi/Documents/Obsidian/opencode-memory` (change in
 Settings → Memory; empty means DB-only).
 
+## Repair note (fork.4, 2026-10-02)
+
+`m48` tercatat completed di DB prod tapi tabel `memory` tidak ada karena
+snapshot drizzle (`schema.json`/`schema.gen.ts`) tidak pernah diregenerasi
+setelah `MemoryTable` ditambah — bootstrap menandai semua id completed tanpa
+menjalankan `up()` per migrasi. Restart saja tidak pernah memperbaiki.
+Perbaikan: regenerasi snapshot (`bun run migration` dari `packages/core`,
+`--check` hijau) + migrasi repair idempotent
+`20261002082455_icy_meggan` (`IF NOT EXISTS`). Verifikasi:
+`sqlite3 <db> 'SELECT COUNT(*) FROM memory;'` harus angka (bukan
+`no such table`). Setelah itu backfill vault → DB lalu
+`memory_save/search/forget` bisa dipakai di prod.
+
 ## Backfill — impor semua session (2026-10-02, 142 session notes + 576 entries)
 
 Vault sudah di-setup dan diisi dari SEMUA session yang ada di disk:

@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "e98619ef-c334-45e3-8c48-9932ed1ef290",
-  "prevIds": ["be60f352-8da1-40e1-8d70-dc41121cfbc5"],
+  "id": "fc5499ca-8990-440e-9d36-fcdca984af37",
+  "prevIds": ["e98619ef-c334-45e3-8c48-9932ed1ef290"],
   "ddl": [
     {
       "name": "account_state",
@@ -30,6 +30,10 @@
     },
     {
       "name": "kv",
+      "entityType": "tables"
+    },
+    {
+      "name": "memory",
       "entityType": "tables"
     },
     {
@@ -489,6 +493,106 @@
       "name": "time_updated",
       "entityType": "columns",
       "table": "kv"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "body",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "project_id",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "session_id",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'agent'",
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_created",
+      "entityType": "columns",
+      "table": "memory"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "time_updated",
+      "entityType": "columns",
+      "table": "memory"
     },
     {
       "type": "text",
@@ -1714,6 +1818,13 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
+      "name": "memory_pk",
+      "table": "memory",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
       "name": "permission_pk",
       "table": "permission",
       "entityType": "pks"
@@ -1813,6 +1924,24 @@
       "name": "event_aggregate_type_seq_idx",
       "entityType": "indexes",
       "table": "event"
+    },
+    {
+      "columns": [
+        {
+          "value": "scope",
+          "isExpression": false
+        },
+        {
+          "value": "time_updated",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "memory_scope_updated_idx",
+      "entityType": "indexes",
+      "table": "memory"
     },
     {
       "columns": [
