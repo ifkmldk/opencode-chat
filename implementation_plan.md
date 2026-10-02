@@ -7,7 +7,10 @@ Menutup rilis `2.0.15-fork.4`: kode repair sudah commit dan idempotent
 prod masih exe lama tanpa tabel `memory`. Scope hanya penutup:
 unblock build, 1x pipeline sekuensial, verifikasi `memory` +
 backfill 576 entries, publish via SSH, kabar prod. Tanpa ubah
-flow/UI/arsitektur dan isi vault.
+flow/UI/arsitektur dan isi vault. Catatan: Order research-deep +
+OSM-only di bawah adalah paket `2.0.15-fork.5` berikutnya (fondasi
+sudah ada sebagai untracked: `research/*`, `research-deep.ts`,
+`research-honesty.test.ts` — 14 pass, core typecheck hijau).
 
 Konteks terverifikasi 2026-10-02: branch `v1-ux-restore` (HEAD
 `fd22004e50`), `M implementation_plan.md` saja, tag baru sampai
@@ -68,6 +71,46 @@ Tidak tambah/ubah dependency. `bun 1.4.2`, `drizzle-kit v0.31.11` via catalog, `
 7. Publish SSH (snapshot + push + tag + `ls-remote`).
 8. Kabar prod final per fitur + yang belum jujur + rollback.
 
+
+## [Appendix E — research_deep + scraper-first + OSM-only (paket fork.5, disetujui user)]
+
+Keputusan user terkunci: (1) carport=filter keras `must=["carport"]`;
+(2) loker=koridor Line KRL Rangkasbitung, kantor ≤1 km jalan kaki dari stasiun;
+(3) boleh tool baru `research_deep`, semua tools sync via 1 orkestrasi;
+(4) no-API wajib, scraper (camofox-python/scrapling/webfetch) sumber data utama;
+(5) buang config GMaps/Gemini total, full OSM + workaround keyless
+(foto/rating/review/jam/telpon hanya bila ada di OSM/Wikimedia atau hasil scrape
+berattribusi, else "unknown"/"tidak tersedia" — tidak pernah ngarang).
+
+Status fondasi (terverifikasi, belum commit):
+- `packages/core/src/research/constraints.ts` — `extractConstraints(query,location)`:
+  carport/garasi→`must`, KRL line→`transitLine`, `N km`→`radiusKm`, anchor dari location.
+- `packages/core/src/research/transit.ts` — `RANGKASBITUNG_STATIONS` (~19 stasiun
+  Tanah Abang→Rangkasbitung) + `nearestStation()` haversine.
+- `packages/core/src/research/orchestrate.ts` — `runDeep(deps)`:
+  extract→anchor→parallel search→within/koridor→matrix→scrape-verify→rank→SearchOut.
+- `packages/core/src/tool/plugin/research-deep.ts` — tool `research_deep`
+  (`codemode:false`, permission `research.deep`), DeepInput/DeepOutput lokal
+  (tidak import lintas-file agar typecheck tidak pecah).
+- `packages/core/test/research-honesty.test.ts` — 6 kasus hijau
+  (carport keras, koridor 1km, nearest Serpong, source/checkedAt/priceNote,
+  limitations jujur, orkestrasi buang-jauh + buang-tanpa-bukti).
+- `research.ts` — `Candidate/Search/SearchOut` diperluas (aditif, optional semua) +
+  `webResult/placeCandidate` bawa `source/checkedAt/priceNote` + `honestyLimitations()`.
+- `jobs.ts` — tanpa `OPENCODE_JOBS_API_URL` → fallback web-search ber-lokasi
+  (`lowongan <query> <location>`, `provider:"web-search", fallback:true`).
+- `plugin/internal.ts` — `ResearchDeep.Plugin` terdaftar.
+- `core typecheck` hijau; 14 pass (honesty 6 + research-tool 5 + laya 3).
+
+Sisa Order fork.5 (belum dikerjakan — butuh mode Act lanjutan):
+1. `maps/search.ts` anchor/within/`distanceM` + `rankedChoice(geoScores?)`.
+2. OSM-only removal (`google.ts`→shim/hapus, `settings.ts`/`usage.ts`,
+   `tool/plugin/maps.ts`, `settings/maps.tsx`, i18n google-keys, test maps) —
+   `grep MapsGoogle|GEMINI_|google-maps-gemini` harus kosong. `links.ts` TETAP (keyless URLs).
+3. Workaround rich-info (`enrich.ts` + `verifyAttributes` + transit link keyless) +
+   kontrak prompt (`builtins.ts` + `contract.ts`) + kartu UI + settings text.
+4. QA penuh + E2E mock `research-honesty.spec.ts` + live 3 kasus di session BARU.
+5. Docs + `FORK_VERSION→2.0.15-fork.5` + commit + snapshot publish + tag + pipeline bila disetujui.
 
 ## [Appendix D — 2026-10-02 malam: session error semua → sembuh]
 
