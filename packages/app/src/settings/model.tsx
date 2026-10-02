@@ -7,7 +7,7 @@ import { persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
 
-export type ConversationViewMode = "chat" | "code" | "laya"
+export type ConversationViewMode = "chat" | "code" | "classifier"
 export type Settings = typeof settingsSchema.Type
 export type WorkspaceDefaultDestination = Settings["workspaces"]["defaultDestination"]
 export type WorkspaceLastUsed = Settings["workspaces"]["lastUsed"][string]
@@ -82,7 +82,11 @@ const generalSchema = Persistence.struct({
   showSearch: Schema.Boolean,
   showProjectIcon: Schema.Boolean,
   showTerminal: Schema.Boolean,
-  defaultViewMode: Schema.Literals(["chat", "code", "laya"]),
+  // fork: persisted stores may still hold "laya" from before the rename.
+  defaultViewMode: Persistence.fallback(
+    Schema.UndefinedOr(Schema.Literals(["chat", "code", "classifier", "laya"])),
+    () => undefined,
+  ),
   timelineDetail: Persistence.struct({
     shell: activitySchema,
     edit: activitySchema,
@@ -332,8 +336,9 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setShowTerminal(value: boolean) {
           setStore("general", "showTerminal", value)
         },
+        // fork: stored "laya" (pre-rename) normalizes to "classifier".
         defaultViewMode: withFallback(
-          () => store.general?.defaultViewMode,
+          () => (store.general?.defaultViewMode === "laya" ? "classifier" : store.general?.defaultViewMode),
           defaultSettings.general.defaultViewMode,
         ) as () => ConversationViewMode,
         setDefaultViewMode(value: ConversationViewMode) {

@@ -2,9 +2,9 @@ import type { SessionMessageAssistant } from "@opencode/client/promise"
 
 type Content = SessionMessageAssistant["content"][number]
 
-// fork: tools whose output is the answer itself. Cards (maps, jobs, research, actions) always render on
+// fork: tools whose output is the answer itself. Cards (maps, jobs, research, actions, scrape) always render on
 // their own row; sources (web search/fetch) keep the preset's grouping in Code view. Both stay visible
-// in Chat and Laya views, which hide process tools such as read, grep, and shell.
+// in Chat and Classifier views, which hide process tools such as read, grep, and shell.
 const CARD_TOOLS = new Set([
   "maps_search",
   "maps_route",
@@ -15,6 +15,9 @@ const CARD_TOOLS = new Set([
   "research_classify",
   "research_shortlist",
   "action",
+  "scrape_fetch",
+  "scrape_status",
+  "memory_search",
 ])
 const SOURCE_TOOLS = new Set(["websearch", "webfetch"])
 

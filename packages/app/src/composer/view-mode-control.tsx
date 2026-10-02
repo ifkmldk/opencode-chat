@@ -3,8 +3,8 @@ import { ComposerEditorSelect } from "@/composer/editor/editor"
 import { useLanguage } from "@/runtime/i18n/language"
 import type { ConversationViewMode } from "@/session/view-mode"
 
-const modes = ["chat", "code", "laya"] as const satisfies readonly ConversationViewMode[]
-const icons = { chat: "comment", code: "code", laya: "sparkles" } as const
+const modes = ["chat", "code", "classifier"] as const satisfies readonly ConversationViewMode[]
+const icons = { chat: "comment", code: "code", classifier: "sparkles" } as const
 
 // fork: v1-style mode picker — a dropdown with the current mode checked, not a cycle button.
 export function ComposerViewModeControl(props: {

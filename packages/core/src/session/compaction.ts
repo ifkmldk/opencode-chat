@@ -74,6 +74,8 @@ List the files and directories, other than the current working directory, that a
 
 ## Important Context
 - [facts the next agent cannot continue without and cannot easily find on its own; or "(none)"]
+ ## Memory Candidates
+ - [facts worth saving to vault-backed memory with memory_save (preferences, decisions, corrections); or "(none)"]
 </template>`
 
 const SUMMARY_RULES = `Rules:

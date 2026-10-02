@@ -6,6 +6,7 @@ import type { Session } from "@opencode/schema/session"
 import { Global } from "@opencode/util/global"
 import { Location } from "../location.js"
 import { Instructions } from "./index.js"
+import { RESPONSE_CONTRACT, RESPONSE_KEY } from "../response/contract.js"
 
 export interface Interface {
   readonly load: (sessionID: Session.ID) => Effect.Effect<Instructions.List>
@@ -54,6 +55,16 @@ const layer = Layer.effect(
                 changed: (_previous, text) => text,
               },
             }),
+            // fork: short structured-answer contract (headers, sources, verify/next).
+            Instructions.make({
+              key: Instructions.Key.make(RESPONSE_KEY),
+              codec: Schema.toCodecJson(Schema.String),
+              read: Effect.succeed(RESPONSE_CONTRACT),
+              render: {
+                initial: (text) => text,
+                changed: (_previous, text) => text,
+              },
+            }),
             // fork: place cards, the map panel and accurate spatial answers depend on the maps tools.
             Instructions.make({
               key: Instructions.Key.make("core/geo"),
@@ -90,8 +101,8 @@ const geo = [
   "For spatial analysis, report the method, the data sources, the coordinate reference system (WGS84; UTM for areas and buffers) and the accuracy limits.",
   "Pick the analysis that answers the question: geo_compute classify for thematic classes (it compares Jenks, quantile, equal interval, standard deviation and head/tail breaks and recommends one by goodness of variance fit; report the GVF),",
   "morans_i to test whether values cluster, hotspots (Getis-Ord Gi*) to locate hot and cold spots, nearest_neighbor_index for point patterns, centrography for the centre and spread, and rank for multi-criteria choices.",
-  "To choose between places (also in Laya research), gather them with maps_search, measure travel time with maps_matrix, count what is nearby with maps_poi, score them with geo_compute rank using explicit weights,",
-  "then, when laya_classify is used for the decision, pass that ranking in its state and the candidate names as criteria; show the scoring table so the choice can be checked.",
+  "To choose between places, gather them with maps_search, measure travel time with maps_matrix, count what is nearby with maps_poi, score them with geo_compute rank using explicit weights,",
+  "then, when classifier_classify is used for the decision, pass that ranking in its state and the candidate names as criteria; show the scoring table so the choice can be checked.",
   "Link every place you recommend as [Name](place:<id>) using the id from maps_search, include the Google Maps link for the chosen route,",
   "and finish an answer about places or routes by calling map_show with the shortlist, the route and any areas (place labels are optional; keep them to 1-3 characters).",
 ].join(" ")

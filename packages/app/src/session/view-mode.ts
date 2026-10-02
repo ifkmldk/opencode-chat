@@ -7,7 +7,12 @@ import { useSettings, type ConversationViewMode } from "@/settings/model"
 
 export type { ConversationViewMode }
 
-const Mode = Persistence.fallback(Schema.UndefinedOr(Schema.Literals(["chat", "code", "laya"])), () => undefined)
+// fork: persisted stores may still hold "laya" from before the rename.
+export type StoredViewMode = ConversationViewMode | "laya"
+export const normalizeViewMode = (value: StoredViewMode | undefined): ConversationViewMode | undefined =>
+  value === "laya" ? "classifier" : value
+
+const Mode = Persistence.fallback(Schema.UndefinedOr(Schema.Literals(["chat", "code", "classifier", "laya"])), () => undefined)
 const SessionSchema = Persistence.struct({ session: Persistence.record(Schema.mutableKey(Mode)) })
 const DraftSchema = Persistence.struct({ mode: Mode })
 
@@ -46,17 +51,19 @@ export function createConversationViewMode(input: {
   })
   const current = () => {
     const id = input.sessionID()
-    const value = id ? (sessions.session[id] ?? handoff.get(id)) : draftMode()
-    return value ?? settings.general.defaultViewMode()
+    const raw = (id ? (sessions.session[id] ?? handoff.get(id)) : draftMode()) as StoredViewMode | undefined
+    return normalizeViewMode(raw) ?? settings.general.defaultViewMode()
   }
-  const set = (value: ConversationViewMode) => {
+  const set = (value: StoredViewMode) => {
+    const normalized = normalizeViewMode(value) ?? settings.general.defaultViewMode()
     const id = input.sessionID()
-    if (id) return setSessions("session", id, value)
-    if (draftID) return setDraft("mode", value)
-    setPending(value)
+    if (id) return setSessions("session", id, normalized)
+    if (draftID) return setDraft("mode", normalized)
+    setPending(normalized)
   }
   const promote = (id: string) => {
-    const value = draftMode() ?? settings.general.defaultViewMode()
+    const raw = draftMode() ?? settings.general.defaultViewMode()
+    const value = normalizeViewMode(raw as StoredViewMode) ?? settings.general.defaultViewMode()
     handoff.set(id, value)
     setSessions("session", id, value)
   }

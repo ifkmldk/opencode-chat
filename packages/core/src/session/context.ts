@@ -13,6 +13,7 @@ import { InstructionBuiltIns } from "../instructions/builtins.js"
 import { Location } from "../location.js"
 import { McpInstructions } from "../mcp/instructions.js"
 import { McpTool } from "../tool/mcp.js"
+import { MemoryInstructions as MemoryInstructionSource } from "../memory/instruction-source.js"
 import { ReferenceInstructions } from "../reference/instructions.js"
 import { SkillInstructions } from "../skill/instructions.js"
 import { Tool } from "../tool.js"
@@ -82,6 +83,7 @@ const layer = Layer.effect(
     const entries = yield* InstructionEntry.Service
     const location = yield* Location.Service
     const mcpInstructions = yield* McpInstructions.Service
+    const memoryInstructions = yield* MemoryInstructionSource.Service
     const mcpTools = yield* McpTool.Service
     const models = yield* SessionRunnerModel.Service
     const request = yield* SessionModelRequest.Service
@@ -138,6 +140,7 @@ const layer = Layer.effect(
           references: referenceInstructions.load(),
           mcp: mcpInstructions.load(permissions),
           entries: entries.load(sessionID),
+          memory: memoryInstructions.forPrompt(sessionID, ""),
         },
         { concurrency: "unbounded" },
       )
@@ -152,6 +155,8 @@ const layer = Layer.effect(
           loaded.references,
           loaded.mcp,
           loaded.entries,
+          // fork: vault-backed memory is empty until the user saves something.
+          loaded.memory,
         ]),
         tools: loaded.tools,
       }
@@ -194,6 +199,7 @@ export const node = makeLocationNode({
     InstructionEntry.node,
     Location.node,
     McpInstructions.node,
+    MemoryInstructionSource.node,
     McpTool.node,
     ReferenceInstructions.node,
     SessionRunnerModel.node,

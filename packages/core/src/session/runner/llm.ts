@@ -31,6 +31,7 @@ import { ToolOutput } from "../../tool-output.js"
 import { Plugin } from "../../plugin.js"
 import { MAX_STEPS_PROMPT } from "./max-steps.js"
 import { CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "./completion.js"
+import { allowNudge } from "./completion-policy.js"
 
 const CONTINUE_AFTER_INCOMPLETE_STREAM =
   "The previous response was interrupted. Continue from where you left off without repeating completed content."
@@ -210,6 +211,9 @@ const layer = Layer.effect(
       let initial: SessionContext.Loaded | undefined = first
       let recoverOverflow = true
       let recoverContinuation = true
+      // fork: cap unconfirmed-completion nudges; the completion marker is
+      // advisory and must never hell-loop when the model forgets it.
+      let completionNags = 0
       while (true) {
         // Reuse boundary preparation once; retries refresh context without delivering more input.
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
@@ -275,6 +279,8 @@ const layer = Layer.effect(
         const completed = yield* SessionStep.Outcome.$match(outcome, {
           Completed: Effect.fnUntraced(function* (outcome) {
             if (outcome.completionRequired) {
+              if (!allowNudge(completionNags)) return outcome.needsContinuation
+              completionNags++
               yield* bus.publish(SessionEvent.Synthetic, {
                 sessionID,
                 text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION,

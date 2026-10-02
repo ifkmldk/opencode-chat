@@ -26,6 +26,8 @@ import { SessionContextUsage } from "@/session/timeline/session-context-usage"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServer } from "@/runtime/server/current"
 import { useWorkspaceLocation } from "@/workspaces/location"
+import type { ConversationViewMode } from "@/settings/model"
+import { normalizeViewMode, type StoredViewMode } from "@/session/view-mode"
 import { Timeline } from "@opencode/session-ui/timeline/projection"
 import { createSessionTimelineRowRenderer } from "@opencode/session-ui/timeline/row"
 import { getReadyMarkdown, preloadMarkdown } from "@opencode/session-ui/markdown-cache"
@@ -78,7 +80,7 @@ type MessageTimelineProps = {
   hideHeader?: boolean
   active?: boolean
   session: TimelineSessionSource
-  viewMode: { current: () => "chat" | "code" | "laya" }
+  viewMode: { current: () => StoredViewMode }
   background: SessionBackground
   actions?: SessionUserActions
   scroll: { overflow: boolean; jump: boolean }

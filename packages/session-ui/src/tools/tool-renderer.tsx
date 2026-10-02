@@ -2476,6 +2476,90 @@ function ActionToolOutput(props: ToolProps) {
   )
 }
 
+function ScrapeToolOutput(props: ToolProps) {
+  const i18n = useI18n()
+  const parsed = createMemo(() => toolJson(props.output) as Record<string, unknown> | undefined)
+  const output = createMemo(() => String(parsed()?.output ?? ""))
+  const warnings = createMemo(() => (Array.isArray(parsed()?.warnings) ? (parsed()?.warnings as string[]) : []))
+  const engine = createMemo(() => String(parsed()?.engine ?? "webfetch"))
+  const finalUrl = createMemo(() => String(parsed()?.finalUrl ?? parsed()?.url ?? ""))
+  const title = createMemo(() => String(parsed()?.title ?? finalUrl() ?? i18n.t("ui.tool.scrape.result")))
+  const open = createMemo(() => output().length > 0)
+  return (
+    <BasicTool
+      {...props}
+      icon="archive"
+      hasContent={open()}
+      defaultOpen={open()}
+      trigger={{ title: title() || i18n.t("ui.tool.scrape.result"), subtitle: engine() }}
+    >
+      <div class="flex flex-col gap-2 p-3" data-component="scrape-result-card">
+        <Show when={finalUrl()}>
+          <a
+            class="truncate text-11-regular text-v2-text-text-accent underline"
+            href={finalUrl()}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {finalUrl()}
+          </a>
+        </Show>
+        <Show when={output()} fallback={<div class="text-12-regular text-text-weak">{i18n.t("ui.tool.scrape.empty")}</div>}>
+          <div class="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-12-regular leading-5 text-text-weak">
+            {output().slice(0, 4000)}
+          </div>
+        </Show>
+        <Show when={warnings().length > 0}>
+          <details class="text-11-regular text-text-weaker">
+            <summary class="cursor-pointer">{i18n.t("ui.tool.scrape.warnings", { count: warnings().length })}</summary>
+            <For each={warnings()}>{(warning) => <div class="mt-1 break-words">{warning}</div>}</For>
+          </details>
+        </Show>
+      </div>
+    </BasicTool>
+  )
+}
+
+function MemoryToolOutput(props: ToolProps) {
+  const i18n = useI18n()
+  const parsed = createMemo(() => toolJson(props.output) as Record<string, unknown> | undefined)
+  const items = createMemo(() => (Array.isArray(parsed()?.items) ? (parsed()?.items as Record<string, unknown>[]) : []))
+  const removed = createMemo(() => parsed()?.removed === true)
+  const subtitle = createMemo(() => {
+    if (removed()) return i18n.t("ui.tool.memory.forgot")
+    if (items().length > 0) return i18n.plural("ui.tool.memory.results", items().length)
+    return i18n.t("ui.tool.memory.none")
+  })
+  return (
+    <BasicTool
+      {...props}
+      icon="comment"
+      hasContent={items().length > 0 || removed()}
+      defaultOpen={items().length > 0}
+      trigger={{ title: i18n.t("ui.tool.memory.result"), subtitle: subtitle() }}
+    >
+      <div class="flex flex-col gap-2 p-3" data-component="memory-result-card">
+        <Show when={removed()}>
+          <div class="text-12-regular text-text-weak">{i18n.t("ui.tool.memory.forgot")}</div>
+        </Show>
+        <For each={items()}>
+          {(item) => (
+            <ResultCard
+              title={String(item.title ?? i18n.t("ui.tool.memory.entry"))}
+              value={String(item.body ?? "").slice(0, 280)}
+              eyebrow={[item.kind, item.scope].filter(Boolean).map(String).join(" · ")}
+              meta={typeof item.id === "string" ? `(memory:${item.id.slice(0, 8)})` : undefined}
+            />
+          )}
+        </For>
+        <Show when={!removed() && items().length === 0}>
+          <div class="text-12-regular text-text-weak">{i18n.t("ui.tool.memory.none")}</div>
+        </Show>
+      </div>
+    </BasicTool>
+  )
+}
+
 // fork: place and route cards live in fork/places.
 ToolRegistry.register({ name: "maps_search", render: MapsToolOutput })
 ToolRegistry.register({ name: "maps_route", render: MapsToolOutput })
@@ -2488,6 +2572,11 @@ ToolRegistry.register({ name: "research_search", render: ResearchToolOutput })
 ToolRegistry.register({ name: "research_classify", render: ResearchToolOutput })
 ToolRegistry.register({ name: "research_shortlist", render: ResearchToolOutput })
 ToolRegistry.register({ name: "action", render: ActionToolOutput })
+ToolRegistry.register({ name: "scrape_fetch", render: ScrapeToolOutput })
+ToolRegistry.register({ name: "scrape_status", render: ScrapeToolOutput })
+ToolRegistry.register({ name: "memory_save", render: MemoryToolOutput })
+ToolRegistry.register({ name: "memory_search", render: MemoryToolOutput })
+ToolRegistry.register({ name: "memory_forget", render: MemoryToolOutput })
 
 ToolRegistry.register({
   name: "question",

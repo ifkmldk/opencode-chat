@@ -14,6 +14,9 @@ export const pageIcons = {
   models: "models",
   extensions: "extensions",
   maps: "globe",
+  // fork: scraper gets its own icon so it never duplicates maps in the nav.
+  scraper: "archive",
+  memory: "comment",
   servers: "server",
   experimental: "flask",
   about: "info",
@@ -31,6 +34,8 @@ export const pageLabels = {
   models: "settings.models.title",
   extensions: "settings.tab.extensions",
   maps: "settings.tab.maps",
+  scraper: "settings.tab.scraper",
+  memory: "settings.tab.memory",
   servers: "settings.section.server",
   experimental: "settings.tab.experimental",
   about: "settings.tab.about",

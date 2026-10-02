@@ -30,6 +30,8 @@ import { SettingsProjects } from "./workspaces/projects"
 import { SettingsExtensions } from "./providers/extensions"
 import { SettingsAbout } from "./about/about"
 import { SettingsMaps } from "./maps/maps"
+import { SettingsScrape } from "./scrape/scrape"
+import { SettingsMemory } from "./memory/memory"
 import { SettingsServerDataScope } from "./server-scope"
 import { SettingsNavigation, type SettingsNavGroup } from "./navigation"
 import { SettingsProjectGeneral } from "./workspaces/project"
@@ -55,6 +57,9 @@ const serverTabs = [
   { value: "extensions", icon: pageIcons.extensions, label: "settings.tab.extensions" },
   // fork: Settings → Maps (Gemini free-tier key, OpenStreetMap fallback)
   { value: "maps", icon: pageIcons.maps, label: "settings.tab.maps" },
+  // fork: Settings → Scraper (ultimate scraper status/mode/setup) + Memory (vault SSOT)
+  { value: "scraper", icon: pageIcons.scraper, label: "settings.tab.scraper" },
+  { value: "memory", icon: pageIcons.memory, label: "settings.tab.memory" },
 ] as const
 
 const trailingTabs = [
@@ -333,6 +338,12 @@ function RootSettings() {
             </Tabs.Content>
             <Tabs.Content value="maps" class="settings-panel">
               <SettingsMaps />
+            </Tabs.Content>
+            <Tabs.Content value="scraper" class="settings-panel">
+              <SettingsScrape />
+            </Tabs.Content>
+            <Tabs.Content value="memory" class="settings-panel">
+              <SettingsMemory />
             </Tabs.Content>
           </SettingsServerDataScope>
         )}

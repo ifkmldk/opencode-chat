@@ -36,3 +36,7 @@ RELEASE_REVIEW.md
 logs/
 *.bun-build
 tsconfig.tsbuildinfo
+__pycache__/
+*.pyc
+*.pyo
+packages/cli/.bun-cache/

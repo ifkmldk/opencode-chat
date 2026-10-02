@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+// fork: classifier fallback follows a geo_compute ranking in the state
+// instead of matching words. Import path keeps the deprecated alias working.
 import { __test } from "../src/tool/plugin/laya.js"
 
 // fork: off Apple Silicon, Laya's fallback follows a geo_compute ranking in the state instead of matching words.
@@ -10,7 +12,7 @@ describe("laya fallback with a spatial ranking", () => {
     })
     expect(output.answers.best?.decision).toBe("Hotel B")
     expect(output.answers.best?.confidence).toBeCloseTo(0.89, 2)
-    expect(output.answers.best?.rationale).toContain("weighted score")
+    expect(output.answers.best?.rationale).toContain("Top score")
   })
 
   test("finds a ranking nested one level down (a geo_compute output)", () => {
