@@ -1,5 +1,22 @@
 # Fork changelog
 
+## 2.0.15-fork.3-backfill (2026-10-02, staged — belum rilis)
+
+Penutup 5% sisa fork.3: tidak ada perubahan runtime, hanya backfill + docs.
+
+- Vault `C:/Users/fadhi/Documents/Obsidian/opencode-memory` terisi penuh:
+  142 session notes + 576 entries + 56 project notes (opencode 43, cline 8,
+  claude transcripts 25, claude-code 55, claude-desktop 11; deterministik tanpa
+  LLM; full transcript tidak dicopy). Lihat `docs/MEMORY_OBSIDIAN.md` § Backfill.
+- Baru (staged): `packages/core/src/memory/import.ts`
+  (`summarizeDeterministic`, `readClaudeCodeFile`, `readClineFile`,
+  `readInboxFile`, `fingerprint`) + `packages/core/test/memory-import.test.ts`.
+- Betulkan link `handoff.md` → `../../opencode-app/handoff.md` (2 baris).
+- Belum: tabel `memory` di DB prod (butuh restart `4096` sekali agar migrasi
+  `20261001000000` jalan, lalu verifikasi `memory_search` live).
+
+Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
+
 ## 2.0.15-fork.3 (2026-10-02)
 
 ### Smarter answers, no more loops
@@ -21,7 +38,7 @@
 - Chat/Code/Classifier view modes; `classifier_classify` plus a deprecated `laya_classify` alias for one release.
 - Removed the in-composer guide note; clearer deterministic-mode messages (no raw `noul`/platform text to the user).
 
-Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](handoff.md).
+Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
 
 ## 2.0.15-fork.2 (2026-10-01)
 
@@ -31,7 +48,7 @@ Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and
   and sits below the selection.
 - The composer chip shows the quoted text, with the full quote and note on hover.
 - The canvas plugin (outside the repo, `~/.config/opencode/plugins/opencode-preview`) no longer hangs a turn when
-  two projects start the canvas at once. See `handoff.md`.
+  two projects start the canvas at once. See `../../opencode-app/handoff.md`.
 
 ## 2.0.15-fork.1 (2026-09-30)
 
@@ -77,4 +94,5 @@ This is the first versioned release. It is based on upstream opencode v2.0.15 pl
   - A photo carousel in tool cards.
 - Research for place, hotel and event queries uses Maps. The Laya fallback follows a spatial ranking.
 
-Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](handoff.md).
+Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
+
