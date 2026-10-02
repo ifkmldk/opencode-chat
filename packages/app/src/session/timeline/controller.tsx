@@ -23,6 +23,8 @@ import { createTimelineProjection } from "./projection"
 import { useServer } from "@/runtime/server/current"
 import { getSessionMessageHandoff } from "@/session/handoff"
 import type { ReasoningMode } from "@opencode/session-ui/timeline/projection"
+import type { ConversationViewMode } from "@/settings/model"
+import { normalizeViewMode, type StoredViewMode } from "@/session/view-mode"
 
 const emptyMessages: SessionMessageInfo[] = []
 const taskDescription = (message: SessionMessageInfo, sessionID: string): string | undefined => {
@@ -46,7 +48,7 @@ export type TimelineSessionSource = {
   history: Pick<SessionModel["history"], "messages">
 }
 
-export function createTimelineController(input: { session: TimelineSessionSource; viewMode: { current: () => "chat" | "code" | "laya" } }) {
+export function createTimelineController(input: { session: TimelineSessionSource; viewMode: { current: () => StoredViewMode } }) {
   const navigate = useNavigate()
   const sdk = useWorkspaceLocation()
   const serverSDK = useServerSDK()
@@ -107,9 +109,9 @@ export function createTimelineController(input: { session: TimelineSessionSource
   // fork: equal by content. The view-mode store notifies while it hydrates and on every write, and the
   // virtualizer treats any detail notification as a new presentation, which resets expanded tools.
   const timelineDetail = createMemo(() => {
-    // fork: Chat/Laya hide process (reasoning, shell, reads) but keep a collapsed summary of file edits;
+    // fork: Chat/Classifier hide process (reasoning, shell, reads) but keep a collapsed summary of file edits;
     // result cards (maps, jobs, research, sources) stay visible via timelineResultTool.
-    if (input.viewMode.current() === "chat" || input.viewMode.current() === "laya") {
+    if (normalizeViewMode(input.viewMode.current()) === "chat" || normalizeViewMode(input.viewMode.current()) === "classifier") {
       return {
         shell: { placement: "hidden", details: "collapsed" },
         edit: { placement: "grouped", details: "collapsed" },

@@ -35,6 +35,8 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
     available: "desktop",
   },
   { tab: "maps", label: "settings.tab.maps", keywords: "google gemini openstreetmap osm map peta route rute api key" },
+  { tab: "scraper", label: "settings.tab.scraper", keywords: "scrape scraper webfetch camofox scrapling scrapegraph agent-reach stealth crawl extract" },
+  { tab: "memory", label: "settings.tab.memory", keywords: "memory vault obsidian remember recall forget" },
   { tab: "experimental", label: "settings.tab.experimental" },
   { tab: "about", label: "settings.tab.about", keywords: "version license credits" },
   { tab: "general", label: "settings.general.row.language.title", target: "settings-language" },

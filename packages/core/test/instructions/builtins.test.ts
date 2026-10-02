@@ -42,14 +42,18 @@ describe("InstructionBuiltIns", () => {
       yield* TestClock.setTime(timestamp)
       const context = yield* InstructionBuiltIns.Service
       const initialized = yield* readInitial(yield* context.load(sessionID))
-      // fork: the maps guidance (core/geo) sits between the output-files and date instructions.
+      // fork: the maps guidance (core/geo) and the short response contract
+      // (core/response-contract) sit between the output-files and date instructions.
       const blocks = initialized.text.split("\n\n")
       const geo = blocks.find((block) => block.startsWith("For questions about real places"))
       expect(geo).toContain("[Name](place:<id>)")
       expect(geo).toContain("map_show")
       expect(geo).toContain("WGS84")
+      const contract = blocks.find((block) => block.startsWith("# Response contract (fork)"))
+      expect(contract).toContain("Summary")
+      expect(contract).toContain("Verify")
 
-      expect(blocks.filter((block) => block !== geo).join("\n\n")).toBe(
+      expect(blocks.filter((block) => block !== geo && block !== contract).join("\n\n")).toBe(
         [
           "Here is some useful information about the environment you are running in:",
           "<env>",

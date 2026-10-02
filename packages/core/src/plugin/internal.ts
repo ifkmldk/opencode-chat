@@ -78,13 +78,17 @@ import { ReadTool } from "../tool/plugin/read.js"
 import { ShellTool } from "../tool/plugin/shell.js"
 import { SkillTool } from "../tool/plugin/skill.js"
 import { SubagentTool } from "../tool/plugin/subagent.js"
+import { MemoryStore } from "../memory/store.js"
+import { MemoryInstructions } from "../memory/instruction-source.js"
 import { Tool } from "../tool.js"
 import { ToolOutput } from "../tool-output.js"
 import { ActionTool } from "../tool/plugin/action.js"
+import { ScrapeTool } from "../tool/plugin/scrape.js"
+import { MemoryTool } from "../tool/plugin/memory.js"
 import { JobsTool } from "../tool/plugin/jobs.js"
 import { MapsTool } from "../tool/plugin/maps.js"
 import { ResearchTool } from "../tool/plugin/research.js"
-import { LayaTool } from "../tool/plugin/laya.js"
+import { Plugin as ClassifierPlugin } from "../classifier/engine.js"
 import { WebFetchTool } from "../tool/plugin/webfetch.js"
 import { WebSearchTool } from "../tool/plugin/websearch.js"
 import { WellKnown } from "../wellknown.js"
@@ -136,6 +140,8 @@ const services = [
   ManagedPolicy.Service,
   ModelsDev.Service,
   Mcp.Service,
+  MemoryStore.Service,
+  MemoryInstructions.Service,
   Npm.Service,
   Permission.Service,
   Form.Service,
@@ -204,6 +210,8 @@ export const requirements = LayerNode.group([
   Snapshot.node,
   Skill.node,
   SkillDiscovery.node,
+  MemoryStore.node,
+  MemoryInstructions.node,
   Tool.node,
   ToolOutput.node,
   Watcher.node,
@@ -245,10 +253,12 @@ const pre = [
   SkillTool.Plugin,
   SubagentTool.Plugin,
   ActionTool.Plugin,
+  MemoryTool.Plugin,
+  ScrapeTool.Plugin,
   JobsTool.Plugin,
   MapsTool.Plugin,
   ResearchTool.Plugin,
-  LayaTool.Plugin,
+  ClassifierPlugin,
   WebFetchTool.Plugin,
   WebSearchTool.Plugin,
   WriteTool.Plugin,

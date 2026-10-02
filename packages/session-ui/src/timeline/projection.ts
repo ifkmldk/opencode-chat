@@ -305,7 +305,7 @@ export namespace Timeline {
       lastAssistant?.time.completed === undefined &&
       !lastAssistant?.error &&
       !lastAssistant?.retry
-    // fork: with reasoning hidden (Chat/Laya), show a generic "Thinking" row while the model works
+    // fork: with reasoning hidden (Chat/Classifier), show a generic "Thinking" row while the model works
     // on anything the view hides — reasoning or a process tool — so the turn never looks stalled.
     const hiddenWork =
       detail?.thinking.placement === "hidden" &&
@@ -598,7 +598,7 @@ function renderable(content: Content, showReasoning: boolean, detail?: TimelineD
   if (detail && currentToolFailed(content)) return true
   if (content.name === "todowrite") return false
   if (content.name === "question") return content.state.status !== "streaming" && content.state.status !== "running"
-  // fork: result cards stay visible even when their category is hidden (Chat/Laya views).
+  // fork: result cards stay visible even when their category is hidden (Chat/Classifier views).
   if (detail && timelineResultTool(content)) return true
   if (detail && detail[timelineCategory(content)!].placement === "hidden") return false
   return true

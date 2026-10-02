@@ -20,15 +20,6 @@ export function Composer(props: { class?: string; model: ComposerModel; borderUn
 
   return (
     <div class="flex flex-col gap-2">
-      <Show when={props.model.viewMode?.current() === "laya"}>
-        <div
-          data-action="composer-laya-guide"
-          class="flex items-start gap-2 px-3 text-12-regular text-v2-text-text-muted"
-        >
-          <Icon name="sparkles" class="mt-0.5 size-3.5 shrink-0 text-v2-text-text-accent" />
-          <span>{language.t("session.viewMode.laya.guide")}</span>
-        </div>
-      </Show>
       <ComposerEditor
         controller={props.model}
         borderUnderlay={props.borderUnderlay}

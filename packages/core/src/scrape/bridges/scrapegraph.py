@@ -1,0 +1,67 @@
+"""fork: scrapegraph-ai bridge for the ultimate scraper.
+
+Reads JSON {"url","prompt","llm"} from argv[1] and prints
+JSON {"ok","result"} or {"ok":false,"error"}.
+Runs under `uvx --from scrapegraphai --with langchain-openai` once an LLM key
+is configured (explicit OPENCODE_SCRAPEGRAPH_LLM JSON, OPENAI_API_KEY, or the
+9router OpenAI-compatible provider). Without a key the bridge exits fast with
+an honest error and the chain falls back to the fast tier.
+Telemetry is disabled by default.
+"""
+
+import json
+import os
+import sys
+
+os.environ.setdefault("SCRAPEGRAPHAI_TELEMETRY_ENABLED", "false")
+# fork: same self-import guard as the scrapling bridge (bridge filename
+# shadows the package name under uvx --from).
+sys.path = [p for p in sys.path if os.path.abspath(p) not in (os.path.dirname(os.path.abspath(__file__)), "")]
+for module in [m for m in list(sys.modules) if m == "scrapegraphai" or m.startswith("scrapegraphai.")]:
+    del sys.modules[module]
+
+
+def build_llm(config: dict):  # type: ignore[no-untyped-def]
+    """Build a langchain chat model from {"model","api_key","base_url"}."""
+    from langchain_openai import ChatOpenAI
+
+    kwargs: dict = {"model": config.get("model", "gpt-4o-mini"), "temperature": 0}
+    api_key = config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+    base_url = config.get("base_url") or os.environ.get("OPENAI_BASE_URL")
+    if api_key:
+        kwargs["api_key"] = api_key
+    if base_url:
+        kwargs["base_url"] = base_url
+    return ChatOpenAI(**kwargs)
+
+
+def main() -> None:
+    try:
+        payload = json.loads(sys.argv[1])
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": f"bad input: {error}"}))
+        raise SystemExit(1)
+    llm_config = payload.get("llm") or {}
+    api_key = llm_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print(json.dumps({"ok": False, "error": "missing LLM api key: set OPENCODE_SCRAPEGRAPH_LLM or OPENAI_API_KEY"}))
+        raise SystemExit(2)
+    try:
+        from scrapegraphai.graphs import SmartScraperGraph
+
+        graph = SmartScraperGraph(
+            prompt=payload.get("prompt", "Extract the main content as markdown."),
+            source=payload.get("url", ""),
+            config={"llm": {"model_instance": build_llm(llm_config)}},
+        )
+        result = graph.run()
+        print(json.dumps({"ok": True, "result": result}))
+    except SystemExit:
+        raise
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": str(error)[:2000]}))
+        raise SystemExit(3)
+
+
+if __name__ == "__main__":
+    main()

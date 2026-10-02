@@ -58,17 +58,20 @@ The "Layer" column says who owns the hook: **chat** is layer 1, **v1** is layer 
 | `cli/src/services/web-ui.ts` | v1 | CSP: `media-src … blob:` (voice, video previews), `frame-src 'self' blob: https: http://localhost:* http://127.0.0.1:*` (proxied pages, map embeds, loopback canvas and dev servers; `http://[::1]:*` is not a valid source); the theme-preload hash is taken after CRLF→LF normalization, as browsers do (Windows builds were blocking the script); test in `cli/test/web-ui.test.ts` |
 | `client/src/*/generated/*` | v1 | regenerate with `bun run generate` in `packages/client`; never merge these by hand |
 | `client/src/effect/api/api.ts` | v1 | browser-proxy group in the Effect client |
-| `core/src/instructions/builtins.ts` | v1 | built-in instruction `core/output-files`: link produced files with absolute forward-slash paths (test `core/test/instructions/builtins.test.ts`) |
-| `server/src/{options,routes,process}.ts`, `cli/src/{index,server-process}.ts`, `client/src/*/service.ts`, `core/src/{config,session,plugin}/**`, `schema/src/**`, `ai/src/protocols/openai-chat.ts`, `tui/src/context/storage.tsx` | chat | "preserve v2 runtime and model completion behavior" (9Router/OpenAI-compatible completion fixes), tool registration in `core/src/plugin/internal.ts`, Laya flag in `schema/src/config/experimental.ts` |
+| `core/src/instructions/builtins.ts` | v1 | built-in instruction `core/output-files`: link produced files with absolute forward-slash paths (test `core/test/instructions/builtins.test.ts`); fork.3 adds `core/response-contract` + `core/memory` instruction sources |
+| `core/src/tool/plugin/research.ts` | maps | place/hotel/event without `OPENCODE_<CAT>_API_URL` search Maps first (`placeCandidate`), web search only when Maps finds nothing; fork.3 renames status to `classifier` (+ deprecated `laya` alias) |
+| `core/src/tool/plugin/laya.ts` | fork.3 | deprecated shim re-exporting `core/src/classifier/engine.ts`; registers `classifier_classify` + alias `laya_classify` for one release |
+| `core/src/plugin/internal.ts` | chat | "preserve v2 runtime and model completion behavior" (9Router/OpenAI-compatible completion fixes), tool registration in `core/src/plugin/internal.ts` (+ fork.3: `MemoryTool`, `ScrapeTool`, `ClassifierPlugin`), Laya flag in `schema/src/config/experimental.ts` |
 
 ### Session UI (`packages/session-ui`)
 
 | File | Layer | Hook |
 | --- | --- | --- |
-| `timeline/projection.ts` | v1 | Chat/Laya keep result cards (`timelineResultTool`) and show a generic Thinking row while tools are hidden |
+| `timeline/projection.ts` | v1 | Chat/Classifier keep result cards (`timelineResultTool`) and show a generic Thinking row while tools are hidden |
+| `timeline/result-tools.ts` | fork.3 | `scrape_fetch`/`scrape_status`/`memory_search` join `CARD_TOOLS` so they stay visible in Chat/Classifier views |
 | `timeline/session-timeline-row.tsx` | chat + v1 | generated-file cards computed once per turn (`createTurnArtifacts`) on the copy-row part, or after the last row of a turn without text; hidden-thinking shimmer; user annotations passed to the bubble |
 | `message/message-content.tsx`, `message/current-message.tsx`, `actions.ts` | chat + v1 | one `artifacts` prop for the file cards (plus `artifactsExist` action); `UserMessageAnnotations` cards above the sent bubble |
-| `tools/tool-renderer.tsx` | chat + v1 | maps/jobs/research/action/citation cards (chat), i18n for those cards (v1) |
+| `tools/tool-renderer.tsx` | chat + v1 | maps/jobs/research/action/citation cards (chat), i18n for those cards (v1); fork.3 adds `ScrapeToolOutput`/`MemoryToolOutput` (scrape/memory cards reusing `BasicTool`+`ResultCard`) |
 | `components/{message-part,basic-tool}.css` | chat | result and citation card styles (the file-card styles moved to `fork/fork.css`) |
 | `styles/index.css` | v1 | `@import "../fork/fork.css" layer(components)` |
 
@@ -78,7 +81,7 @@ The "Layer" column says who owns the hook: **chat** is layer 1, **v1** is layer 
 | --- | --- | --- |
 | `context/marked-parser.tsx` | v1 | `.use(katexExtension, calloutExtension, …)` |
 | `context/marked-base.tsx` | v1 | the main-thread small-block parser also uses `calloutExtension`; without it, short callouts render as plain quotes |
-| `i18n/en.ts` | v1 | `ui.selectionBar.*`, `ui.tool.*`, `ui.resultCard.*`, `ui.message.annotation.*`, `ui.artifact.*` (file-card kinds, subtitle, Download) (English only; other locales fall back) |
+| `i18n/en.ts` | v1 | `ui.selectionBar.*`, `ui.tool.*`, `ui.resultCard.*`, `ui.message.annotation.*`, `ui.artifact.*` (file-card kinds, subtitle, Download) (English only; other locales fall back); fork.3 adds `ui.tool.scrape.*`, `ui.tool.memory.*` |
 | `icons/icon/additional-icons.ts` | chat | `mic` |
 
 ### App (`packages/app`)
@@ -92,8 +95,8 @@ The "Layer" column says who owns the hook: **chat** is layer 1, **v1** is layer 
 | `runtime/i18n/en.ts` | chat + v1 | all fork strings (English only) |
 | `runtime/server/sync.tsx` | v1 | `assignProjectColors(...)`: v1 random avatar colour for projects without an icon |
 | `composer/{comment-note,request,submit}.ts`, `session/composer/queue.ts`, `session/route.tsx` | chat + v1 | quotes/page text/media annotations carried in message metadata (`promptAnnotations`); comment-less context is cleared after send |
-| `composer/{composer,editor/editor}.tsx`, `composer/{editor/interaction,model,schema,types,prompt-parts}.ts` | chat + v1 | Laya banner, voice button (hidden when unsupported; after Send in tab order, shown left of it by `fork.css`), prompt library, context cards (`group` class), `appendDraftText` |
-| `composer/view-mode-control.tsx`, `session/view-mode.ts`, `session/timeline/controller.tsx` | chat + v1 | Chat/Code/Laya dropdown; per-session mode stored server-global with draft handoff; Chat/Laya edit tools grouped; `timelineDetail` compares by content, because the virtualizer resets expanded tools on every detail notification (the chat-layer regression behind `session-timeline-cache` and `subagent-child-navigation`) |
+| `composer/{composer,editor/editor}.tsx`, `composer/{editor/interaction,model,schema,types,prompt-parts}.ts` | chat + v1 | Classifier banner removed, voice button (hidden when unsupported; after Send in tab order, shown left of it by `fork.css`), prompt library, context cards (`group` class), `appendDraftText` |
+| `composer/view-mode-control.tsx`, `session/view-mode.ts`, `session/timeline/controller.tsx` | chat + v1 | Chat/Code/Classifier dropdown; per-session mode stored server-global with draft handoff; Chat/Classifier edit tools grouped; `timelineDetail` compares by content, because the virtualizer resets expanded tools on every detail notification (the chat-layer regression behind `session-timeline-cache` and `subagent-child-navigation`) |
 | `home/sessions/view.tsx`, `new-session/composer-adapter.ts` | v1 | Topics row, topic filter, "Move to topic", side chats nested under their parent; new sessions join the selected topic |
 | `session/files/session-side-panel.tsx`, `session/helpers.ts` | chat + v1 | "+" menu in v1 order (Open file, Browser, Terminal, Side chat, Canvas, Research), with the Browser shortcut shown only for the native pane; Research/Canvas/web/side-chat tabs are sortable and closable |
 | `session/files/{artifact-view,file-tabs,open-artifact}.tsx`, `workspaces/files/artifact.ts` | chat + v1 | office/PPTX previews (chat); PDFs render through `fork/pdf/pdf-pages.tsx` (HTML keeps the sandboxed blob frame); region and text annotation overlays, async pdf.js text, file-card download through `fork/artifact-download.ts`, `exists` for the cards, `file:` hrefs (v1) |
@@ -101,7 +104,9 @@ The "Layer" column says who owns the hook: **chat** is layer 1, **v1** is layer 
 | `session/browser/pane.tsx` (+ `attachments.ts`, `connection.ts`, `model.ts`) | chat + v1 | desktop native pane region capture (chat); unified selection bar instead of `window.prompt` polling (v1) |
 | `session/screen.tsx` | chat + v1 | `ResearchAskChatListener` inserts into the draft instead of replacing it; mounts `CanvasOpenListener` (fork/web-browser) |
 | `session/timeline/message-timeline.tsx` | chat + v1 | annotated messages wait for their presentation before rendering |
-| `settings/general/general.tsx`, `settings/model.tsx` | chat + v1 | default conversation view; research-provider block rendered full width after the list |
+| `settings/general/general.tsx`, `settings/model.tsx` | chat + v1 | default conversation view (stored `laya` normalizes to `classifier`); research-provider block rendered full width after the list |
+| `settings/{surface.tsx,pages.ts,shell.tsx,search-catalog.ts}` | fork.3 | Settings → Scraper + Memory tabs (`settings/scrape/{scrape.tsx,model.ts}`, `settings/memory/{memory.tsx,model.ts}`): persisted mode/auto-setup/vault prefs, `archive`/`comment` icons, searchable; same `SettingsList/Row` structure as Maps |
+| `runtime/i18n/en.ts` | fork.3 | `settings.scraper.*`, `settings.memory.*`, classifier view-mode labels; guide banner removed |
 | `desktop.ts`, `runtime/platform/browser-pane.ts`, `custom-elements.d.ts` | chat | region-capture IPC contract |
 
 `packages/desktop/**` and `packages/plugin-browser/src/rpc.ts` carry chat-layer hooks for the Electron
@@ -113,12 +118,13 @@ browser pane (region capture, text selection, `plugins: true` for the PDF viewer
 | --- | --- |
 | `utils/side-panel.ts` (new) + `regression/{file-browser-sidebar-tab-switch,open-file-expand-folder,review-open-file,review-state-persistence}.spec.ts` | the side-panel "+" is always a menu, so "Open file" is a menu item, not a one-click button |
 | `regression/session-summary-layout.spec.ts` | conversation rows are 800px (v1 column), not 1000px |
-| `regression/prompt-thinking-level.spec.ts` | the Chat/Code/Laya control is a tab stop between Add and Model |
+| `regression/prompt-thinking-level.spec.ts` | the Chat/Code/Classifier control is a tab stop between Add and Model |
 | `regression/remote-session-settings.spec.ts` | settings open as the v1 dialog (≤1000px), so the sidebar takes the compact 240px width |
 | `regression/workspace-accent.spec.ts` | local sessions use the grey v1 bubble; workspace sessions keep upstream's accent |
 | `regression/mobile-timeline-scroll.spec.ts` | its pixel probe tracks blue prompt ink; `markPromptInk` paints the grey bubble blue for the probe |
 | `utils/mock-server.ts` | `projectUpdate` falls back to the project worktree like `projectList` (the fork saves v1 avatar colours on load); `fsRead` passes `Uint8Array` content through for byte-exact download tests |
-| `user-story/{research-shortlist,view-mode-toggle}.spec.ts` (chat layer) | result cards are never folded into a "Used N" group; the mode control is a Chat/Code/Laya dropdown |
+| `user-story/{research-shortlist,view-mode-toggle}.spec.ts` (chat layer) | result cards are never folded into a "Used N" group; the mode control is a Chat/Code/Classifier dropdown |
+| `user-story/{scrape-ultimate,settings-scraper-memory}.spec.ts` (fork.3) | scrape result card renders with engine attribution; Scraper/Memory settings tabs persist controls (mock-only) |
 | `performance/timeline/session-timeline-stream-probe.ts` (chat layer) | the chat layer's `Reflect.apply` tripped lint; calls the typed `scrollTo` overloads instead |
 
 Deliberately left as upstream, because upstream tests encode them as design decisions: the "Used N Read,

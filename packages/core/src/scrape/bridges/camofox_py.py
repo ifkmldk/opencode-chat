@@ -1,0 +1,66 @@
+"""fork: camoufox-python bridge for the ultimate scraper.
+
+Reads JSON {"url","timeout_ms","wait_ms","proxy","headless"} from argv[1],
+fetches with the camoufox package (headless anti-detect Firefox via uvx),
+and prints JSON {"ok","url","final_url","html","status"} or {"ok":false,"error"}.
+Runs under `uvx --from camoufox` so no repo dependency changes.
+The Firefox binary downloads on first launch (~150-300MB, cached by uv).
+"""
+
+import json
+import sys
+
+
+def main() -> None:
+    try:
+        payload = json.loads(sys.argv[1])
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": f"bad input: {error}"}))
+        raise SystemExit(1)
+    url = payload.get("url", "")
+    timeout_ms = int(payload.get("timeout_ms", 120000) or 120000)
+    wait_ms = int(payload.get("wait_ms", 3000) or 0)
+    headless = payload.get("headless", True)
+    if headless is None:
+        headless = True
+    # fork: first launch needs the browser binary (`camoufox fetch`, ~500MB).
+    # Auto-fetch once so scrape_fetch works without manual setup.
+    try:
+        from camoufox.pkgman import installed_verstr
+
+        installed_verstr()
+    except Exception:
+        import subprocess
+
+        subprocess.run(["camoufox", "fetch"], check=False)
+    try:
+        from camoufox.sync_api import Camoufox
+
+        proxy = payload.get("proxy")
+        with Camoufox(headless=bool(headless)) as browser:
+            if proxy:
+                ctx = browser.new_context(proxy={"server": proxy})
+                page = ctx.new_page()
+            else:
+                page = browser.new_page()
+            try:
+                response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+                if wait_ms:
+                    page.wait_for_timeout(wait_ms)
+                status = response.status if response else 200
+                if status >= 400:
+                    print(json.dumps({"ok": False, "error": f"HTTP {status}", "status": status}))
+                    raise SystemExit(2)
+                html = page.content()
+                print(json.dumps({"ok": True, "url": url, "final_url": page.url, "html": html, "status": status}))
+            finally:
+                page.close()
+    except SystemExit:
+        raise
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": str(error)[:2000]}))
+        raise SystemExit(3)
+
+
+if __name__ == "__main__":
+    main()

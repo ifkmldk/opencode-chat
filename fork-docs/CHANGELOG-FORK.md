@@ -1,5 +1,28 @@
 # Fork changelog
 
+## 2.0.15-fork.3 (2026-10-02)
+
+### Smarter answers, no more loops
+- Replies follow a short structure (summary, details, files, verify, next) and never invent ratings, prices, or hours the tools did not return.
+- The runner stops nagging after 2 unconfirmed-completion retries instead of looping.
+
+### Memory (Obsidian vault)
+- New tools: `memory_save`, `memory_search`, `memory_forget` (all ask-first, permission `memory.*`).
+- Vault-backed recall (max 4KB) in the system prompt; an empty vault changes nothing. Compaction proposes Memory Candidates.
+- Settings → Memory: vault directory + auto-save preference. The vault is plain markdown so other agents can share it.
+
+### Ultimate scraper (`scrape_fetch` / `scrape_status`)
+- One tool for chat, code, and classifier: fast (webfetch) → stealth (camofox → scrapling) → AI (scrapegraph) → channels (agent-reach); first success wins with a warning trail.
+- Camofox works without VS Build Tools via the python `camoufox` backend (verified live); the node REST server stays optional.
+- Scrapegraph uses `scrapegraphai` + the 9router key; it skips honestly without a key. Auto-setup via uv, kill-switch `OPENCODE_SCRAPER_NO_AUTOSETUP=1`.
+- Settings → Scraper: default mode, auto-setup, per-engine status.
+
+### Classifier (renamed from Laya)
+- Chat/Code/Classifier view modes; `classifier_classify` plus a deprecated `laya_classify` alias for one release.
+- Removed the in-composer guide note; clearer deterministic-mode messages (no raw `noul`/platform text to the user).
+
+Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](handoff.md).
+
 ## 2.0.15-fork.2 (2026-10-01)
 
 - Chat quotes and notes capture the whole selection, even with a slow drag. Before, a pause during the drag kept

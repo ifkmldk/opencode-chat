@@ -35,7 +35,7 @@ const assistantToolMessage: SessionMessageInfo = {
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('chat/code/laya view mode picker selects, persists, and keeps result cards', async ({ page }) => {
+test('chat/code/classifier view mode picker selects, persists, and keeps result cards', async ({ page }) => {
   const errors = trackPageErrors(page)
   await mockOpenCodeServer(page, {
     directory,
@@ -61,7 +61,7 @@ test('chat/code/laya view mode picker selects, persists, and keeps result cards'
   }
   await expectAppVisible(picker)
 
-  for (const [label, mode] of [['Chat', 'chat'], ['Laya', 'laya'], ['Code', 'code']] as const) {
+  for (const [label, mode] of [['Chat', 'chat'], ['Classifier', 'classifier'], ['Code', 'code']] as const) {
     await choose(label)
     await expect(picker).toHaveAttribute('data-mode', mode)
     // Result cards are the answer, not process: visible in every mode.
