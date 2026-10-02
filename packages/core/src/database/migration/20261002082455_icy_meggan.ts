@@ -5,8 +5,9 @@ const migration: DatabaseMigration.Migration = {
   id: "20261002082455_icy_meggan",
   up(tx) {
     return Effect.gen(function* () {
+      // fork: repair is idempotent so a re-run never fails on an existing table.
       yield* tx.run(`
-        CREATE TABLE \`memory\` (
+        CREATE TABLE IF NOT EXISTS \`memory\` (
           \`id\` text PRIMARY KEY,
           \`scope\` text NOT NULL,
           \`kind\` text NOT NULL,
@@ -19,7 +20,7 @@ const migration: DatabaseMigration.Migration = {
           \`time_updated\` integer NOT NULL
         );
       `)
-      yield* tx.run(`CREATE INDEX \`memory_scope_updated_idx\` ON \`memory\` (\`scope\`,\`time_updated\`);`)
+      yield* tx.run(`CREATE INDEX IF NOT EXISTS \`memory_scope_updated_idx\` ON \`memory\` (\`scope\`,\`time_updated\`);`)
     })
   },
 }

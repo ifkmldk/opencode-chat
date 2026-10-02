@@ -47,3 +47,26 @@ Tidak tambah/ubah dependency. `bun 1.4.2`, `drizzle-kit v0.31.11` via catalog, `
 7. Publish SSH (snapshot + push + tag + `ls-remote`).
 8. Kabar prod final per fitur + yang belum jujur + rollback.
 
+
+## [Appendix C — kenapa belum beres 2026-10-02 sore + unblock]
+
+Status: kode fork.4 DONE + commit `a63225fc4f` (repair migration masih perlu
+dijadikan idempotent — staged), TAPI:
+- Remote `fork/main` masih `e881dc04` (fork.3); tag `fork-v2.0.15-fork.4` belum ada.
+- Pipeline macet: `pipeline.log` hanya `PHASE START appbuild/clibuild/smoke/canary/promote`
+  tanpa `PHASE OK/FAIL` setelah 15:32:08; `appbuild.log` mentok di `transforming...`;
+  `clibuild.log` hanya warning CSS; `smoke/canary/promote.log` kosong (0 bytes).
+  `packages/app/dist` masih 06:59 (build lama). Exe prod masih 07:00:34.
+  Penyebab: run pipeline berulang tumpang-tindih (15:32, 15:40, 15:41, 15:44)
+  berebut `dist` yang sama + vite build lambat + wrapper tool timeout 30s
+  memutus pemantau sementara child build jalan, sisa lock menggantung.
+  Prod pid 19620 (13:59) sehat `200`, DB `migration` 49 rows, tabel `memory` tetap hilang.
+- Repair `20261002082455_icy_meggan` non-idempotent (tanpa `IF NOT EXISTS`, bawaan generator).
+  Aman untuk sekali jalan (framework tidak rerun completed; fresh DB via bootstrap),
+  tapi jangan dijalankan manual 2x di DB yang sudah ada tabelnya.
+
+Unblock (tanpa ubah flow/UI): kill build nyangkut → 1x run sekuensial
+`install→appbuild→clibuild→smoke→canary→promote` dengan pantau log (bukan timeout 30s),
+verifikasi `dist` timestamp baru + `PROD HTTP=200` + `memory` ada + backfill 576,
+baru snapshot+tag fork.4 via SSH + kabar prod. Rollback: exe `.bak-*` + parent `4ca27927`.
+
