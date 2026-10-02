@@ -27,7 +27,7 @@ export const notices = {
     "Today's free Google Maps quota is used up (it resets at midnight Pacific time); results come from OpenStreetMap (no ratings or opening hours).",
 } as const
 
-export type PlaceQuery = { query: string; near?: string; limit?: number; openNow?: boolean }
+export type PlaceQuery = { query: string; near?: string; limit?: number; openNow?: boolean; anchor?: Geo.Point | string; radiusKm?: number }
 
 export function make(ctx: Context, kv: KV.Interface) {
   /** The Gemini key, if configured (stored credential or env). */
@@ -149,12 +149,30 @@ export function make(ctx: Context, kv: KV.Interface) {
           ? `Google Maps failed (${googleResult.failure.message}); results come from OpenStreetMap (no ratings or opening hours).`
           : notices[access.ok ? "not_configured" : access.reason]
       if (!(yield* osmEnabled)) return yield* new ToolFailure({ message: notice })
-      const osm = yield* promise("OpenStreetMap search", () => MapsOsm.search(input.query, { limit, near }))
-      const found = yield* Effect.promise(() => enrich(osm))
+      const center = input.anchor
+        ? typeof input.anchor === "string"
+          ? (yield* resolvePoint(input.anchor).pipe(Effect.orElseSucceed(() => undefined))) ?? near
+          : input.anchor
+        : near
+      const osm = yield* promise("OpenStreetMap search", () => MapsOsm.search(input.query, { limit: Math.max(limit * 2, limit), ...(center ? { near: center } : {}) }))
+      let found = yield* Effect.promise(() => enrich(osm))
+      // fork: radius filter — yang jauh dibuang, yang dekat diukur + sort. Tanpa center, jangan buang semua.
+      if (input.radiusKm !== undefined && center) {
+        const maxM = input.radiusKm * 1000
+        found = found
+          .flatMap((place) =>
+            place.latitude !== undefined && place.longitude !== undefined
+              ? [{ place, m: Geo.inverse(center, { latitude: place.latitude, longitude: place.longitude }).meters }]
+              : [],
+          )
+          .filter((entry) => entry.m <= maxM)
+          .toSorted((a, b) => a.m - b.m)
+          .map(({ place, m }) => ({ ...place, distanceM: Math.round(m) }))
+      }
       return {
         provider: "openstreetmap",
         query: input.query,
-        places: found,
+        places: found.slice(0, limit),
         notice,
         attribution: "© OpenStreetMap contributors",
       }
@@ -222,5 +240,6 @@ export type Place = {
   photoCredit?: string
   url?: string
   googleMapsUrl?: string
+  distanceM?: number
   source: "google" | "openstreetmap"
 }
