@@ -15,13 +15,14 @@ const dbPath = args.values.db
 if (!dbPath) throw new Error("Pass --db <path-to-opencode.db>")
 
 const files = (await readdir(join(vault, "entries"))).filter((f) => f.endsWith(".md"))
-const db = new Database(dbPath, { create: false })
+const db = new Database(dbPath, { create: false, readwrite: true })
 const insert = db.prepare(
   `INSERT OR IGNORE INTO memory (id, scope, kind, title, body, project_id, session_id, source, time_created, time_updated) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)`,
 )
 let saved = 0
 let skipped = 0
 let errors = 0
+const skippedIds: string[] = []
 const now = Date.now()
 for (const file of files) {
   try {
@@ -30,6 +31,7 @@ for (const file of files) {
     const entry = fromMarkdown(id, raw)
     if (!entry) {
       skipped++
+      if (skippedIds.length < 5) skippedIds.push(id)
       continue
     }
     const changed = insert.run(entry.id, entry.scope, entry.kind, entry.title, entry.body, entry.source, entry.updated || now, now)
@@ -40,4 +42,4 @@ for (const file of files) {
   }
 }
 db.close()
-console.log(JSON.stringify({ files: files.length, saved, skipped, errors }))
+console.log(JSON.stringify({ files: files.length, saved, skipped, errors, skippedIds }))
