@@ -40,7 +40,7 @@ Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and
 
 Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
 
-## 2.0.15-fork.3-backfill (2026-10-02, unreleased — staged)
+## 2.0.15-fork.2 (2026-10-01)
 
 - Chat quotes and notes capture the whole selection, even with a slow drag. Before, a pause during the drag kept
   only the first word.
@@ -96,4 +96,3 @@ This is the first versioned release. It is based on upstream opencode v2.0.15 pl
 
 Hook-by-hook details: [`../FORK-HOOKS.md`](../FORK-HOOKS.md). Deploy history and rollback: [`handoff.md`](../../opencode-app/handoff.md).
 
-## 2.0.15-fork.1 (2026-09-30)

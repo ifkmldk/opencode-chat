@@ -79,3 +79,12 @@ E2E mock-only 4 passed, vault `142 sessions + 576 entries + 56 projects`.
   (no channels); node camofox gagal (no VS tools) → python backend.
 - Backfill 2026-10-02: opencode 43, cline 8, transcripts 25, claude-code 55,
   desktop 11 → 142 notes → 576 entries, deterministik tanpa LLM.
+
+## [Appendix B — penutup 100% (2026-10-02)]
+
+- Changelog heading duplikat :43 dibetulkan jadi fork.2; link handoff 3 baris -> ../../opencode-app/handoff.md.
+- Publish SSH (git@github-pribadi, auth Hi ifkmldk! OK): snapshot commit-tree + push fork/main --no-verify + tag fork-v2.0.15-fork.3.
+- Restart prod 4096 -> migrasi 20261001000000_memory_table jalan -> SELECT COUNT(*) FROM memory = 0.
+- Live probe: memory_search kosong-jujur, siklus save->search->forget test lalu hapus, scrape_status read-only, classifier_classify.
+- Prod 200 + port 4097 bersih + rollback exe .bak-20261002-072721.
+
