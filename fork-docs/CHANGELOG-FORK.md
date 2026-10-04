@@ -1,5 +1,18 @@
 # Fork changelog
 
+## 2.0.15-fork.7 (2026-10-04)
+
+`research_deep` selesai + kartu jujur + job koridor geocode (jawaban Sudirman/carport/KRL presisi):
+
+- Branch job `orchestrate.ts` tidak lagi return awal: station-name match cepat + geocode fallback
+  via `searchPlaces` → `nearestStation()` (≤ transitWalkKm) + `station`/`distanceM` + must-verify
+  via scrape + sort terdekat (filter keras, gagal geocode = dibuang dalam mode koridor).
+- `research-honesty.test.ts`: kasus baru job koridor (Serpong keep + station, Medan dibuang).
+- Kartu `ResearchToolOutput`: badge verified (✓/✗/?), jarak/stasiun, `limitations` jujur;
+  `maps-output.tsx` `PlaceCard` rating berattribusi (tanpa sumber = `(?)`).
+- OSM-only penuh: `google.ts` shim, `settings/usage` no-op, Settings → Maps tanpa key,
+  `links.ts` keyless tetap.
+
 ## 2.0.15-fork.6 (2026-10-04)
 
 `research_deep` terintegrasi + OSM-only penuh (jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data):

@@ -80,8 +80,33 @@ describe("research_deep orchestration", () => {
     })
     const out = await Effect.runPromise(deep({ query: "kontrakan carport", category: "place", transitLine: "KRL Rangkasbitung", must: ["carport"] }))
     expect(out.candidates.map((c) => c.id)).toEqual(["near"])
-    expect(out.candidates[0]!.station).toBe("Stasiun Serpong")
+    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
     expect(out.candidates[0]!.verified).toMatchObject({ carport: "yes" })
     expect(out.limitations.join(" ")).toContain("Must-have keras: carport")
+  })
+
+  test("job corridor keeps only candidates within 1km of a station", async () => {
+    const deep = runDeep({
+      searchPlaces: ({ query }: { query: string; limit: number }) =>
+        Effect.succeed({
+          provider: "openstreetmap",
+          places: query.includes("Serpong")
+            ? [{ id: "geo-serpong", name: "Serpong", address: "Serpong", latitude: -6.3211, longitude: 106.6697, url: "https://osm.org/serpong", source: "openstreetmap" as const }]
+            : [],
+        }),
+      searchJobs: () =>
+        Effect.succeed({
+          results: [
+            { url: "https://jobs.test/a", title: "Data Analyst — Serpong", content: "Lowongan data analyst dekat Stasiun Serpong" },
+            { url: "https://jobs.test/b", title: "Data Analyst — Medan", content: "Lowongan data analyst di Medan, jauh dari koridor" },
+          ],
+        }),
+      scrape: () => Effect.succeed({ text: "", source: "none" }),
+    })
+    const out = await Effect.runPromise(deep({ query: "data analyst", category: "job", transitLine: "KRL Rangkasbitung" }))
+    expect(out.candidates.map((c) => c.id)).toEqual(["https://jobs.test/a"])
+    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
+    expect((out.candidates[0] as unknown as { distanceM?: number }).distanceM).toBe(0)
+    expect(out.limitations.join(" ")).toContain("Koridor KRL Rangkasbitung")
   })
 })

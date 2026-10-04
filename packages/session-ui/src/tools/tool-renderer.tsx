@@ -2438,6 +2438,16 @@ function ResearchToolOutput(props: ToolProps) {
             />
           )}
         </For>
+        <For each={Array.isArray(result()?.limitations) ? (result()?.limitations as string[]) : []}>
+          {(line) => (
+            <div
+              data-component="research-limitation"
+              class="rounded-md border border-v2-border-border-muted bg-v2-background-bg-layer-01 px-3 py-2 text-11-regular text-text-weak"
+            >
+              {String(line)}
+            </div>
+          )}
+        </For>
         <Show when={!candidates().length && !rankings().length && !shortlist().length}>
           <div class="text-12-regular text-text-weak">{i18n.t("ui.tool.research.empty")}</div>
         </Show>
