@@ -4,12 +4,12 @@ import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Context, Effect, Layer } from "effect"
 import { Integration } from "../integration.js"
 import { KV } from "../kv.js"
-import { MapsError } from "./error.js"
-import { MapsGoogle } from "./google.js"
+
 import { MapsUsage } from "./usage.js"
 
-// fork: what Settings → Maps reads and changes. The Gemini key is an integration credential (entered through
-// the integration routes, never returned); settings and today's usage live in KV (see ./usage.ts).
+// fork: OSM-only (Google/Gemini removed — no key, never billed). Settings → Maps
+// hanya membaca status OSM. GEMINI_* dipertahankan sebagai konstanta mati agar
+// import lama tidak pecah, tapi tidak pernah dipakai.
 
 export const GEMINI_INTEGRATION = Integration.ID.make("google-maps-gemini")
 export const GEMINI_ENV = "OPENCODE_MAPS_GEMINI_KEY"
@@ -53,23 +53,20 @@ const layer = Layer.effect(
     const integration = yield* Integration.Service
 
     const status = Effect.fn("MapsSettings.status")(function* () {
-      const connection = yield* integration.connection.active(GEMINI_INTEGRATION)
-      const settings = yield* MapsUsage.settings(kv)
-      const now = new Date()
+      // fork: OSM-only — google selalu reported off/unconfigured, OSM selalu on.
       return {
         google: {
-          configured: !!connection,
-          source: connection ? (connection.type === "env" ? ("env" as const) : ("credential" as const)) : undefined,
-          enabled: settings.googleEnabled,
-          confirmedFree: settings.confirmedFree,
-          usedToday: yield* MapsUsage.used(kv, now),
-          exhaustedToday: yield* MapsUsage.exhausted(kv, now),
-          dailyLimit: settings.dailyLimit,
-          maxDailyLimit: MapsUsage.MAX_LIMIT,
-          freeDaily: MapsUsage.FREE_DAILY,
-          resetsAt: MapsUsage.nextReset(now).toISOString(),
+          configured: false,
+          enabled: false,
+          confirmedFree: false,
+          usedToday: 0,
+          exhaustedToday: false,
+          dailyLimit: 0,
+          maxDailyLimit: 0,
+          freeDaily: 0,
+          resetsAt: new Date().toISOString(),
         },
-        osm: { enabled: settings.osmEnabled },
+        osm: { enabled: true },
       }
     })
 
@@ -80,35 +77,8 @@ const layer = Layer.effect(
         return yield* status()
       }),
       test: Effect.fn("MapsSettings.test")(function* () {
-        const connection = yield* integration.connection.active(GEMINI_INTEGRATION)
-        if (!connection) return { ok: false, message: "No Google Maps key is saved yet." }
-        const settings = yield* MapsUsage.settings(kv)
-        // Even the test waits for the Free-tier confirmation, so it can't be billed on a paid project.
-        if (!settings.confirmedFree)
-          return { ok: false, message: "Confirm that the key's project is on the Free tier first." }
-        if ((yield* MapsUsage.used(kv)) >= settings.dailyLimit || (yield* MapsUsage.exhausted(kv)))
-          return { ok: false, message: "Today's free limit is used up." }
-        const credential = yield* integration.connection.resolve(connection).pipe(Effect.orElseSucceed(() => undefined))
-        if (credential?.type !== "key") return { ok: false, message: "The saved key could not be read." }
-        yield* MapsUsage.record(kv)
-        return yield* Effect.tryPromise({ try: () => MapsGoogle.test(credential.key), catch: (error) => error }).pipe(
-          Effect.map(
-            (outcome): TestResult => ({
-              ok: true,
-              message: outcome.grounded
-                ? "Connected: Google Maps grounding works."
-                : "Connected, but the answer had no Google Maps sources.",
-              model: outcome.model,
-              grounded: outcome.grounded,
-            }),
-          ),
-          Effect.catch((error) =>
-            Effect.gen(function* () {
-              if (error instanceof MapsError && error.kind === "rate_limited") yield* MapsUsage.markExhausted(kv)
-              return { ok: false, message: error instanceof Error ? error.message : String(error) } satisfies TestResult
-            }),
-          ),
-        )
+        // fork: OSM-only — tidak ada key yang diuji; status OSM selalu siap.
+        return { ok: true, message: "OSM-only: no key needed, OpenStreetMap is always on." }
       }),
     })
   }),

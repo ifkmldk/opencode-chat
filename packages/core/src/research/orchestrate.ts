@@ -21,8 +21,18 @@ export function runDeep(deps: {
       const radiusKm = input.radiusKm ?? c.radiusKm
       const anchorText = input.anchor ?? c.anchor ?? input.location
       const limit = Math.min(10, input.maxResults ?? 8)
+      // fork: resolve anchor ke koordinat via geocode (searchPlaces dengan query anchor).
+      // Tanpa ini radius filter no-op dan anchor lat/lng dummy (0,0).
+      let anchorPoint: { name: string; latitude: number; longitude: number } | undefined
+      if (anchorText) {
+        const resolved = yield* deps
+          .searchPlaces({ query: anchorText, limit: 1 })
+          .pipe(Effect.map((r) => r.places[0]), Effect.orElseSucceed(() => undefined))
+        if (resolved?.latitude !== undefined && resolved?.longitude !== undefined)
+          anchorPoint = { name: anchorText, latitude: resolved.latitude, longitude: resolved.longitude }
+      }
       const found = yield* deps.searchPlaces({ query: input.query, ...(anchorText ? { near: anchorText } : {}), limit })
-      const anchor = anchorText ? { name: anchorText, latitude: 0, longitude: 0 } : undefined
+      const anchor = anchorPoint
       type Row = { place: MapsSearch.Place; distanceM?: number; station?: string; verified: Record<string, "yes" | "no" | "unknown"> }
       let rows: Row[] = found.places.map((place) => ({ place, verified: Object.fromEntries(must.map((k) => [k, "unknown" as const])) }))
       // Corridor KRL: hanya yang ≤1 km jalan kaki dari salah satu stasiun line.
@@ -34,9 +44,17 @@ export function runDeep(deps: {
           return [{ ...row, distanceM: Math.round(near.meters), station: near.station.name }]
         })
       } else if (anchorText) {
-        // Radius filter butuh koordinat anchor; bila anchor belum ter-resolve, lewati filter (jangan buang semua).
-        void Geo
-        rows = rows
+        // fork: radius filter — buang yang > radiusKm dari anchor, sisanya bawa distanceM + sort.
+        // Tanpa anchorPoint (geocode gagal), jangan buang semua.
+        if (anchorPoint) {
+          const maxM = radiusKm * 1000
+          rows = rows.flatMap((row) => {
+            if (row.place.latitude === undefined || row.place.longitude === undefined) return []
+            const m = Geo.inverse(anchorPoint, { latitude: row.place.latitude, longitude: row.place.longitude }).meters
+            if (m > maxM) return []
+            return [{ ...row, distanceM: Math.round(m) }]
+          })
+        }
       }
       // Scrape-verify atribut must[] (filter keras): tanpa bukti → buang.
       const verified: Row[] = []
@@ -61,23 +79,25 @@ export function runDeep(deps: {
         }
         if (keep) verified.push({ ...row, verified: next })
       }
-      void UltimateScrape
+      // fork: sort koridor/radius by distanceM agar yang terdekat duluan.
+      verified.sort((a, b) => (a.distanceM ?? Number.MAX_SAFE_INTEGER) - (b.distanceM ?? Number.MAX_SAFE_INTEGER))
       const checkedAt = Date.now()
+      const providerName = found.provider === "google" ? "google-maps" : found.provider === "scraped" ? "scraped" : "openstreetmap"
       const limitations = [
-        `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via ${found.provider === "google" ? "google-maps" : "openstreetmap"}+scrape.`,
+        `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via ${providerName}+scrape.`,
         must.length ? `Must-have keras: ${must.join(", ")} — tanpa bukti diverifikasi, kandidat dibuang.` : "Tidak ada filter keras.",
-        transitLine ? `Koridor ${transitLine}: hanya ≤1 km jalan kaki dari stasiun.` : `Radius ${radiusKm} km dari anchor.`,
+        transitLine ? `Koridor ${transitLine}: hanya ≤1 km jalan kaki dari stasiun.` : `Radius ${radiusKm} km dari anchor${anchorPoint ? ` (${anchorPoint.latitude.toFixed(4)}, ${anchorPoint.longitude.toFixed(4)})` : ""}.`,
         "Free sources have no live date-specific price or availability; prices are indications only.",
       ]
       return {
         query: input.query,
         category: input.category,
-        providers: [{ provider: found.provider === "google" ? "google-maps" : "openstreetmap", status: "configured" as const }],
+        providers: [{ provider: providerName, status: "configured" as const }],
         candidates: verified.slice(0, limit).map((row) => ({
           id: row.place.id,
           category: input.category,
           title: row.place.name.slice(0, 300),
-          provider: found.provider === "google" ? "google-maps" : "openstreetmap",
+          provider: providerName,
           location: row.place.address,
           url: row.place.googleMapsUrl ?? row.place.url,
           summary: [row.place.address, row.station ? `dekat ${row.station}` : undefined, row.distanceM !== undefined ? `${(row.distanceM / 1000).toFixed(1)} km` : undefined].filter(Boolean).join(" · "),

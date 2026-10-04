@@ -35,6 +35,37 @@ export function details(tags: Record<string, string> | undefined, now = new Date
   }
 }
 
+// fork: OSM-only rich-info — foto/rating/review TIDAK ada di OSM; hanya dari scrape
+// berattribusi (og:image, kontak official, pola rating). Tanpa bukti → unknown,
+// tidak pernah ngarang. Dipakai orchestrate verifyAttributes + kartu UI.
+export function ogImage(html: string): string | undefined {
+  const meta = html.match(/<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+  if (meta?.[1] && /^https?:\/\//i.test(meta[1])) return meta[1]
+  const link = html.match(/<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)["']/i)
+  if (link?.[1] && /^https?:\/\//i.test(link[1])) return link[1]
+  return undefined
+}
+
+export function contactFrom(html: string): { phone?: string; whatsapp?: string } {
+  const wa = html.match(/(?:wa\.me\/|whatsapp\.com\/send\?(?:[^"' ]*phone=)?)(62\d{8,14})/i)
+  const phone = html.match(/(\+?62[\s-]?\d[\d\s-]{7,14}\d|08\d[\d\s-]{7,13})/)
+  return {
+    ...(phone?.[1] ? { phone: phone[1].trim() } : {}),
+    ...(wa?.[1] ? { whatsapp: `https://wa.me/${wa[1]}` } : {}),
+  }
+}
+
+export function ratingFromScrape(text: string): { rating?: number; ratingSource?: string } {
+  const star = text.match(/([0-5](?:[.,]\d)?)\s*(?:★|⭐|\/\s*5|dari\s*5|out of 5)/i)
+  if (star) {
+    const value = Number(star[1]!.replace(",", "."))
+    if (Number.isFinite(value) && value > 0 && value <= 5) return { rating: value, ratingSource: "scraped" }
+  }
+  const reviews = text.match(/(\d[\d.,]*)\s*(?:ulasan|reviews?|penilaian)/i)
+  if (reviews) return { ratingSource: `scraped (${reviews[1]} ulasan)` }
+  return {}
+}
+
 /**
  * The common subset of the OSM opening_hours syntax: "24/7", and ";"-separated rules such as
  * "Mo-Fr 08:00-17:00,19:00-21:00", "Sa,Su 10:00-22:00", "Su off" or "10:00-22:00" (every day), including

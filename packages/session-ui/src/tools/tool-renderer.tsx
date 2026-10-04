@@ -2330,15 +2330,31 @@ function ResearchToolOutput(props: ToolProps) {
     if (shortlist().length) return i18n.t("ui.tool.research.shortlisted", { count: shortlist().length })
     return i18n.t("ui.tool.research.none")
   }
-  const candidateMeta = (candidate: Record<string, unknown>) =>
-    [
+  const candidateMeta = (candidate: Record<string, unknown>) => {
+    const verified = candidate.verified as Record<string, string> | undefined
+    const badges = verified
+      ? Object.entries(verified).map(([key, state]) => `${key}: ${state === "yes" ? "✓" : state === "no" ? "✗" : "?"}`)
+      : []
+    const dist =
+      typeof candidate.distanceM === "number"
+        ? candidate.distanceM >= 1000
+          ? `${(candidate.distanceM / 1000).toFixed(1)} km`
+          : `${Math.round(candidate.distanceM)} m`
+        : undefined
+    return [
       candidate.provider ? String(candidate.provider) : undefined,
+      candidate.station ? `dekat ${candidate.station}` : undefined,
+      dist,
       candidate.price !== undefined ? `${candidate.price}${candidate.currency ? ` ${candidate.currency}` : ""}` : undefined,
-      candidate.rating !== undefined ? i18n.t("ui.tool.research.rating", { rating: String(candidate.rating) }) : undefined,
+      candidate.rating !== undefined
+        ? `${i18n.t("ui.tool.research.rating", { rating: String(candidate.rating) })}${candidate.ratingSource ? ` (${candidate.ratingSource})` : ""}`
+        : undefined,
       candidate.location ? String(candidate.location) : undefined,
+      ...badges,
     ]
       .filter(Boolean)
       .join(" · ")
+  }
   const draft = (candidate: Record<string, unknown>) => ({
     secondary: draftActionPrompt(candidate),
     secondaryLabel: i18n.t("ui.tool.research.draftAction"),

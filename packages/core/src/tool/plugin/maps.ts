@@ -8,21 +8,15 @@ import { KV } from "../../kv.js"
 import { Geo } from "../../maps/geo.js"
 import { GeoStats } from "../../maps/stats.js"
 import { MapsEnrich } from "../../maps/enrich.js"
-import { MapsError } from "../../maps/error.js"
-import { MapsGoogle } from "../../maps/google.js"
 import { MapsLinks } from "../../maps/links.js"
 import { MapsOsm } from "../../maps/osm.js"
 import { MapsSearch } from "../../maps/search.js"
-import { MapsSettings } from "../../maps/settings.js"
-import { MapsUsage } from "../../maps/usage.js"
 import { Permission } from "../../permission.js"
 
-// fork: maps tools. Google Maps data comes from the Gemini API free tier ("Grounding with Google Maps"), which
-// can never be billed; OpenStreetMap is the free fallback and does routing, matrices and POIs. See
-// core/src/maps/*.
-
-export const GEMINI_INTEGRATION = MapsSettings.GEMINI_INTEGRATION
-export const GEMINI_ENV = MapsSettings.GEMINI_ENV
+// fork: OSM-only (Google/Gemini removed per user decision — no key, never billed).
+// Places: OpenStreetMap (+Wikimedia photos, OSM tags). Ratings/reviews/prices
+// only when scraped with attribution, else unknown. Keyless Google Maps URLs
+// (links.ts) open the real app/website, no API key. See core/src/maps/*.
 
 const Text = (max: number) => Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(max))
 const Coordinates = Schema.Struct({ latitude: Schema.Number, longitude: Schema.Number })
@@ -32,6 +26,8 @@ const SearchInput = Schema.Struct({
   near: Schema.optional(Text(300)).annotate({ description: 'Place name, address or "lat,lng" to search around' }),
   limit: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 10 }))),
   open_now: Schema.optional(Schema.Boolean),
+  anchor: Schema.optional(Text(300)).annotate({ description: "Anchor place/address — results are measured + filtered around it" }),
+  radius_m: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 50, maximum: 100000 }))).annotate({ description: "Hard radius filter in meters around the anchor/near point" }),
 })
 const AskInput = Schema.Struct({
   question: Text(1000),
@@ -171,7 +167,9 @@ const Place = Schema.Struct({
   category: Schema.optional(Schema.String),
   rating: Schema.optional(Schema.Number),
   ratingCount: Schema.optional(Schema.Number),
+  ratingSource: Schema.optional(Schema.String),
   priceLevel: Schema.optional(Schema.String),
+  priceSource: Schema.optional(Schema.String),
   openNow: Schema.optional(Schema.Boolean),
   hoursToday: Schema.optional(Schema.String),
   note: Schema.optional(Schema.String),
@@ -183,7 +181,8 @@ const Place = Schema.Struct({
   photoCredit: Schema.optional(Schema.String),
   url: Schema.optional(Schema.String),
   googleMapsUrl: Schema.optional(Schema.String),
-  source: Schema.Literals(["google", "openstreetmap"] as const),
+  distanceM: Schema.optional(Schema.Number),
+  source: Schema.Literals(["openstreetmap", "scraped"] as const),
 })
 const SearchOutput = Schema.Struct({
   provider: Schema.String,
@@ -200,12 +199,7 @@ export const Plugin = {
   effect: Effect.fn("MapsTool.Plugin")(function* (ctx: Context) {
     const permission = yield* Permission.Service
     const kv = yield* KV.Service
-
-    yield* ctx.integration.transform((editor) => {
-      editor.update(GEMINI_INTEGRATION, (integration) => (integration.name = "Google Maps (Gemini free tier)"))
-      editor.method.update({ integrationID: GEMINI_INTEGRATION, method: { type: "key" } })
-      editor.method.update({ integrationID: GEMINI_INTEGRATION, method: { type: "env", names: [GEMINI_ENV] } })
-    })
+    void kv
 
     const guard = (action: string, resources: string[], context: Tool.Context) =>
       permission
@@ -221,7 +215,6 @@ export const Plugin = {
         )
 
     const maps = MapsSearch.make(ctx, kv)
-    const google = maps.google
     const promise = maps.promise
     const resolvePoint = maps.resolvePoint
 
@@ -230,8 +223,9 @@ export const Plugin = {
         name: "maps_search",
         options: { codemode: false, permission: "maps.search" },
         description: [
-          "Search real places (hotels, restaurants, shops, offices, stations...) with Google Maps data: rating, review count, category, price level, opening hours today and a Google Maps link.",
-          'Falls back to OpenStreetMap (no ratings or hours) when Google is unavailable. Write the query in English with local names, e.g. "budget hotel near AEON Mall BSD City".',
+          "Search real places (hotels, restaurants, shops, offices, stations...) on OpenStreetMap: category, stars (hotels), opening hours, phone, website, Wikimedia photo, coordinates and a map link. No key, never billed.",
+          'Ratings/reviews/prices are NOT in OSM — they appear only when scraped with attribution, otherwise unknown. Write the query in English with local names, e.g. "budget hotel near AEON Mall BSD City".',
+          'For anchor+radius filtering pass anchor (place/address) and radius_m (meters, hard filter, results carry distanceM). Example: anchor "Jl. Sudirman, Bandung", radius_m 3000.',
           "Link each place in your answer as [Name](place:<id>) so the user sees its card.",
         ].join(" "),
         input: SearchInput,
@@ -244,6 +238,8 @@ export const Plugin = {
               near: input.near,
               limit: input.limit,
               openNow: input.open_now,
+              anchor: input.anchor,
+              ...(input.radius_m !== undefined ? { radiusKm: input.radius_m / 1000 } : {}),
             })
             return {
               output,
@@ -257,8 +253,8 @@ export const Plugin = {
         name: "maps_ask",
         options: { codemode: false, permission: "maps.ask" },
         description: [
-          "Ask Google Maps a practical question and get a grounded answer with its Google Maps sources: public transport (KRL, TransJakarta, MRT) routes and transfers, what is near a place, opening details, local tips.",
-          "Show the listed sources right after the content you base on them. Uses the free daily Google Maps quota.",
+          "Answer a practical local question from OpenStreetMap data around a place: what stations/stops/POIs are nearby, addresses, opening details from OSM tags, plus a keyless Google Maps link for live transit.",
+          "For KRL/TransJakarta/MRT lines and transfers, combine maps_poi (railway=station) with the directions link — no key needed.",
         ].join(" "),
         input: AskInput,
         output: Json,
@@ -268,21 +264,25 @@ export const Plugin = {
             const near = input.near
               ? yield* resolvePoint(input.near).pipe(Effect.orElseSucceed(() => undefined))
               : undefined
-            const access = yield* google
-            if (!access.ok) return yield* new ToolFailure({ message: MapsSearch.notices[access.reason] })
-            const result = yield* promise("Google Maps", () =>
-              MapsGoogle.ask(access.key, { question: input.question, near }),
+            const center = near ?? (yield* resolvePoint(input.question).pipe(Effect.orElseSucceed(() => undefined)))
+            if (!center)
+              return yield* new ToolFailure({
+                message: "maps_ask needs a place to answer about — pass near or a question naming a place.",
+              })
+            const stations = yield* promise("OpenStreetMap POIs", () =>
+              MapsOsm.poi({ center, radiusMeters: 2000, tags: ["railway=station", "highway=bus_stop"], limit: 50 }),
             )
             const output = {
-              provider: "google",
-              answer: result.answer,
-              sources: result.sources,
-              attribution: "Google Maps",
+              provider: "openstreetmap",
+              answer: `Nearby stations/stops around ${center.name}: ${stations.map((s) => s.name).join(", ") || "none found"}. Open the directions link for live transit.`,
+              stations: stations.map((s) => ({ name: s.name, latitude: s.latitude, longitude: s.longitude, tag: s.tag })),
+              directionsUrl: MapsLinks.directions({ destination: center, mode: "transit" }),
+              attribution: "© OpenStreetMap contributors",
             }
             return {
               output,
               content: JSON.stringify(output),
-              metadata: { provider: "google", sources: result.sources.length },
+              metadata: { provider: "openstreetmap", sources: stations.length },
             }
           }),
       })

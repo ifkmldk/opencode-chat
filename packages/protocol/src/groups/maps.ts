@@ -4,9 +4,9 @@ import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { InvalidRequestError, ServiceUnavailableError } from "../errors.js"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
-// fork: Settings → Maps. Google Maps data comes from the Gemini API free tier (never billed) behind a daily
-// guard; these routes report and change the guard and test the stored key. The key itself is stored through
-// the integration routes and is never returned.
+// fork: Settings → Maps. OSM-only (Google/Gemini removed per user decision — no key,
+// never billed). These routes report OSM status; google fields are kept optional so older
+// clients do not break, but are always reported off/unconfigured.
 
 export const MapsStatus = Schema.Struct({
   google: Schema.Struct({
@@ -20,7 +20,7 @@ export const MapsStatus = Schema.Struct({
     maxDailyLimit: Schema.Number,
     freeDaily: Schema.Number,
     resetsAt: Schema.String,
-  }),
+  }).annotate({ description: "Deprecated: always off/unconfigured (OSM-only)." }),
   osm: Schema.Struct({ enabled: Schema.Boolean }),
 }).annotate({ identifier: "MapsStatus" })
 
@@ -52,7 +52,7 @@ export const MapsGroup = HttpApiGroup.make("server.maps")
           identifier: "maps.status",
           summary: "Maps status",
           description:
-            "Whether a free-tier Google Maps key is configured, today's grounded-request usage and the limits.",
+            "Whether OpenStreetMap is on (always). Google fields are deprecated and always report off/unconfigured (OSM-only).",
         }),
       ),
   )
@@ -68,7 +68,7 @@ export const MapsGroup = HttpApiGroup.make("server.maps")
         OpenApi.annotations({
           identifier: "maps.settings",
           summary: "Update maps settings",
-          description: "Turn Google Maps or OpenStreetMap on or off, confirm the free tier, or lower the daily limit.",
+          description: "Turn OpenStreetMap on or off. Google fields are deprecated (OSM-only).",
         }),
       ),
   )
@@ -82,9 +82,9 @@ export const MapsGroup = HttpApiGroup.make("server.maps")
       .annotateMerge(
         OpenApi.annotations({
           identifier: "maps.test",
-          summary: "Test the Google Maps key",
-          description: "Send one small grounded request with the stored key. It counts toward today's free quota.",
+          summary: "Test maps status",
+          description: "Returns OSM readiness (always on, no key). Kept for compatibility; performs no key test.",
         }),
       ),
   )
-  .annotateMerge(OpenApi.annotations({ title: "maps", description: "Maps settings and key test (fork)." }))
+  .annotateMerge(OpenApi.annotations({ title: "maps", description: "OSM-only maps status (fork, no key, never billed)." }))

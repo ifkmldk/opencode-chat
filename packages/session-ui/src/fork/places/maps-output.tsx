@@ -6,7 +6,7 @@ import type { ToolProps } from "../../tools/tool-renderer"
 import { placeIcon } from "./inline-cards"
 import { requestMapShow } from "./map-events"
 
-// fork: Gemini-style cards for the maps tools (maps_search, maps_route, maps_poi, map_show). The map itself lives
+// fork: OSM-style cards for the maps tools (maps_search, maps_route, maps_poi, map_show). The map itself lives
 // once in the side panel's Map tab, where every pin of the chat collects; cards carry only a pin button that
 // focuses the place there. Every card has a fixed height, so the timeline never re-measures it.
 
@@ -20,7 +20,9 @@ type Place = {
   category?: string
   rating?: number
   ratingCount?: number
+  ratingSource?: string
   priceLevel?: string
+  priceSource?: string
   openNow?: boolean
   hoursToday?: string
   stars?: number
@@ -29,7 +31,7 @@ type Place = {
   note?: string
   googleMapsUrl?: string
   url?: string
-  source?: "google" | "openstreetmap"
+  source?: "google" | "openstreetmap" | "scraped"
 }
 
 function json(value: string | undefined) {
@@ -172,7 +174,9 @@ function PlaceCard(props: { place: Place }) {
     requestMapShow({ placeId: place().id, name: place().name, latitude: place().latitude, longitude: place().longitude })
   const score = () => {
     const value = place()
-    if (value.rating !== undefined) return `${value.rating.toFixed(1)} ★`
+    // fork: rating tanpa sumber = unknown (jangan tampilkan angka polos). ratingSource
+    // "scraped" tampil berattribusi; OSM murni tidak punya rating.
+    if (value.rating !== undefined) return `${value.rating.toFixed(1)} ★${value.ratingSource ? ` (${value.ratingSource})` : " (?)"}`
     if (value.stars) return i18n.t("ui.tool.maps.stars", { count: String(value.stars) })
     return undefined
   }

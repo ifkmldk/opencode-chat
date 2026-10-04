@@ -1,5 +1,22 @@
 # Fork changelog
 
+## 2.0.15-fork.6 (2026-10-04)
+
+`research_deep` terintegrasi + OSM-only penuh (jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data):
+
+- `research_deep`: `constraints.ts` (carport = filter keras, KRL Rangkasbitung = koridor jalan 1 km, anchor-from-query),
+  `transit.ts` (19 stasiun Tanah Abang→Rangkasbitung + `nearestStation`), `orchestrate.ts`
+  (extract→anchor-resolve→search→koridor/radius→scrape-verify→SearchOut + limitations), tool `research_deep`
+  (permission `research.deep`), honesty schema/test.
+- `maps/search.ts`: `anchor`/`radiusKm` + filter radius Karney + sort + `distanceM` (yang jauh dibuang beneran).
+- `jobs.ts`: tanpa `OPENCODE_JOBS_API_URL` fallback web-search ber-lokasi (tidak `ToolFailure` buta).
+- OSM-only: `google.ts` jadi shim (throw jujur), `settings.ts`/`usage.ts` no-op OSM, Settings → Maps tanpa
+  section key/limit/test, i18n `settings.maps.google*` dihapus, `links.ts` keyless tetap (tombol + transit directions).
+- Rich-info keyless: `enrich.ts` (`ogImage`, `contactFrom`, `ratingFromScrape`) — rating/review/foto hanya
+  bila OSM/Wikimedia/scrape berattribusi, else `unknown` (tidak pernah ngarang).
+- Kontrak jawaban: `core/geo` + `response/contract` (pipeline wajib, tabel Nama|Jarak/Waktu|Harga|Verifikasi|Sumber,
+  badge ✓/✗/?, `map_show` di akhir); kartu UI (`ResearchToolOutput`, `maps-output`) tampilkan jarak/stasiun/badge/tanggal cek.
+
 ## 2.0.15-fork.5 (2026-10-03, foundation — OSM-only + cards follow)
 
 Fondasi `research_deep` + scraper-first yang terintegrasi (jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data):

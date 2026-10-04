@@ -1,165 +1,104 @@
-# Implementation Plan — fork `2.0.15-fork.4` closeout
+# Implementation Plan — research_deep + scraper-first + OSM-only (fork.6, DONE sesuai Order 1–4)
 
 ## [Overview]
 
-Menutup rilis `2.0.15-fork.5` (fondasi `research_deep` + scraper-first yang terintegrasi,
-jawaban ngaco Sudirman/carport/KRL diperbaiki di lapisan data — OSM-only removal, rich-info,
-kontrak prompt, kartu UI, live 3 kasus menyusul sebelum closeout): commit kode, verifikasi, snapshot
-publik via SSH, kabar push. Tanpa ubah launcher/bundle/vault/memory/loop-guard.
+SELESAI (Order 1–4 fork.6): jawaban research/maps presisi — carport filter keras, loker koridor
+KRL Rangkasbitung 1 km walking, `research_deep` 1 orkestrasi, scraper-first tanpa API key, full OSM.
+Sisa Order 5 (live 3 kasus + pipeline + prod) dikerjakan setelah commit/push ini.
 
-Konteks terverifikasi 2026-10-02: branch `v1-ux-restore` (HEAD
-`fd22004e50`), `M implementation_plan.md` saja, tag baru sampai
-`fork-v2.0.15-fork.3`, `FORK_VERSION=2.0.15-fork.4`, `pipeline.log`
-macet 15:32-15:44 tanpa OK/FAIL, `appbuild.log` mentok
-`transforming...`, `smoke/canary/promote.log` 0 bytes, tidak ada
-`bun.exe`, `app/dist=True` (lama 06:59), `cli/dist=False` (terhapus),
-DB prod 49 rows tanpa tabel `memory`, prod `4096 HTTP=200` pid 19620,
-`4097` bersih, vault 142 sessions + 576 entries ada.
+Keputusan terkunci dari user: (1) carport=filter keras; (2) loker=koridor Line Rangkasbitung 1 km walking;
+(3) tambah `research_deep`, semua tools sync 1 orkestrasi; (4) no-API, scrape semua sumber;
+(5) buang GMaps/Gemini, full OSM + workaround keyless.
+
+## [Types] — terimplementasi, tidak berubah lagi
+
+```ts
+Constraints { anchor?: string; radiusKm: number; must: string[]; transitLine?: string; transitWalkKm?: number; travelMode: TravelMode }
+Candidate += { distanceM?; anchor?; travelMode?; travelMinutes?; verified?: Record<string,"yes"|"no"|"unknown">; checkedAt?; source?: "openstreetmap"|"web-search"|"scraped"; priceNote?; priceSource?; ratingSource?; station? }
+Search += { anchor?; radiusKm? (0.1–100); travelMode?; must?; transitLine? }
+SearchOut += { anchor?; stations?; limitations; checkedAt }
+Place += { distanceM?; rating?; ratingCount?; ratingSource?; priceLevel?; priceSource?; source: "openstreetmap"|"scraped" }
+PlaceQuery += { anchor?: Geo.Point|string; radiusKm? }
+```
+
+## [Files] — DONE Order 1–4
+
+- Order 1: `constraints.ts` (anchor-from-query, must/transitLine/radius), fix buang-lokasi `research.ts:42`,
+  `jobs.ts` fallback ber-lokasi, `research-honesty.test.ts` (6 pass + 1 orchestrate).
+- Order 2: `transit.ts` (19 stasiun + `nearestStation`), `search.ts` anchor/within/`distanceM`,
+  `orchestrate.ts` anchor-resolve + koridor + scrape-verify + sort.
+- Order 3: `research-deep.ts` (`research_deep`, `research.deep`), terdaftar `internal.ts:91,262`,
+  `verifyAttributes` via `UltimateScrape.run` (chain stealth).
+- Order 4: OSM-only removal — `google.ts` shim-throw, `settings.ts`/`usage.ts` no-op OSM,
+  `protocol/groups/maps.ts` + `server/handlers/maps.ts` OSM-only, `maps.tsx` tanpa key/limit/test,
+  `en.ts` hapus `settings.maps.google*` (+`osmOnlyNotice`), test maps shim/no-op.
+- Rich-info: `enrich.ts` (`ogImage`, `contactFrom`, `ratingFromScrape`).
+- Kontrak: `core/geo` + `contract.ts` (pipeline wajib, tabel, badge, `map_show`).
+- Kartu UI: `tool-renderer.tsx` (jarak/stasiun/badge verified) + `maps-output.tsx` (rating berattribusi).
+- Settings: `research-providers.tsx` + `research-provider-fields.ts` helper jujur.
+- Live geocode verified: Jl. Sudirman Bandung (-6.9204,107.6002), BSD (-6.3004,106.6659),
+  Stasiun Rangkasbitung (-6.3526,106.2511).
+
+## [Functions] — DONE
+
+`extractConstraints`, `nearestStation`, `runDeep`, `verifyAttributes`, `honestyLimitations`,
+`ogImage/contactFrom/ratingFromScrape`, `rankedChoice(geoScores?)`.
+
+## [Classes] — tidak ada perubahan.
+
+## [Dependencies] — nol baru.
+
+## [Testing] — DONE (unit+typecheck); SISA: E2E mock + live 3 kasus + pipeline + prod
+
+- 17 pass / 2 skip (live probes, butuh `OPENCODE_LIVE_PROBE=1` + network, tanpa kuota).
+- Typecheck hijau: core, app, app:e2e, ui, session-ui, protocol, server, client.
+- SISA Order 5: `research-honesty.spec.ts` E2E mock + live session BARU 3 kasus + pipeline + restart 4096 + verifikasi prod.
+
+## [Implementation Order] — status
+
+1. ✅ constraints + fix lokasi + jobs. 2. ✅ transit + search anchor. 3. ✅ orchestrate + research_deep.
+4. ✅ OSM-only + rich-info + kontrak + kartu UI. 5. ⏳ E2E + live + pipeline + prod + docs final + push fork.6.
+
 
 ## [Types]
 
-Tidak ada perubahan type system. Acuan: `MemoryTable`
-(`kv/sql.ts:11-25`); `MemoryStore.Entry/Scope/Kind`;
-`VaultEntry/SyncState`; `ScrapeInput/Output`,
-`ClassifierEngine/Answer`, `LoopState/Verdict` (3/5/2) tidak berubah.
-Snapshot drizzle sudah memuat `memory`; jurnal `m00–m49`
-(`m48` + repair `m49=20261002082455_icy_meggan`, idempotent
-`IF NOT EXISTS`).
+```ts
+// packages/core/src/research/constraints.ts (BARU)
+export type TravelMode = "driving"|"walking"|"transit";
+export interface Constraints { anchor?: string; radiusKm: number; must: string[]; transitLine?: string; transitWalkKm?: number; travelMode: TravelMode; }
+// packages/core/src/research/transit.ts (BARU)
+export type Station = { name: string; latitude: number; longitude: number };
+// research.ts (perluasan aditif, semua optional):
+Candidate += { distanceM?: number; anchor?: string; travelMode?: TravelMode; travelMinutes?: number; verified?: Record<string,"yes"|"no"|"unknown">; checkedAt?: number; source?: "openstreetmap"|"web-search"|"scraped"; priceNote?: string; station?: string; }
+Search += { anchor?: string; radiusKm?: number; travelMode?: TravelMode; must?: string[]; transitLine?: string; }
+SearchOut += { anchor?: {name:string;latitude:number;longitude:number}; stations?: Station[]; limitations: string[]; checkedAt: number; }
+// maps/search.ts: Place += { distanceM?: number }; PlaceQuery += { anchor?: Geo.Point|string; radiusKm?: number };
+```
 
 ## [Files]
 
-BARU (bila belum ada): `core/test/memory-repair.test.ts`
-(idempotency repair 2x + insert/select 1 row lalu hapus);
-`core/script/memory-backfill.ts` (baca `entries/*.md` via
-`fromMarkdown`, `INSERT OR IGNORE` dengan id vault asli agar sitasi
-`(memory:xxxxxxxx)` sama, output `{saved,skipped,errors}`).
+BARU (fork-owned): `packages/core/src/research/constraints.ts` (extractConstraints: carport/garasi→must, KRL-pattern→transitLine, `(\d)km`→radiusKm); `packages/core/src/research/transit.ts` (RANGKASBITUNG_STATIONS ~19 stasiun + nearestStation via haversine, cache KV `transit:stations:v1`); `packages/core/src/research/orchestrate.ts` (runDeep 9 langkah); `packages/core/src/tool/plugin/research-deep.ts` (tool research_deep, codemode:false, permission research.deep); `packages/core/test/research-honesty.test.ts` + `research-orchestrate.test.ts`; `packages/app/e2e/user-story/research-honesty.spec.ts`.
+
+MODIFIKASI: `research.ts:11-16,24-43` (schema+webResult/placeCandidate/mapsQuery pakai lokasi+honestyLimitations); `maps/search.ts:72-164` (anchor resolve+within+distanceM); `maps/osm.ts:33-79` (near dari anchor); `jobs.ts:8,22-28` (fallback web ber-lokasi, no ToolFailure buta); `maps.ts` plugin (anchor/radius_m, hapus GEMINI_*); `classifier/engine.ts:41-119` (rankedChoice terima geoScores opsional); `builtins.ts:95-108` (pipeline 6 langkah wajib+tabel+map_show); `contract.ts` (tabel+unknown); `tool-renderer.tsx` + `maps-output.tsx` (kolom Jarak/Waktu/Stasiun+badge verified); `research-providers.tsx` (helper jujur). OSM-ONLY: hapus `maps/google.ts` (jadi shim throw), `settings.ts`+`usage.ts` (sisa osm), `protocol/groups/maps.ts`+`server/handlers/maps.ts` (status osm-only), `maps.tsx` (hapus section key), `en.ts` keys google*, test maps. `links.ts` TETAP (keyless URLs).
+
+HAPUS: `maps/google.ts` (shim), config Gemini. Session/DB/vault tidak disentuh.
 
 ## [Functions]
 
-BARU: `repair.up(tx)` (dua `tx.run` idempotent; signature sama seperti migrasi `project_time_active`), `backfillVaultToDb(vaultDir)` (`readdir entries/*.md` → `fromMarkdown` → `INSERT OR IGNORE` → `{saved, skipped, errors}`). MODIFIKASI: tidak ada fungsi existing diubah. HAPUS: tidak ada.
+BARU: `extractConstraints()`, `nearestStation()`, `runDeep()`, `verifyAttributes(urls,must[])` via UltimateScrape.run, `honestyLimitations()`, `formatCheckedAt()`. MODIFIKASI: `webResult()`, `placeCandidate()`, `mapsQuery()`, `research_search` executor, `MapsSearch.places()`, Jobs executor, `rankedChoice()`. HAPUS: `MapsGoogle.places/ask/test/generate`, `MapsUsage.*` quota, `MapsSettings` google-branch.
 
 ## [Classes]
 
-Tidak ada class baru/diubah/dihapus. Registrasi tetap: `MemoryStore.Service`, `MemoryInstructions`, `Scraper`, `Classifier.Service`, tools, Settings, cards.
+Tidak ada class baru/diubah/dihapus (fungsi + Service existing: Memory/Service, Scraper, Classifier, SettingsScrape/Memory, ScrapeToolOutput/MemoryToolOutput tetap).
 
 ## [Dependencies]
 
-Tidak tambah/ubah dependency. `bun 1.4.2`, `drizzle-kit v0.31.11` via catalog, `gray-matter` reuse, `sqlite3` CLI, `uvx` cache reuse. Tanpa download browser baru.
+Nol dependency baru. Reuse UltimateScrape (camofox-python default, scrapling/webfetch fallback), OSM (Nominatim/Photon/OSRM/Overpass/Wikimedia), links.ts keyless. Tanpa API berbayar. Catatan: situs besar bisa rate-limit → chain stealth + pesan jujur bila semua tier gagal.
 
 ## [Testing]
 
-- Unit: `memory-repair.test.ts` (baru, idempotency), `database-migration.test.ts` (pola `applyOnly`/rollback), `memory-import/vault/recall`, `scrape-plan` (4), `loop-guard` (5), `response-contract` (2), `research-tool`, `laya-spatial`, `model.test.ts` (3).
-- Schema check: `bun run migration --check` EXIT 0; diff hanya `memory` + `m49`.
-- Typecheck `core/app/app:e2e` EXIT 0; lint scoped rerun. E2E tidak rerun penuh (UI tidak berubah; acuan 4 passed mock-only).
-- Deploy `pipeline.ps1`: `install→appbuild→clibuild→smoke→canary 4097` (240s gate, port bersih) → `promote 4096` (backup `.bak-<stamp>`, `PROD HTTP=200`).
-- Prod verify: `200`, hanya 4096 listen, exe = `dist`, `migration` = 50 rows, `.tables` ada `memory`, `memory` = 576 rows, siklus save→search→forget, recall ≤4KB + cites, `scrape_status` read-only. Rollback: exe `.bak-*`, snapshot parent, tag lama.
-- Git/publish (SSH `git@github-pribadi`): `fetch` → `commit-tree TREE(v1-ux-restore) -p FETCH_HEAD -m "release: $(cat FORK_VERSION)"` (ifkmldk-only) → `push --no-verify` → tag `-a fork-v2.0.15-fork.4` + push → `ls-remote` bukti.
+Unit `bun test`: lokasi dipakai, anchor+radius (jauh dibuang), must=[carport]→unknown/buang, koridor 1km walk, rank deterministik, grep tidak ada import google/gemini. Typecheck core/app/app:e2e/ui/session-ui/protocol/client EXIT 0; lint scoped 0. E2E mock-only (3107/4998): research-honesty.spec.ts baru + existing tetap pass. Live di session BARU: 3 kasus vs jawaban lama; wajib tabel+jarak+badge+map_show.
 
 ## [Implementation Order]
 
-1. Regen schema (`bun run migration`) → verifikasi diff → `--check` EXIT 0.
-2. Tulis repair `m49` + daftar di `migration.gen.ts` + unit repair.
-3. Bump fork.4 + changelog + hooks + docs note.
-4. QA (unit + typecheck + lint + `git status/diff`).
-5. Pipeline (`install/appbuild/clibuild/smoke/canary/promote`).
-6. Verifikasi `memory` + backfill 576 + siklus save→search→forget + recall + `scrape_status`.
-7. Publish SSH (snapshot + push + tag + `ls-remote`).
-8. Kabar prod final per fitur + yang belum jujur + rollback.
-
-
-## [Appendix E — research_deep + scraper-first + OSM-only (paket fork.5, disetujui user)]
-
-Keputusan user terkunci: (1) carport=filter keras `must=["carport"]`;
-(2) loker=koridor Line KRL Rangkasbitung, kantor ≤1 km jalan kaki dari stasiun;
-(3) boleh tool baru `research_deep`, semua tools sync via 1 orkestrasi;
-(4) no-API wajib, scraper (camofox-python/scrapling/webfetch) sumber data utama;
-(5) buang config GMaps/Gemini total, full OSM + workaround keyless
-(foto/rating/review/jam/telpon hanya bila ada di OSM/Wikimedia atau hasil scrape
-berattribusi, else "unknown"/"tidak tersedia" — tidak pernah ngarang).
-
-Status fondasi (terverifikasi, belum commit):
-- `packages/core/src/research/constraints.ts` — `extractConstraints(query,location)`:
-  carport/garasi→`must`, KRL line→`transitLine`, `N km`→`radiusKm`, anchor dari location.
-- `packages/core/src/research/transit.ts` — `RANGKASBITUNG_STATIONS` (~19 stasiun
-  Tanah Abang→Rangkasbitung) + `nearestStation()` haversine.
-- `packages/core/src/research/orchestrate.ts` — `runDeep(deps)`:
-  extract→anchor→parallel search→within/koridor→matrix→scrape-verify→rank→SearchOut.
-- `packages/core/src/tool/plugin/research-deep.ts` — tool `research_deep`
-  (`codemode:false`, permission `research.deep`), DeepInput/DeepOutput lokal
-  (tidak import lintas-file agar typecheck tidak pecah).
-- `packages/core/test/research-honesty.test.ts` — 6 kasus hijau
-  (carport keras, koridor 1km, nearest Serpong, source/checkedAt/priceNote,
-  limitations jujur, orkestrasi buang-jauh + buang-tanpa-bukti).
-- `research.ts` — `Candidate/Search/SearchOut` diperluas (aditif, optional semua) +
-  `webResult/placeCandidate` bawa `source/checkedAt/priceNote` + `honestyLimitations()`.
-- `jobs.ts` — tanpa `OPENCODE_JOBS_API_URL` → fallback web-search ber-lokasi
-  (`lowongan <query> <location>`, `provider:"web-search", fallback:true`).
-- `plugin/internal.ts` — `ResearchDeep.Plugin` terdaftar.
-- `core typecheck` hijau; 14 pass (honesty 6 + research-tool 5 + laya 3).
-
-Sisa Order fork.5 (belum dikerjakan — butuh mode Act lanjutan):
-1. `maps/search.ts` anchor/within/`distanceM` + `rankedChoice(geoScores?)`.
-2. OSM-only removal (`google.ts`→shim/hapus, `settings.ts`/`usage.ts`,
-   `tool/plugin/maps.ts`, `settings/maps.tsx`, i18n google-keys, test maps) —
-   `grep MapsGoogle|GEMINI_|google-maps-gemini` harus kosong. `links.ts` TETAP (keyless URLs).
-3. Workaround rich-info (`enrich.ts` + `verifyAttributes` + transit link keyless) +
-   kontrak prompt (`builtins.ts` + `contract.ts`) + kartu UI + settings text.
-4. QA penuh + E2E mock `research-honesty.spec.ts` + live 3 kasus di session BARU.
-5. Docs + `FORK_VERSION→2.0.15-fork.5` + commit + snapshot publish + tag + pipeline bila disetujui.
-
-## [Appendix D — 2026-10-02 malam: session error semua → sembuh]
-
-Gejala: Brave app window bisa dibuka, tapi daftar session kosong/error, dan teks
-"Check devtools for provider" (teks itu tidak ada di kode fork — kemungkinan toast
-upstream/console, bukan error fork).
-
-Root cause (terverifikasi, bukan tebakan): DB channel BARU
-`opencode-v1-ux-restore.db` masih kosong (`project=1`, `session_v2=0`,
-`session_message=0`), sementara 12 session lama hidup di DB channel LAMA
-`opencode-custom-main.db` (`project=16`, `session_v2=12`, `session_message=493`).
-Binary prod dibuild tanpa `OPENCODE_CHANNEL` eksplisit sehingga channel default =
-branch git saat build (`v1-ux-restore`) → `database-path.ts:4-12` → file DB baru.
-Auth + provider + model + agent semuanya sehat (`200`), jadi bukan masalah auth/model.
-
-Perbaikan (tanpa ubah kode, tanpa hapus data):
-- Backup: `opencode-v1-ux-restore.db.bak-20261002-sessionfix` +
-  `opencode-custom-main.db.bak-20261002-sessionfix`. DB lama read-only selamanya.
-- Migrasi offline via `bun:sqlite` (server stop dulu, WAL aman):
-  15 projects + 12 sessions + 493 messages disalin (`INSERT` skip-bila-ada,
-  id dipertahankan, `project_id` tetap valid karena semua project ikut disalin).
-  Hasil: `project=16`, `session_v2=12`, `session_message=493`, `memory=576`,
-  `migration=50`, `PRAGMA foreign_key_check` bersih.
-- Restart via launcher (password `service.json`, sudah benar sejak fix auth).
-  Server baru pid 33868, `GET /` → `200`.
-
-Verifikasi live (auth `service.json`):
-- `/api/project` → `200`, 16 projects.
-- `/api/session?directory=infokes-project` → `200`, 6 sessions
-  (Loker Tangerang, Reply Assisstant, Test Annotate, Cari Hotel BSD + 2 untitled).
-- `/api/session?directory=.Apply` → `200`, 2 sessions (Sociolla + Side chat).
-- `/api/session/ses_f0f7280ebffeOwuAipr1z46C0N/message` → `200`, 50 items
-  (idle + assistant `opencode-9router`, dst).
-- `/api/provider|model|agent` → `200` semua.
-- Cara buka di UI: pilih project sesuai direktori di atas (bukan `C:/Users/fadhi`
-  yang memang `count=0`), atau buka langsung URL session lama — id dipertahankan.
-- Rollback: restore `*.bak-20261002-sessionfix` + restart; DB lama tidak tersentuh.
-
-
-Status: kode fork.4 DONE + idempotent (`fd22004e50`), TAPI belum
-- Remote `fork/main` masih `e881dc04` (fork.3); tag `fork-v2.0.15-fork.4` belum ada.
-- Pipeline macet: `pipeline.log` hanya `PHASE START appbuild/clibuild/smoke/canary/promote`
-  tanpa `PHASE OK/FAIL` setelah 15:32:08; `appbuild.log` mentok di `transforming...`;
-  `clibuild.log` hanya warning CSS; `smoke/canary/promote.log` kosong (0 bytes).
-  `packages/app/dist` masih 06:59 (build lama). Exe prod masih 07:00:34.
-  Penyebab: run pipeline berulang tumpang-tindih (15:32, 15:40, 15:41, 15:44)
-  berebut `dist` yang sama + vite build lambat + wrapper tool timeout 30s
-  memutus pemantau sementara child build jalan, sisa lock menggantung.
-  Prod pid 19620 (13:59) sehat `200`, DB `migration` 49 rows, tabel `memory` tetap hilang.
-- Repair `20261002082455_icy_meggan` sudah idempotent (`IF NOT
-  EXISTS`, commit `fd22004e50`) — aman rerun; jangan ubah lagi.
-
-Unblock (tanpa ubah flow/UI): kill build nyangkut → 1x run sekuensial
-`install→appbuild→clibuild→smoke→canary→promote` dengan pantau log (bukan timeout 30s),
-verifikasi `dist` timestamp baru + `PROD HTTP=200` + `memory` ada + backfill 576,
-baru snapshot+tag fork.4 via SSH + kabar prod. Rollback: exe `.bak-*` + parent `4ca27927`.
-
+1. constraints.ts + fix buang-lokasi + jobs fallback. 2. transit.ts + search.ts anchor/within/distanceM. 3. orchestrate.ts + research-deep.ts + verifyAttributes. 4. OSM-only removal + rich-info workaround. 5. Kontrak prompt + kartu UI + settings. 6. Unit+typecheck+lint+E2E mock + live 3 kasus. 7. Docs + commit (bump bila skema berubah).

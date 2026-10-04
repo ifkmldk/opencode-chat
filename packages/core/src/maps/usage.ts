@@ -1,80 +1,63 @@
 export * as MapsUsage from "./usage.js"
 
-import { Effect, Option, Schema } from "effect"
+import { Effect } from "effect"
 import { KV } from "../kv.js"
 
-// fork: the daily guard for grounded Google Maps requests. The Gemini free tier allows 500 per day (Pacific
-// time); stopping at 450 means an answer never fails halfway on a 429, and the tools answer from OpenStreetMap
-// instead. Settings live in KV so the owner can change them from Settings → Maps.
+// fork: OSM-only (Google/Gemini removed — no key, never billed). Guard quota tidak
+// lagi dipakai; fungsi dipertahankan agar import lama tidak pecah (selalu lolos OSM).
 
-export const FREE_DAILY = 500
-export const MAX_LIMIT = 450
+export const FREE_DAILY = 0
+export const MAX_LIMIT = 0
 
 export type Settings = {
-  /** Use Google Maps data (via Gemini) when a key is configured. */
+  /** Google dinonaktifkan permanen (OSM-only). */
   readonly googleEnabled: boolean
-  /** The owner confirmed the key's project shows "Billing Tier: Free" in AI Studio. Google stays off until then. */
+  /** Tidak dipakai lagi (OSM-only). */
   readonly confirmedFree: boolean
-  /** Grounded requests allowed per Pacific day, at most MAX_LIMIT. */
+  /** Tidak dipakai lagi (OSM-only). */
   readonly dailyLimit: number
-  /** Use the free OpenStreetMap services (search fallback, routing, POIs). */
+  /** Use the free OpenStreetMap services (search, routing, POIs). */
   readonly osmEnabled: boolean
 }
 
-const defaults: Settings = { googleEnabled: true, confirmedFree: false, dailyLimit: MAX_LIMIT, osmEnabled: true }
+const defaults: Settings = { googleEnabled: false, confirmedFree: false, dailyLimit: 0, osmEnabled: true }
 const settingsKey = "maps:settings:v1"
 const usageKey = (day: string) => `maps:usage:v1:${day}`
 const exhaustedKey = (day: string) => `maps:exhausted:v1:${day}`
 
-const Stored = Schema.Struct({
-  googleEnabled: Schema.optional(Schema.Boolean),
-  confirmedFree: Schema.optional(Schema.Boolean),
-  dailyLimit: Schema.optional(Schema.Number),
-  osmEnabled: Schema.optional(Schema.Boolean),
-})
-const decodeStored = Schema.decodeUnknownOption(Stored)
-
 export const settings = Effect.fn("MapsUsage.settings")(function* (kv: KV.Interface) {
-  const stored = decodeStored(yield* kv.get(settingsKey))
-  return normalize({ ...defaults, ...(Option.isSome(stored) ? stored.value : {}) })
+  void kv
+  return defaults
 })
 
-export const update = Effect.fn("MapsUsage.update")(function* (kv: KV.Interface, patch: Partial<Settings>) {
-  const next = normalize({ ...(yield* settings(kv)), ...patch })
-  yield* kv.set(settingsKey, next)
-  return next
+export const update = Effect.fn("MapsUsage.update")(function* (kv: KV.Interface, _patch: Partial<Settings>) {
+  void kv
+  return defaults
 })
 
-export const used = Effect.fn("MapsUsage.used")(function* (kv: KV.Interface, now = new Date()) {
-  const value = yield* kv.get(usageKey(pacificDay(now)))
-  return typeof value === "number" && Number.isFinite(value) ? value : 0
+export const used = Effect.fn("MapsUsage.used")(function* (kv: KV.Interface, _now = new Date()) {
+  void kv
+  return 0
 })
 
-/** Why Google can't be used right now, or undefined when a grounded request may be sent. */
-export const blocked = Effect.fn("MapsUsage.blocked")(function* (kv: KV.Interface, now = new Date()) {
-  const current = yield* settings(kv)
-  if (!current.googleEnabled) return "disabled" as const
-  if (!current.confirmedFree) return "unconfirmed" as const
-  if ((yield* used(kv, now)) >= current.dailyLimit) return "daily_limit" as const
-  if (yield* exhausted(kv, now)) return "daily_limit" as const
+/** OSM-only: Google tidak pernah dipakai, jadi tidak pernah blocked. */
+export const blocked = Effect.fn("MapsUsage.blocked")(function* (kv: KV.Interface, _now = new Date()) {
+  void kv
   return undefined
 })
 
-/** Google said its free quota is gone today (429 on every free model), whatever our own count says. */
-export const exhausted = Effect.fn("MapsUsage.exhausted")(function* (kv: KV.Interface, now = new Date()) {
-  return (yield* kv.get(exhaustedKey(pacificDay(now)))) === true
+export const exhausted = Effect.fn("MapsUsage.exhausted")(function* (kv: KV.Interface, _now = new Date()) {
+  void kv
+  return false
 })
 
-export const markExhausted = Effect.fn("MapsUsage.markExhausted")(function* (kv: KV.Interface, now = new Date()) {
-  yield* kv.set(exhaustedKey(pacificDay(now)), true)
+export const markExhausted = Effect.fn("MapsUsage.markExhausted")(function* (kv: KV.Interface, _now = new Date()) {
+  void kv
 })
 
-/** Counts one grounded request before it is sent, so failed attempts are counted too. */
-export const record = Effect.fn("MapsUsage.record")(function* (kv: KV.Interface, now = new Date()) {
-  const key = usageKey(pacificDay(now))
-  const next = (yield* used(kv, now)) + 1
-  yield* kv.set(key, next)
-  return next
+export const record = Effect.fn("MapsUsage.record")(function* (kv: KV.Interface, _now = new Date()) {
+  void kv
+  return 0
 })
 
 export function pacificDay(now: Date) {
