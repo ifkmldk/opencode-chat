@@ -49,7 +49,7 @@ export function extractConstraints(query: string, location?: string): Constraint
   // ("sudirman"→Jl. Sudirman Bandung bila bandung disebut, "bsd"→BSD Tangerang Selatan,
   //  "stasiun X"→nama stasiun). Tanpa ini "kontrakan daerah sudirman" kehilangan anchor.
   // Mode koridor transit tidak pakai anchor (radius diukur dari tiap stasiun, bukan 1 titik).
-  const anchor = location?.trim() || anchorFromQuery(query, transitLine)
+  const anchor = location?.trim() || anchorFromQuery(query, location, transitLine)
   const travelMode: TravelMode = transitLine ? "walking" : "driving"
   return {
     ...(anchor ? { anchor } : {}),
@@ -64,10 +64,10 @@ export function extractConstraints(query: string, location?: string): Constraint
 // Hati-hati: jangan potong kata (regex non-greedy "KR" dari "KRL" pernah lolos);
 // ambil hingga 4 kata lalu buang stopwords. Bila koridor transit terdeteksi,
 // anchor dikosongkan (mode koridor tidak pakai anchor).
-function anchorFromQuery(query: string, transitLine?: string): string | undefined {
+function anchorFromQuery(query: string, location: string|undefined, transitLine?: string): string|undefined {
   if (transitLine) return undefined
   const q = query.toLowerCase()
-  const bandung = /bandung/.test(q)
+  const bandung = /bandung/.test(q) || (location ?? "").toLowerCase().includes("bandung")
   if (/sudirman/.test(q)) return bandung || /jl\.?\s*sudirman/.test(q) ? "Jl. Sudirman, Bandung" : "Jl. Sudirman, Jakarta"
   const bsd = q.match(/\bbsd\b|bumi\s*serpong\s*damai|serpong/)
   if (bsd) return "BSD, Tangerang Selatan"
