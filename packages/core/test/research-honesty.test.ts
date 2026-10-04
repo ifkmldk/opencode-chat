@@ -85,20 +85,28 @@ describe("research_deep orchestration", () => {
     expect(out.limitations.join(" ")).toContain("Must-have keras: carport")
   })
 
-  test("job category uses web fallback instead of empty map results", async () => {
+  test("job corridor keeps only candidates within 1km of a station", async () => {
     const deep = runDeep({
-      searchPlaces: () => Effect.succeed({ provider: "openstreetmap", places: [] }),
+      searchPlaces: ({ query }: { query: string; limit: number }) =>
+        Effect.succeed({
+          provider: "openstreetmap",
+          places: query.includes("Serpong")
+            ? [{ id: "geo-serpong", name: "Serpong", address: "Serpong", latitude: -6.3211, longitude: 106.6697, url: "https://osm.org/serpong", source: "openstreetmap" as const }]
+            : [],
+        }),
       searchJobs: () =>
         Effect.succeed({
           results: [
             { url: "https://jobs.test/a", title: "Data Analyst — Serpong", content: "Lowongan data analyst dekat Stasiun Serpong" },
+            { url: "https://jobs.test/b", title: "Data Analyst — Medan", content: "Lowongan data analyst di Medan, jauh dari koridor" },
           ],
         }),
       scrape: () => Effect.succeed({ text: "", source: "none" }),
     })
     const out = await Effect.runPromise(deep({ query: "data analyst", category: "job", transitLine: "KRL Rangkasbitung" }))
-    expect(out.providers[0]!.provider).toBe("web-search")
     expect(out.candidates.map((c) => c.id)).toEqual(["https://jobs.test/a"])
-    expect(out.limitations.join(" ")).toContain("No structured jobs provider")
+    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
+    expect((out.candidates[0] as unknown as { distanceM?: number }).distanceM).toBe(0)
+    expect(out.limitations.join(" ")).toContain("Koridor KRL Rangkasbitung")
   })
 })
