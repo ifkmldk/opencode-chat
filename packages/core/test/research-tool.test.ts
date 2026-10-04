@@ -30,28 +30,25 @@ describe("research classifier", () => {
   })
 })
 
-// fork: place, hotel and event research without a provider comes from Maps.
+// fork: place, hotel and event research without a provider comes from Maps (OSM-only).
 describe("research from maps", () => {
-  test("maps places become candidates with rating, hours and a Google Maps link", () => {
+  test("maps places become candidates with hours and a Google Maps link", () => {
     const candidate = __test.placeCandidate(
       {
-        id: "ChIJabc",
+        id: "n123",
         name: "Hotel Santika BSD",
         address: "Jl. Pahlawan Seribu, BSD",
         latitude: -6.3,
         longitude: 106.66,
         category: "Hotel",
-        rating: 4.5,
-        ratingCount: 3210,
-        priceLevel: "$$",
         openNow: true,
         hoursToday: "Open 24 hours",
         googleMapsUrl: "https://maps.google.com/?cid=1",
-        source: "google",
+        source: "openstreetmap",
       },
       "hotel",
     )
-    expect(candidate).toMatchObject({ id: "ChIJabc", provider: "google-maps", rating: 4.5, reviewCount: 3210, url: "https://maps.google.com/?cid=1" })
+    expect(candidate).toMatchObject({ id: "n123", provider: "openstreetmap", url: "https://maps.google.com/?cid=1" })
     expect(candidate.summary).toContain("open now")
     expect((candidate.details as { latitude: number }).latitude).toBe(-6.3)
   })

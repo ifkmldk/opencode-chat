@@ -34,8 +34,10 @@ export const ResearchProvidersSetting: Component = () => {
   const env = "rounded bg-v2-background-bg-layer-02 px-1.5 py-0.5 font-mono text-10-regular text-v2-text-text-faint"
   const hint = "text-11-regular text-v2-text-text-faint"
 
-  // fork: collapsed by default. Nobody needs these endpoints (research uses web search and Maps on its own), and
-  // open they read like required API keys; the Google Maps key lives in Settings → Maps.
+  // fork: collapsed by default. Tanpa API key pun research jalan (OSM + scraper-first
+  // via research_deep: OSM geocode, filter radius/koridor, scrape-verify atribut).
+  // Endpoint custom di bawah opsional untuk listing live; yang scraper butuhkan
+  // (Mamikos/Rukita/Jobstreet/dll) tidak perlu API key.
   return (
     <div class="mt-6" data-action="settings-research-providers">
       <h4 class="text-13-medium leading-[var(--line-height-compact)] text-v2-text-text-base">

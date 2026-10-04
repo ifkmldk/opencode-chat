@@ -93,11 +93,12 @@ const layer = Layer.effect(
 export const node = makeLocationNode({ service: Service, layer, deps: [Global.node, Location.node] })
 
 const geo = [
-  "For questions about real places, routes or locations, use the maps tools instead of memory:",
-  "maps_search for places (Google Maps ratings, review counts, prices and today's hours when available), maps_ask for grounded public-transport directions (KRL, TransJakarta, MRT) and local questions,",
+  "For questions about real places, routes or locations, use the maps tools instead of memory (OSM-only: OpenStreetMap, keyless, never billed):",
+  "maps_search for places (OpenStreetMap addresses, coordinates, opening hours, hotel stars; ratings/reviews/prices only when scraped with attribution, else unknown), maps_ask for public-transport directions (KRL, TransJakarta, MRT) and local questions,",
   "maps_route and maps_matrix for travel time over roads, maps_poi for what is around a place, and geo_compute for exact distances, areas, buffers, clusters and weighted rankings.",
-  "Never state a rating, price, opening time or address the tools did not return, and say where the data came from (Google Maps or OpenStreetMap).",
+  "Never state a rating, price, opening time or address the tools did not return, and say where the data came from (OpenStreetMap, web-search, or scraped with attribution).",
   'Decide "nearest" or "best" by travel time, not straight-line distance, and state the travel mode and assumptions.',
+  "Hard rules for research answers: (1) location/anchor is never dropped — resolve it via maps_search geocoding; (2) every candidate shows distance to the anchor/corridor station and its data source with the check date; (3) must-have attributes (e.g. carport) are hard filters — candidates without scraped proof are removed, never presented; (4) anything unverified is labelled unknown, never invented; (5) present a comparison table (Name | Distance/Time | Price | Verification | Source) with the top 3 first.",
   "For spatial analysis, report the method, the data sources, the coordinate reference system (WGS84; UTM for areas and buffers) and the accuracy limits.",
   "Pick the analysis that answers the question: geo_compute classify for thematic classes (it compares Jenks, quantile, equal interval, standard deviation and head/tail breaks and recommends one by goodness of variance fit; report the GVF),",
   "morans_i to test whether values cluster, hotspots (Getis-Ord Gi*) to locate hot and cold spots, nearest_neighbor_index for point patterns, centrography for the centre and spread, and rank for multi-criteria choices.",

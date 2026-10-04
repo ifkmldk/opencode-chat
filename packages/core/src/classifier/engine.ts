@@ -101,21 +101,36 @@ export function stateRanking(state: unknown) {
   return nested?._tag === "Some" ? nested.value.ranking : undefined
 }
 
-export function rankedChoice(ranking: ReturnType<typeof stateRanking>, criteria: readonly string[]) {
+export function rankedChoice(
+  ranking: ReturnType<typeof stateRanking>,
+  criteria: readonly string[],
+  geoScores?: Record<string, number>,
+) {
   if (!ranking?.length) return
   const matches = (entry: (typeof ranking)[number], criterion: string) =>
     [entry.name, entry.id].some((label) => label?.toLowerCase() === criterion.toLowerCase())
+  // fork: research_deep geo blend — bila orchestrate menyertakan skor geo (jarak/waktu
+  // dinormalisasi 0..1 per kandidat id/name), gabung 0.6*rank + 0.4*geo agar yang dekat
+  // menang. Tanpa geoScores perilaku lama dipertahankan (backward-compat).
   const scored = ranking
     .filter((entry) => !criteria.length || criteria.some((criterion) => matches(entry, criterion)))
-    .toSorted((a, b) => b.score - a.score)
+    .map((entry) => {
+      const key = entry.name ?? entry.id ?? ""
+      const geo = geoScores?.[key] ?? geoScores?.[key.toLowerCase()] ?? undefined
+      const blended = typeof geo === "number" && Number.isFinite(geo) ? entry.score * 0.6 + Math.max(0, Math.min(1, geo)) * 0.4 : entry.score
+      return { entry, blended }
+    })
+    .toSorted((a, b) => b.blended - a.blended)
+    .map(({ entry }) => entry)
   const best = scored[0]
   if (!best) return
   const decision = criteria.find((criterion) => matches(best, criterion)) ?? best.name ?? best.id ?? "No confident choice"
   const margin = best.score - (scored[1]?.score ?? 0)
+  const geoNote = geoScores ? " Geo-blended (0.6 rank + 0.4 proximity)." : ""
   return {
     decision,
     confidence: Math.min(1, 0.5 + margin),
-    rationale: `Top score ${best.score.toFixed(3)} in the supplied ranking (margin ${margin.toFixed(3)} over runner-up). Deterministic mode.`,
+    rationale: `Top score ${best.score.toFixed(3)} in the supplied ranking (margin ${margin.toFixed(3)} over runner-up). Deterministic mode.${geoNote}`,
   }
 }
 

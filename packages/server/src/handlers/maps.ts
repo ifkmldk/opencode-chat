@@ -5,7 +5,8 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { response } from "../location"
 
-// fork: Settings → Maps. See packages/core/src/maps/{settings,usage}.ts for the free-tier guard.
+// fork: Settings → Maps. OSM-only (see packages/core/src/maps/settings.ts). The key test
+// is kept for compatibility and always reports OSM readiness.
 export const MapsHandler = HttpApiBuilder.group(Api, "server.maps", (handlers) =>
   Effect.gen(function* () {
     return handlers

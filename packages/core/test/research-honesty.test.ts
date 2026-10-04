@@ -41,6 +41,29 @@ describe("research honesty", () => {
   })
 })
 
+describe("research_deep live probes (network, no quota)", () => {
+  const live = process.env.OPENCODE_LIVE_PROBE === "1" ? test : test.skip
+  live("sudirman anchor resolves + rental search returns nearby candidates", async () => {
+    const { MapsOsm } = await import("../src/maps/osm.js")
+    const center = await MapsOsm.geocode("Jl. Sudirman, Bandung")
+    expect(center?.latitude).toBeGreaterThan(-7.5)
+    const rows = await MapsOsm.search("kontrakan", {
+      limit: 5,
+      near: { latitude: center!.latitude, longitude: center!.longitude },
+    })
+    expect(rows.length).toBeGreaterThan(0)
+  }, 60_000)
+  live("BSD hotel search returns candidates", async () => {
+    const { MapsOsm } = await import("../src/maps/osm.js")
+    const center = await MapsOsm.geocode("BSD, Tangerang Selatan")
+    const rows = await MapsOsm.search("hotel", {
+      limit: 5,
+      near: { latitude: center!.latitude, longitude: center!.longitude },
+    })
+    expect(rows.length).toBeGreaterThan(0)
+  }, 60_000)
+})
+
 describe("research_deep orchestration", () => {
   test("corridor drops far places, hard must drops unverified", async () => {
     const deep = runDeep({
