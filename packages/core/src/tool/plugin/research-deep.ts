@@ -10,6 +10,7 @@ import { Permission } from "../../permission.js"
 import { MapsSearch } from "../../maps/search.js"
 import { runDeep } from "../../research/orchestrate.js"
 import { UltimateScrape } from "../../scrape/engine.js"
+import { WebSearch } from "../../websearch.js"
 import { extractTextFromHTML } from "./webfetch.js"
 
 const Cats = ["job", "hotel", "flight", "product", "youtube", "place", "event", "course", "service", "other"] as const
@@ -36,9 +37,12 @@ const DeepCandidate = Schema.Struct({
   summary: Schema.optional(Schema.String),
   distanceM: Schema.optional(Schema.Number),
   anchor: Schema.optional(Schema.String),
+  travelMode: Schema.optional(Schema.Literals(["driving", "walking", "transit"] as const)),
+  travelMinutes: Schema.optional(Schema.Number),
   verified: Schema.optional(Schema.Record(Schema.String, Schema.Literals(["yes", "no", "unknown"] as const))),
   checkedAt: Schema.optional(Schema.Number),
-  source: Schema.optional(Schema.String),
+  source: Schema.optional(Schema.Literals(["openstreetmap", "web-search", "scraped"] as const)),
+  priceNote: Schema.optional(Schema.String),
   station: Schema.optional(Schema.String),
 })
 const DeepOutput = Schema.Struct({
@@ -57,21 +61,11 @@ export const Plugin = {
     const permission = yield* Permission.Service
     const kv = yield* KV.Service
     const http = yield* HttpClient.HttpClient
+    const websearch = yield* WebSearch.Service
     const guard = (action: string, resources: string[], c: Tool.Context) =>
       permission
         .assert({ action, resources, sessionID: c.sessionID, agent: c.agent, source: { type: "tool", messageID: c.messageID, id: c.id } })
         .pipe(Effect.mapError((error) => new ToolFailure({ message: `Research permission denied: ${error.message}`, error })))
-    const deep = runDeep({
-      searchPlaces: ({ query, near, limit }: { query: string; near?: string; limit: number }) =>
-        MapsSearch.make(ctx, kv)
-          .places({ query, ...(near ? { near } : {}), limit })
-          .pipe(Effect.map((found) => ({ provider: found.provider, places: found.places }))),
-      scrape: (url: string) =>
-        UltimateScrape.run(http, { url, mode: "stealth" }).pipe(
-          Effect.map((out) => ({ text: extractTextFromHTML(out.output), source: out.engine })),
-          Effect.orElseSucceed(() => ({ text: "", source: "none" })),
-        ),
-    })
     yield* ctx.tool.transform((editor) =>
       editor.add({
         name: "research_deep",
@@ -83,6 +77,25 @@ export const Plugin = {
         execute: (input, c) =>
           Effect.gen(function* () {
             yield* guard("research.deep", [input.query], c)
+            // fork: built per-execution so searchJobs uses the calling session, not a stale id.
+            const deep = runDeep({
+              searchPlaces: ({ query, near, limit }: { query: string; near?: string; limit: number }) =>
+                MapsSearch.make(ctx, kv)
+                  .places({ query, ...(near ? { near } : {}), limit })
+                  .pipe(Effect.map((found) => ({ provider: found.provider, places: found.places }))),
+              scrape: (url: string) =>
+                UltimateScrape.run(http, { url, mode: "stealth" }).pipe(
+                  Effect.map((out) => ({ text: extractTextFromHTML(out.output), source: out.engine })),
+                  Effect.orElseSucceed(() => ({ text: "", source: "none" })),
+                ),
+              searchJobs: (jobInput: { query: string; limit: number }) =>
+                websearch
+                  .query({ query: `lowongan ${jobInput.query}` }, { sessionID: c.sessionID })
+                  .pipe(
+                    Effect.map((web) => ({ results: web.results.slice(0, jobInput.limit) })),
+                    Effect.orElseSucceed(() => ({ results: [] as { url: string; title?: string; content?: string }[] })),
+                  ),
+            })
             const output = yield* deep({
               query: input.query,
               category: input.category,

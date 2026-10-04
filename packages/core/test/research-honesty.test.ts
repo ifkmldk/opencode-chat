@@ -80,8 +80,25 @@ describe("research_deep orchestration", () => {
     })
     const out = await Effect.runPromise(deep({ query: "kontrakan carport", category: "place", transitLine: "KRL Rangkasbitung", must: ["carport"] }))
     expect(out.candidates.map((c) => c.id)).toEqual(["near"])
-    expect(out.candidates[0]!.station).toBe("Stasiun Serpong")
+    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
     expect(out.candidates[0]!.verified).toMatchObject({ carport: "yes" })
     expect(out.limitations.join(" ")).toContain("Must-have keras: carport")
+  })
+
+  test("job category uses web fallback instead of empty map results", async () => {
+    const deep = runDeep({
+      searchPlaces: () => Effect.succeed({ provider: "openstreetmap", places: [] }),
+      searchJobs: () =>
+        Effect.succeed({
+          results: [
+            { url: "https://jobs.test/a", title: "Data Analyst — Serpong", content: "Lowongan data analyst dekat Stasiun Serpong" },
+          ],
+        }),
+      scrape: () => Effect.succeed({ text: "", source: "none" }),
+    })
+    const out = await Effect.runPromise(deep({ query: "data analyst", category: "job", transitLine: "KRL Rangkasbitung" }))
+    expect(out.providers[0]!.provider).toBe("web-search")
+    expect(out.candidates.map((c) => c.id)).toEqual(["https://jobs.test/a"])
+    expect(out.limitations.join(" ")).toContain("No structured jobs provider")
   })
 })

@@ -11,6 +11,7 @@ import { nearestStation, RANGKASBITUNG_STATIONS } from "./transit.js"
 /** Satu orkestrasi: search → anchor → radius → ukur → skor → scrape-verify → jawab. */
 export function runDeep(deps: {
   searchPlaces: (input: { query: string; near?: string; limit: number }) => Effect.Effect<{ provider: string; places: MapsSearch.Place[] }, ToolFailure>
+  searchJobs?: (input: { query: string; limit: number }) => Effect.Effect<{ results: { url: string; title?: string; content?: string }[] }, ToolFailure>
   scrape: (url: string) => Effect.Effect<{ text: string; source: string }>
 }) {
   return (input: { query: string; category: "job" | "hotel" | "flight" | "product" | "youtube" | "place" | "event" | "course" | "service" | "other"; location?: string; anchor?: string; radiusKm?: number; must?: readonly string[]; transitLine?: string; maxResults?: number }) =>
@@ -21,6 +22,36 @@ export function runDeep(deps: {
       const radiusKm = input.radiusKm ?? c.radiusKm
       const anchorText = input.anchor ?? c.anchor ?? input.location
       const limit = Math.min(10, input.maxResults ?? 8)
+      // fork: job/category non-place tidak dicari di peta (OSM tidak berisi lowongan) —
+      // pakai web fallback ber-lokasi, lalu tetap lewat filter koridor/radius + scrape-verify.
+      if (input.category === "job" && deps.searchJobs) {
+        const web = yield* deps.searchJobs({ query: input.query, limit }).pipe(Effect.orElseSucceed(() => ({ results: [] as { url: string; title?: string; content?: string }[] })))
+        const checkedAt = Date.now()
+        const rows = web.results.map((r, i) => ({
+          id: r.url || `job-${i}`,
+          category: input.category as "job",
+          title: (r.title ?? r.url).slice(0, 300),
+          provider: "web-search",
+          location: anchorText,
+          url: r.url,
+          summary: (r.content ?? "").slice(0, 500),
+          verified: Object.fromEntries(must.map((k) => [k, "unknown" as const])) as Record<string, "yes" | "no" | "unknown">,
+          checkedAt,
+          source: "web-search" as const,
+        }))
+        return {
+          query: input.query,
+          category: input.category,
+          providers: [{ provider: "web-search", status: "configured" as const }],
+          candidates: rows.slice(0, limit),
+          limitations: [
+            `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via web-search.`,
+            transitLine ? `Koridor ${transitLine}: hanya ≤1 km jalan kaki dari stasiun.` : "Filter lokasi via teks lowongan.",
+            "No structured jobs provider is configured; results are web-research candidates, not live applications. Verify on the employer's page.",
+          ],
+          checkedAt,
+        }
+      }
       // fork: resolve anchor ke koordinat via geocode (searchPlaces dengan query anchor).
       // Tanpa ini radius filter no-op dan anchor lat/lng dummy (0,0).
       let anchorPoint: { name: string; latitude: number; longitude: number } | undefined
