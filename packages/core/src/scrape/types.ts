@@ -1,4 +1,4 @@
-export type ScrapeEngine = "webfetch" | "scrapling" | "camofox" | "scrapegraph" | "agent-reach" | "browser-proxy"
+export type ScrapeEngine = "webfetch" | "chromium" | "scrapling" | "camofox" | "scrapegraph" | "agent-reach" | "browser-proxy"
 
 export type ScrapeMode = "fast" | "stealth" | "ai" | "channels" | "auto"
 

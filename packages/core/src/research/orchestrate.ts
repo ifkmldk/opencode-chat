@@ -8,10 +8,19 @@ import { UltimateScrape } from "../scrape/engine.js"
 import { extractConstraints } from "./constraints.js"
 import { nearestStation, RANGKASBITUNG_STATIONS } from "./transit.js"
 
+/** Lower-case words of a place text that identify it (cities, areas); short words and generic terms are ignored. */
+export function locationTokens(text: string | undefined) {
+  if (!text) return []
+  const generic = new Set(["dekat", "sekitar", "area", "kota", "kabupaten", "daerah", "di", "yang", "dan", "jakarta"])
+  const words = text.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 3 && !generic.has(word))
+  const aliases: Record<string, string[]> = { tangsel: ["tangerang selatan", "serpong", "bsd", "alam sutra"], tangerang: ["tangsel", "serpong", "bsd", "alam sutra", "banten"], serpong: ["bsd", "tangsel", "tangerang"], bsd: ["serpong", "tangsel", "tangerang"] }
+  return [...new Set(words.flatMap((word) => [word, ...(aliases[word] ?? [])]))]
+}
+
 /** Satu orkestrasi: search → anchor → radius → ukur → skor → scrape-verify → jawab. */
 export function runDeep(deps: {
   searchPlaces: (input: { query: string; near?: string; limit: number }) => Effect.Effect<{ provider: string; places: MapsSearch.Place[] }, ToolFailure>
-  searchJobs?: (input: { query: string; limit: number }) => Effect.Effect<{ results: { url: string; title?: string; content?: string }[] }, ToolFailure>
+  searchJobs?: (input: { query: string; limit: number }) => Effect.Effect<{ results: { url: string; title?: string; content?: string }[]; error?: string }, ToolFailure>
   scrape: (url: string) => Effect.Effect<{ text: string; source: string }>
 }) {
   return (input: { query: string; category: "job" | "hotel" | "flight" | "product" | "youtube" | "place" | "event" | "course" | "service" | "other"; location?: string; anchor?: string; radiusKm?: number; must?: readonly string[]; transitLine?: string; maxResults?: number }) =>
@@ -37,7 +46,8 @@ export function runDeep(deps: {
       }
       // fork: job/category non-place tidak dicari di peta (OSM tidak berisi lowongan) —
       // pakai web fallback ber-lokasi, lalu tetap lewat filter koridor/radius + scrape-verify.
-      if (input.category === "job" && deps.searchJobs) {
+      // fork: KRL corridor research keeps its station-distance logic (owner's Serpong/Rangkasbitung use case).
+      if (input.category === "job" && deps.searchJobs && input.transitLine) {
         const web = yield* deps.searchJobs({ query: input.query, limit }).pipe(Effect.orElseSucceed(() => ({ results: [] as { url: string; title?: string; content?: string }[] })))
         const checkedAt = Date.now()
         const maxM = Math.round((transitLine ? (c.transitWalkKm ?? 1) : radiusKm) * 1000)
@@ -128,6 +138,76 @@ export function runDeep(deps: {
             `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via web-search.`,
             transitLine ? `Koridor ${transitLine}: hanya ≤${(maxM).toFixed(0)} m jalan kaki dari stasiun.` : anchorPoint ? `Radius ${radiusKm} km dari anchor.` : "Filter lokasi via teks lowongan.",
             "No structured jobs provider is configured; results are web-research candidates, not live applications. Verify on the employer's page.",
+          ],
+          checkedAt,
+        }
+      }
+      if (input.category === "job" && deps.searchJobs) {
+        // fork: the job branch used hotel logic (carport/furnished regexes, station tables, drop on geocode failure) and
+        // swallowed search errors, so real listings were thrown away and an outage looked like "no jobs". Now: search once
+        // more widely, keep every listing, verify location by reading the page, put verified ones first, and say plainly
+        // when the search failed or found nothing.
+        const searched = yield* deps.searchJobs({ query: input.query, limit: Math.max(limit * 2, 10) }).pipe(Effect.result)
+        const checkedAt = Date.now()
+        const results = searched._tag === "Success" ? searched.success.results : []
+        const failure =
+          searched._tag === "Failure"
+            ? ((searched.failure as Error)?.message ?? String(searched.failure))
+            : searched.success.error
+        const tokens = locationTokens(anchorText ?? input.location)
+        type JobRow = { id: string; title: string; url: string; summary: string; location: "yes" | "no" | "unknown" }
+        const rows: JobRow[] = results.map((r, i) => {
+          const text = `${r.title ?? ""} ${r.content ?? ""} ${r.url}`.toLowerCase()
+          return {
+            id: r.url || `job-${i}`,
+            title: (r.title ?? r.url).slice(0, 300),
+            url: r.url,
+            summary: (r.content ?? "").slice(0, 500),
+            location: tokens.length > 0 && tokens.some((token) => text.includes(token)) ? "yes" : "unknown",
+          }
+        })
+        // Read the first listings: the page itself (structured JobPosting data first) settles the location.
+        for (const row of rows.slice(0, 6)) {
+          if (!row.url || tokens.length === 0) continue
+          const page = yield* deps.scrape(row.url).pipe(Effect.orElseSucceed(() => ({ text: "", source: "none" })))
+          const lower = page.text.toLowerCase()
+          if (tokens.some((token) => lower.includes(token))) row.location = "yes"
+          else if (lower.includes("structured job postings") && page.text.length > 400) row.location = "no"
+        }
+        const kept = rows.filter((row) => row.location !== "no")
+        kept.sort((a, b) => Number(b.location === "yes") - Number(a.location === "yes"))
+        const candidates = kept.slice(0, limit).map((row) => ({
+          id: row.id,
+          category: input.category as "job",
+          title: row.title,
+          provider: "web-search",
+          ...(anchorText ? { location: anchorText } : {}),
+          url: row.url,
+          summary: row.summary,
+          verified: { location: row.location },
+          checkedAt,
+          source: "web-search" as const,
+        }))
+        const empty = candidates.length === 0
+        return {
+          query: input.query,
+          category: input.category,
+          providers: [
+            {
+              provider: "web-search",
+              status: failure ? ("error" as const) : empty ? ("unavailable" as const) : ("configured" as const),
+              ...(failure ? { message: failure.slice(0, 300) } : empty ? { message: "The search returned no listings." } : {}),
+            },
+          ],
+          candidates,
+          limitations: [
+            `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via web-search.`,
+            ...(failure ? [`The job search failed (${failure.slice(0, 200)}). Report this to the user; do not list jobs from memory.`] : []),
+            ...(empty && !failure ? ["No listings were found. Say so and suggest a broader query; do not invent any."] : []),
+            tokens.length > 0
+              ? `Location filter: "${anchorText ?? input.location}". Rows marked location=unknown were not confirmed on the listing page; listings whose page shows another location were dropped.`
+              : "No location was given, so listings are not location-filtered.",
+            "No structured jobs provider is configured; results are web-research candidates, not live applications. Verify on the employer's page and use the link to apply.",
           ],
           checkedAt,
         }

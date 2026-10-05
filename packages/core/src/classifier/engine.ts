@@ -11,7 +11,12 @@ export const Question = Schema.Struct({
   instructions: Schema.String.check(Schema.isMaxLength(2_000)),
   criteria: Schema.optional(Schema.Json),
 })
-export const Input = Schema.Struct({ state: State, questions: Schema.Record(Schema.String, Question) })
+export const Input = Schema.Struct({
+  state: State,
+  questions: Schema.Record(Schema.String, Question),
+  // fork: the user's own question, so the answer stays tied to what was asked.
+  question: Schema.optional(Schema.String),
+})
 export const Answer = Schema.Struct({
   type: Schema.String,
   decision: Schema.String,
@@ -77,7 +82,10 @@ export const fallback = (input: typeof Input.Type) => {
     available: false,
     answers,
     usage: { input_tokens: 0, output_tokens: 0 },
-    warnings: ["Classifier is running in deterministic mode on this host."],
+    warnings: [
+      "Classifier is running in deterministic mode on this host: it ranks by the supplied scores and keyword overlap, it is not a model. Treat its choice as a hint, check the candidate facts yourself, and never call a result guaranteed or verified because of it.",
+      ...(input.question ? [`Question this answers: ${input.question.slice(0, 300)}`] : []),
+    ],
   }
 }
 
