@@ -1,7 +1,7 @@
 export * as ServerAuth from "./auth"
 
 import { Context, Layer, Option, Redacted } from "effect"
-import { createHmac, timingSafeEqual } from "node:crypto"
+import { createHash, createHmac, timingSafeEqual } from "node:crypto"
 
 export type DecodedCredentials = {
   readonly username: string
@@ -25,6 +25,11 @@ export class Config extends Context.Service<Config, Info>()("@opencode/ServerAut
   }
 }
 
+// fork: constant-time comparison (hash both sides so lengths do not leak either).
+export function same(a: string, b: string) {
+  return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest())
+}
+
 export function required(config: Info) {
   return Option.isSome(config.password) && config.password.value !== ""
 }
@@ -33,7 +38,7 @@ export function required(config: Info) {
 export function authorized(credentials: DecodedCredentials, config: Info) {
   if (Option.isNone(config.password) || credentials.username !== config.username) return false
   const password = Redacted.value(credentials.password)
-  return password === config.password.value || verifySession(password, config)
+  return same(password, config.password.value) || verifySession(password, config)
 }
 
 // Sessions are signed with a key derived from the server password, so rotating the password revokes every session.

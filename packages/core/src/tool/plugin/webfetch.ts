@@ -5,6 +5,7 @@ import { ToolFailure } from "@opencode/ai"
 import { Duration, Effect, Schema } from "effect"
 import { HttpClient, type HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { Parser } from "htmlparser2"
+import { NetGuard } from "../../net-guard.js"
 import { Permission } from "../../permission.js"
 import { convertHTMLToMarkdown, MAX_MARKDOWN_BYTES } from "../html-markdown.js"
 import { collectBoundedResponseBody } from "../http-body.js"
@@ -134,6 +135,8 @@ export const Plugin = {
                 try: () => assertHttpUrl(new URL(input.url)),
                 catch: (error) => error,
               })
+
+              yield* Effect.tryPromise({ try: () => NetGuard.assertPublicUrl(input.url), catch: (error) => error })
 
               yield* permission.assert({
                 action: name,

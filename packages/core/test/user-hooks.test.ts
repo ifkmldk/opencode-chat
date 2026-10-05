@@ -67,3 +67,26 @@ describe("UserHooksPlugin rules", () => {
     expect(UserHooksPlugin.afterCommands(r, "edit", { filePath: "a.ts" })).toEqual(["prettier --write \"a.ts\" # edit"])
   })
 })
+
+describe("UserHooksPlugin hardening", () => {
+  test.each(["rm -r -f /", "rm -rf --no-preserve-root /", "powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAA=", "iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($x)))"])(
+    "guard blocks %s",
+    (command) => {
+      expect(UserHooksPlugin.guardReason(command)).toBeDefined()
+    },
+  )
+
+  test("the agent cannot modify hooks.json through file tools or the shell", () => {
+    const r = UserHooksPlugin.parseRules("")
+    expect(UserHooksPlugin.blockReason(r, "write", { filePath: "C:/Users/x/.config/opencode/hooks.json" })).toContain("hooks.json")
+    expect(UserHooksPlugin.blockReason(r, "shell", { command: "echo {} > ~/.config/opencode/hooks.json" })).toContain("hooks.json")
+    expect(UserHooksPlugin.blockReason(r, "read", { filePath: "hooks.json" })).toBeUndefined()
+  })
+
+  test("after hooks are skipped when the path could inject commands", () => {
+    const r = UserHooksPlugin.parseRules(JSON.stringify({ after: [{ tool: "write", run: "echo {path}" }] }))
+    expect(UserHooksPlugin.afterCommands(r, "write", { filePath: "a&echo PWNED&.txt" })).toEqual([])
+    expect(UserHooksPlugin.afterCommands(r, "write", { filePath: "$(calc).txt" })).toEqual([])
+    expect(UserHooksPlugin.afterCommands(r, "write", { filePath: "C:/work/ok file.txt" })).toEqual(["echo C:/work/ok file.txt"])
+  })
+})

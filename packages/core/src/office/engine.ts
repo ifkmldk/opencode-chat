@@ -155,6 +155,8 @@ const SCRIPTS: Record<"word" | "powerpoint" | "excel", (input: string, output: s
 $word = New-Object -ComObject Word.Application
 $word.Visible = $false
 $word.DisplayAlerts = 0
+# fork: documents may come from anywhere: never run macros while converting.
+$word.AutomationSecurity = 3
 try {
   $doc = $word.Documents.Open(${quote(input)}, $false, $true)
   $doc.ExportAsFixedFormat(${quote(output)}, 17)
@@ -165,6 +167,7 @@ try {
     process: "POWERPNT",
     script: `$ErrorActionPreference = 'Stop'
 $app = New-Object -ComObject PowerPoint.Application
+$app.AutomationSecurity = 3
 try {
   $presentation = $app.Presentations.Open(${quote(input)}, -1, 0, 0)
   $presentation.SaveAs(${quote(output)}, 32)
@@ -177,6 +180,7 @@ try {
 $excel = New-Object -ComObject Excel.Application
 $excel.Visible = $false
 $excel.DisplayAlerts = $false
+$excel.AutomationSecurity = 3
 try {
   $book = $excel.Workbooks.Open(${quote(input)}, 0, $true)
   foreach ($sheet in $book.Worksheets) {
@@ -200,6 +204,7 @@ async function excelViaHtml(input: string, output: string, previous: Run): Promi
 $excel = New-Object -ComObject Excel.Application
 $excel.Visible = $false
 $excel.DisplayAlerts = $false
+$excel.AutomationSecurity = 3
 try {
   $book = $excel.Workbooks.Open(${quote(input)}, 0, $true)
   $index = 0

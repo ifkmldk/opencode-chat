@@ -98,13 +98,15 @@ export const BrowserProxyHandler = HttpApiBuilder.group(Api, "server.browserProx
 const PREVIEW_TTL_MS = 10 * 60_000
 const MAX_PREVIEW_CHARS = 12 * 1024 * 1024
 const MAX_PREVIEWS = 40
+const MAX_TOTAL_PREVIEW_CHARS = 48 * 1024 * 1024
 const PREVIEW_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
 const previews = new Map<string, { html: string; expires: number }>()
 
 export function stagePreview(html: string, now = Date.now()) {
   previews.forEach((value, key) => value.expires < now && previews.delete(key))
-  // Oldest first (Map keeps insertion order) once the cap is reached.
-  while (previews.size >= MAX_PREVIEWS) previews.delete(previews.keys().next().value!)
+  // Oldest first (Map keeps insertion order) once a cap is reached: entry count, and total size (a few large pages must not hold hundreds of MB).
+  const total = () => [...previews.values()].reduce((sum, item) => sum + item.html.length, 0)
+  while (previews.size >= MAX_PREVIEWS || (previews.size > 0 && total() + html.length > MAX_TOTAL_PREVIEW_CHARS)) previews.delete(previews.keys().next().value!)
   const id = crypto.randomUUID()
   previews.set(id, { html, expires: now + PREVIEW_TTL_MS })
   return id

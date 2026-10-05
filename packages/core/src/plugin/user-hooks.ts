@@ -32,6 +32,10 @@ const GUARD: ReadonlyArray<readonly [RegExp, string]> = [
   [/\b(del|erase)\b[^\n]*\/s[^\n]*\s['"]?[a-z]:[\\/]\*?['"]?(\s|$)/i, "recursive delete of a whole drive"],
   [/\b(rd|rmdir)\b[^\n]*\/s[^\n]*\s['"]?[a-z]:\\?['"]?(\s|$)/i, "recursive delete of a whole drive"],
   [/\bformat(\.com)?\s+[a-z]:/i, "formatting a drive"],
+  [/\brm\s+(-[a-z]+\s+)*-[a-z]*r[a-z]*\s+(-[a-z]+\s+)*-[a-z]*f[a-z]*\s+(\/|~|\$HOME|\*)(\s|$)/i, "recursive delete of the root, home or everything"],
+  [/--no-preserve-root/i, "deleting the root folder"],
+  [/\b(powershell|pwsh)(\.exe)?\b[^\n]*\s-e(nc(odedcommand)?)?\s+[a-z0-9+/=]{20,}/i, "an encoded PowerShell command (it cannot be inspected)"],
+  [/FromBase64String\([^)]*\)[^\n]*\b(iex|Invoke-Expression)\b|\b(iex|Invoke-Expression)\b[^\n]*FromBase64String/i, "decoding and running hidden code"],
   [/\bmkfs(\.\w+)?\b/i, "creating a filesystem"],
   [/\bdd\b[^\n]*\bof=\/dev\//i, "writing directly to a disk device"],
   [/:\(\)\s*\{\s*:\s*\|\s*:/, "fork bomb"],
@@ -95,8 +99,13 @@ export function inputPath(input: unknown) {
   return typeof value === "string" ? value : undefined
 }
 
+/** hooks.json runs commands, so the agent must never edit it (that would be persistent code execution). */
+const touchesHooks = (tool: string, text: string) => ["write", "edit", "patch", "shell", "bash"].includes(tool) && /hooks\.json/i.test(text)
+
 export function blockReason(rules: Rules, tool: string, input: unknown) {
   const text = inputText(tool, input)
+  if (touchesHooks(tool, text))
+    return "hooks.json defines commands that run on tool events, so the agent may not modify it. Ask the user to edit it."
   if (rules.guard && tool === "shell") {
     const reason = guardReason(text)
     if (reason)
@@ -117,8 +126,13 @@ export function blockReason(rules: Rules, tool: string, input: unknown) {
   return rule ? (rule.message ?? `Blocked by a hooks.json rule for ${tool}.`) : undefined
 }
 
+/** A value is safe inside a shell command line when it has no shell metacharacters or line breaks. */
+export const shellSafe = (value: string) => !/[&|;<>^%!"'`$()\r\n]/.test(value)
+
 export function afterCommands(rules: Rules, tool: string, input: unknown) {
   const file = inputPath(input) ?? ""
+  // A path the model controls must not be able to add commands: when it is unsafe the hooks are skipped.
+  if (!shellSafe(file)) return []
   return rules.after
     .filter((item) => toolMatches(item.tool, tool))
     .map((item) => item.run.replaceAll("{path}", file).replaceAll("{tool}", tool))

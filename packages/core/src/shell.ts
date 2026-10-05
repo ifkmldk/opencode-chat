@@ -14,6 +14,7 @@ import { Environment } from "./environment/index.js"
 import { FileRetention } from "./file-retention.js"
 import { Location } from "./location.js"
 import { Global } from "@opencode/util/global"
+import { Secrets } from "./secrets.js"
 import { ShellSelect } from "./shell/select.js"
 import type { ShellCreateBefore } from "@opencode/plugin/effect/shell"
 import { PluginHooks } from "./plugin/hooks.js"
@@ -266,7 +267,7 @@ const layer = () =>
           timeout: input.timeout ?? 0,
           shell: input.shell ?? (yield* shell.resolve({ priority: "config" })),
           env: {
-            ...(sessionEnvironment ?? process.env),
+            ...(sessionEnvironment ?? Secrets.scrub()),
             TERM: "xterm-256color",
             OPENCODE_TERMINAL: "1",
           },
