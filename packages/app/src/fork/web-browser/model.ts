@@ -10,8 +10,8 @@ import { useServerSDK } from "@/runtime/server/client"
 // pages are framed through the server's /api/experimental/browser-proxy route instead.
 
 export { isWebBrowserTab, webBrowserTab, WEB_BROWSER_TAB_PREFIX } from "./tab"
-export { webBrowserAddress } from "./address"
-import { webBrowserAddress } from "./address"
+export { isDirectFrame, webBrowserAddress } from "./address"
+import { isDirectFrame, webBrowserAddress } from "./address"
 
 // Mirrors BROWSER_PROXY_TOKEN_HEADER in @opencode/protocol (the app depends on the client, not protocol):
 // the custom header forces a CORS preflight so other origins cannot mint tickets.
@@ -49,7 +49,7 @@ export function useWebBrowser() {
     setLive(id, { loading: true, error: undefined })
     // Loopback pages (the preview plugin's canvas, local dev servers) are framed directly: the proxy refuses
     // loopback targets.
-    if (isLoopback(url)) return setLive(id, { src: url })
+    if (isLoopback(url) || isDirectFrame(url)) return setLive(id, { src: url })
     const result = await sdk.api.browserProxy
       .ticket({ url, [TICKET_HEADER]: "1" })
       .catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }))

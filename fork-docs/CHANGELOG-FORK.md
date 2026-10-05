@@ -1,5 +1,16 @@
 # Fork changelog
 
+## 2.0.22-fork.12 (2026-10-06)
+
+- Aplikasi desktop (Electron, `packages/desktop`) dengan **browser asli di panel**: Google, login aplikasi (H5) dan cookie bekerja seperti browser biasa. Desktop memakai server launcher (`OPENCODE_DESKTOP_SERVER_URL` + password `service.json`) dan tidak menyalakan server kedua. Browser native aktif secara default. Launcher membuka desktop secara default; `-Web` untuk Brave.
+- UI web (cadangan): Google dimuat langsung (mode embed `igu=1`), tidak lagi dialihkan ke Bing; link yang biasanya membuka jendela baru tetap di panel.
+- ScrapeGraphAI otomatis sebagai tier terakhir di mode auto/stealth.
+- Portal tambahan: Loker.id (data route situs), Karir.com (kartu; link ke hasil pencarian karena kartu tidak punya alamat sendiri). Jobs.id (sertifikat HTTPS situs rusak), TopKarir (timeout) dan Glassdoor (cek "Humans only") dilaporkan dengan alasan.
+- `web_browser` aksi `login`: membuka profil agen di jendela terlihat supaya pengguna login sendiri; agen tidak pernah mengetik password.
+- Satu konteks besar: sesi Claude Code (+ sub-agent), memory Claude, dan sesi OpenCode (5 database, v1 dan v2) disalin ke vault Obsidian (`sessions/` ringkasan untuk recall, `transcripts/` transkrip penuh untuk `memory_search`), rahasia disensor. Dua arah: hook Claude Code `UserPromptSubmit` (recall dari vault) dan `SessionEnd` (sinkron); launcher menyinkron saat dibuka.
+- QA: pen test `secrets` memakai `cmd /c set` (shell uji bisa PowerShell).
+
+
 ## 2.0.22-fork.11 (2026-10-05)
 
 - Riset lowongan membaca 7 papan sekaligus: Jobstreet, LinkedIn, Glints (data halaman + id lokasi), Kalibrr dan Dealls (API publik yang dipakai situsnya), Indeed (data kartu), KitaLulus (data server halaman). Kota disaring dari kartu, duplikat digabung, ejaan "analis/analyst" disamakan, sampai 50 baris. Glassdoor menolak akses otomatis ("Humans only"): tidak dibobol, pengguna diberi link pencariannya.

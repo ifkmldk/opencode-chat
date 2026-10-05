@@ -331,3 +331,15 @@ export async function script(
     browser.close()
   }
 }
+
+/**
+ * Opens the profile in a normal, visible browser window so the user can sign in themselves (the agent never types
+ * passwords). Cookies land in the profile; the headless browser uses them once this window is closed, because one
+ * profile can be open in only one browser at a time.
+ */
+export function openForLogin(url: string, profile: string) {
+  const browser = available()
+  if (!browser) throw new Error("No Chromium-based browser (Playwright Chromium, Chrome or Brave) was found on this computer.")
+  fs.mkdirSync(profile, { recursive: true })
+  return spawn(browser, ["--no-first-run", "--no-default-browser-check", `--user-data-dir=${profile}`, "--new-window", url], { windowsHide: false, stdio: "ignore" })
+}

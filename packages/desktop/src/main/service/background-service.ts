@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import { app } from "electron"
 import { Context, Effect, FileSystem, Layer, Path } from "effect"
 import { BackgroundServiceState } from "./background-service-state"
@@ -28,6 +31,15 @@ export const layer = Layer.effect(
 )
 
 const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial" | "reconnect") {
+  // fork: the owner's launcher already runs the server on a fixed port with the password from
+  // ~/.config/opencode/service.json. Starting a second server on the same database would let two
+  // processes resume the same sessions, so the desktop adopts that server instead of spawning one.
+  const explicit = explicitServer()
+  if (explicit) {
+    yield* Effect.logInfo("using the launcher's server", endpoint(explicit.url))
+    SidecarCredentials.set(explicit)
+    return explicit
+  }
   yield* Effect.logInfo("starting v2 background service")
   const path = yield* Path.Path
   const desktopCli = yield* DesktopCli.Service
@@ -66,6 +78,21 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
   SidecarCredentials.set(ready)
   return ready
 })
+
+function explicitServer(): SidecarCredentials.Data | undefined {
+  const raw = process.env.OPENCODE_DESKTOP_SERVER_URL
+  if (!raw || !URL.canParse(raw)) return
+  const file = process.env.OPENCODE_DESKTOP_SERVER_PASSWORD_FILE ?? join(homedir(), ".config", "opencode", "service.json")
+  const password = (() => {
+    try {
+      const parsed = JSON.parse(readFileSync(file, "utf8")) as { password?: unknown }
+      return typeof parsed.password === "string" ? parsed.password : null
+    } catch {
+      return null
+    }
+  })()
+  return { url: new URL(raw).origin, password }
+}
 
 function endpoint(url: string | undefined) {
   if (!url || !URL.canParse(url)) return {}

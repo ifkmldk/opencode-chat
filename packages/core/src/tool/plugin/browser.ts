@@ -31,6 +31,9 @@ const Input = Schema.Struct({
     description: "Take a screenshot after the steps: viewport (what is on screen, default) or full page. It is saved to a PNG file you can put in a document.",
   }),
   read: Schema.optional(Schema.Boolean).annotate({ description: "Return the page text and links (default true)." }),
+  login: Schema.optional(Schema.Boolean).annotate({
+    description: "Open `url` in a visible window of this browser so the USER signs in themselves (you never type passwords). Tell the user to sign in and close that window, then call web_browser again: the session is kept.",
+  }),
 })
 
 const Output = Schema.Struct({
@@ -43,6 +46,9 @@ const Output = Schema.Struct({
 
 const BLOCKED = /captcha|verify you are human|are you a robot|humans only|just a moment|unusual traffic|access denied|please enable cookies/i
 const PASSWORD = /password|kata sandi|passcode|otp|pin/i
+
+// A visible window the user is signing in with; the profile is locked while it is open.
+let login: ReturnType<typeof ScrapeChromium.openForLogin> | undefined
 
 let session: { browser: ScrapeChromium.Browser; page: ScrapeChromium.Page; timer?: ReturnType<typeof setTimeout> } | undefined
 
@@ -57,6 +63,7 @@ const serial = <T>(work: () => Promise<T>) => {
 const profileDir = () => path.join(os.homedir(), ".local", "share", "opencode", "browser-profile")
 
 async function current() {
+  if (login && login.exitCode === null) throw new Error("The sign-in window is still open. Ask the user to finish signing in and close it, then try again.")
   if (session) {
     clearTimeout(session.timer)
     return session
@@ -104,6 +111,15 @@ export const Plugin = {
         output: Output,
         execute: (input, c) =>
           Effect.gen(function* () {
+            if (input.login) {
+              if (!input.url) return yield* new ToolFailure({ message: "login needs the url of the sign-in page." })
+              yield* guard([input.url], c)
+              session?.browser.close()
+              session = undefined
+              login = yield* Effect.try({ try: () => ScrapeChromium.openForLogin(input.url!, profileDir()), catch: (error) => new ToolFailure({ message: (error as Error).message }) })
+              const text = `Opened ${input.url} in a visible browser window. Ask the user to sign in there and close the window when done; then call web_browser again (without login) to continue with their session.`
+              return { output: { url: input.url, title: "", needsUser: text, steps: [] }, content: text, metadata: { url: input.url, login: true } }
+            }
             const fillsSecret = (input.steps ?? []).some((step) => step.do === "fill" && PASSWORD.test(step.target ?? ""))
             if (fillsSecret) return yield* new ToolFailure({ message: "Refused: the browser tool never types passwords or codes. Ask the user to sign in themselves." })
             if (!ScrapeChromium.available()) return yield* new ToolFailure({ message: "No Chromium-based browser (Chrome, Brave or Playwright Chromium) is installed on this computer." })

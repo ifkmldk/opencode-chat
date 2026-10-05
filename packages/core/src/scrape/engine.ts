@@ -64,14 +64,15 @@ export const planFor = (input: { mode?: string }): string[] => {
     case viaWebfetch:
       return ["webfetch"]
     case viaStealth:
-      return ["chromium", "camofox", "scrapling", "webfetch"]
+      return ["chromium", "camofox", "scrapling", "webfetch", "scrapegraph"]
     case viaAI:
       return ["scrapegraph", "webfetch"]
     case viaChannels:
       return ["agent-reach", "webfetch"]
-    // fork: auto escalates from a plain GET to a rendering browser when the page comes back empty, blocked or a shell.
+    // fork: auto escalates from a plain GET to a rendering browser when the page comes back empty, blocked or a shell,
+    // and as a last resort lets ScrapeGraphAI (an LLM reading the rendered page) extract what the others could not.
     default:
-      return ["webfetch", "chromium"]
+      return ["webfetch", "chromium", "scrapegraph"]
   }
 }
 
@@ -285,10 +286,12 @@ const nineRouterFromConfig = () => {
 const fetchScrapegraph = (input: ScrapeInput, started: number) =>
   Effect.gen(function* () {
     assertHttpUrl(input.url)
+    // As the last automatic tier it installs Python packages on first use, so it follows the same switch as the other bridges.
+    if (input.mode !== "ai" && process.env.OPENCODE_SCRAPER_NO_AUTOSETUP === "1") return yield* Effect.fail(new Error("scrapegraph tier is off (OPENCODE_SCRAPER_NO_AUTOSETUP=1)"))
     // fork: resolve LLM without reading disk here (caller passes provider).
     // Without a key the tier skips fast — no wasted download or LLM bill.
     const llm = resolveScrapegraphLLM({ provider: scrapegraphProviderFromEnv() })
-    if (!llm?.apiKey) throw new Error("Scrapegraph needs an LLM key: set OPENCODE_SCRAPEGRAPH_LLM or OPENAI_API_KEY (9router reuse supported)")
+    if (!llm?.apiKey) return yield* Effect.fail(new Error("Scrapegraph needs an LLM key: set OPENCODE_SCRAPEGRAPH_LLM or OPENAI_API_KEY (9router reuse supported)"))
     const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 120_000, 5000), 180_000)
     // ScrapeGraphAI's own loader often gets an empty shell from script-built pages; give it the page our browser
     // tier already rendered, so the LLM extracts from what a person would see.

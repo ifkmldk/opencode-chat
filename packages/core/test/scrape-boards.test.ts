@@ -38,3 +38,20 @@ test("a title that says the job is based in another city is not counted for this
 test("Glassdoor is never scraped: the user gets the search link", () => {
   expect(Boards.manualSearch({ role: "data analyst", cities: ["bandung"] })[0]?.url).toContain("glassdoor.com")
 })
+
+test("Loker.id: jobs from its data route, with the site's own detail address", () => {
+  const rows = Boards.lokerid({
+    jobs: [{ id: 1, slug: "data-analyst-taiyo-bandung-barat", title: "Data Analyst", company_name: "Taiyo", categories: [{ slug: "data-analis", parent: { slug: "research-development" } }], locations: [{ name: "Bandung Barat", parent: { name: "Jawa Barat" } }], salary: { name: "Rp.4 – 5 Juta" }, display_date: "2026-09-28 07:11:23" }],
+  })
+  expect(rows[0]).toMatchObject({ title: "Data Analyst", location: "Bandung Barat, Jawa Barat", salary: "Rp.4 – 5 Juta", posted: "2026-09-28", url: "https://www.loker.id/research-development/data-analis/data-analyst-taiyo-bandung-barat.html" })
+})
+
+test("Karir.com: cards read from the page, linked to the search because a card has no address of its own", () => {
+  const html = `<div class="info-company-stack"><p class="x" type="Heading4">SQL Analyst</p><p class="y">PT Daya Medika</p><p>Rp&nbsp;6 juta - Rp&nbsp;8 juta/bulan</p><p>Bandung</p><p>22 September 2026</p></div>`
+  expect(Boards.karir(html, "https://karir.com/search-lowongan?keyword=sql")[0]).toMatchObject({ title: "SQL Analyst", company: "PT Daya Medika", location: "Bandung", posted: "22 September 2026", url: "https://karir.com/search-lowongan?keyword=sql" })
+})
+
+test("unreadable boards are listed with their reason, never guessed", () => {
+  const boards = Boards.manualSearch({ role: "data analyst", cities: ["bandung"] }).map((item) => item.board)
+  expect(boards).toEqual(["glassdoor", "jobs.id", "topkarir"])
+})

@@ -67,7 +67,7 @@ export const Plugin = {
       editor.add({
         name: "memory_search",
         options: { codemode: false, permission: "memory.search" },
-        description: "Search vault-backed memory for facts, preferences, decisions, and corrections.",
+        description: "Search memory: saved facts, preferences, decisions and corrections, summaries of earlier Claude Code and OpenCode sessions, and their full transcripts (vault). Use it when the user refers to earlier work or another agent's session.",
         input: Search,
         output: Schema.Struct({ items: Schema.Array(EntryOut) }),
         execute: (input, c) =>
@@ -80,7 +80,12 @@ export const Plugin = {
               ...(target.dir ? MemoryVaultFiles.read(target.dir).filter((entry) => !input.scope || entry.scope === input.scope) : []),
             ]
             const found = MemoryRank.rank(input.query, pool, { limit: Math.min(Math.max(Math.floor(input.limit ?? 8), 1), 20), minScore: 2 })
-            const items = found.map((entry) => ({ id: entry.id, scope: entry.scope, kind: entry.kind, title: entry.title, body: entry.body }))
+            // fork: full session transcripts (Claude Code and OpenCode, copied into the vault) are searched too, after the notes.
+            const transcripts = target.dir ? MemoryVaultFiles.searchTranscripts(target.dir, input.query, 3) : []
+            const items = [
+              ...found.map((entry) => ({ id: entry.id, scope: entry.scope, kind: entry.kind, title: entry.title, body: entry.body })),
+              ...transcripts.map((hit) => ({ id: hit.file, scope: "transcript", kind: "transcript", title: hit.title, body: hit.excerpt })),
+            ]
             return { output: { items }, content: JSON.stringify(items), metadata: { count: items.length } }
           }),
       }),

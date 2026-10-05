@@ -12,7 +12,7 @@ import { createBlobReference } from "@/runtime/persistence/drafts"
 import { showToast } from "@/shell/notifications/toast"
 import { captureRegion } from "@/fork/annotate/capture"
 import { RegionSelectOverlay } from "@/fork/annotate/region-select"
-import { isLoopback, useWebBrowser } from "./model"
+import { isDirectFrame, isLoopback, useWebBrowser } from "./model"
 
 type BridgeMessage = {
   opencodeBrowserPage?: { title: string; url: string }
@@ -52,7 +52,7 @@ export function WebBrowserPane(props: { id: string; visible: boolean }) {
     if (data?.opencodeBrowserPage) return browser.page(props.id, data.opencodeBrowserPage)
     if (data?.opencodeBrowserNavigate) {
       const next = data.opencodeBrowserNavigate
-      if (next.external) return void window.open(next.url, "_blank", "noopener,noreferrer")
+      // Links that would open a new window stay in this pane: a new window was a separate Brave app window.
       return browser.navigate(props.id, next.url)
     }
     const selection = data?.opencodeBrowserSelection
@@ -204,7 +204,10 @@ export function WebBrowserPane(props: { id: string; visible: boolean }) {
               // framed directly (canvas, dev server) keeps its own origin so its storage works; it is never the
               // app's origin, which would give it the app's API.
               sandbox={
-                ownOrigin(src())
+                // Google keeps its own origin (never the app's) and gets no popups, so results open in this pane.
+                isDirectFrame(src())
+                  ? "allow-scripts allow-forms allow-same-origin"
+                  : ownOrigin(src())
                   ? "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-downloads"
                   : "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
               }

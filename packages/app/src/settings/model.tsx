@@ -260,7 +260,8 @@ export const defaultSettings: Settings = {
     mobileDiffWrap: true,
     terminalPlacement: "side",
     followUpBehavior: "steer",
-    experimentalBrowser: false,
+    // fork: the desktop app's native browser (real Chromium tabs, logins, Google) is on by default; the web UI has no native pane.
+    experimentalBrowser: true,
     showThinking: false,
   },
   sessionSummary: { projectExpanded: true, serverExpanded: true },

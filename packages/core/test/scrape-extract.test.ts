@@ -44,7 +44,7 @@ describe("ScrapeExtract", () => {
 
 describe("UltimateScrape plan", () => {
   test("auto escalates from a plain GET to a rendering browser; stealth leads with it", () => {
-    expect(UltimateScrape.planFor({})).toEqual(["webfetch", "chromium"])
+    expect(UltimateScrape.planFor({})).toEqual(["webfetch", "chromium", "scrapegraph"])
     expect(UltimateScrape.planFor({ mode: "fast" })).toEqual(["webfetch"])
     expect(UltimateScrape.planFor({ mode: "stealth" })[0]).toBe("chromium")
   })

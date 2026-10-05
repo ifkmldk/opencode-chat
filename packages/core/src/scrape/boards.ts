@@ -212,12 +212,114 @@ export async function fetchKitaLulus(input: { role: string; cities: readonly str
   return out
 }
 
-/** Boards that answer automated visits with a "humans only" check: never bypassed, the user gets the board's search link. */
+/** Loker.id: its search page loads results from its own JSON data route, which honours the keyword; the city comes from each job. */
+export function lokerid(data: unknown): Listing[] {
+  const jobs = ((data as { jobs?: unknown[] } | undefined)?.jobs ?? []) as any[]
+  return jobs.map((job) => {
+    const category = (job.categories ?? [])[0]
+    return {
+      id: `lokerid-${job.id}`,
+      title: String(job.title ?? ""),
+      company: job.company_name,
+      location: ((job.locations ?? []) as any[]).map((place) => [place.name, place.parent?.name].filter(Boolean).join(", ")).join("; ") || job.location,
+      salary: job.is_hide_salary ? undefined : job.salary?.name || rupiah(job.salary_min, job.salary_max),
+      posted: job.display_date ? String(job.display_date).slice(0, 10) : undefined,
+      url: category?.parent?.slug ? `https://www.loker.id/${category.parent.slug}/${category.slug}/${job.slug}.html` : `https://www.loker.id/cari-lowongan-kerja?q=${encodeURIComponent(String(job.title ?? ""))}`,
+      board: "lokerid",
+    }
+  })
+}
+
+export async function fetchLokerId(input: { role: string }): Promise<Listing[]> {
+  if (!ScrapeChromium.available()) return []
+  const page = await ScrapeChromium.script(`https://www.loker.id/cari-lowongan-kerja?q=${encodeURIComponent(input.role)}`, async (tab) => {
+    await tab.scroll(1)
+  }, { timeoutMs: 60_000, waitMs: 3000 }).catch(() => undefined)
+  const data =
+    (page?.json ?? []).filter((item) => item.url.includes("_data=routes%2F_lowongan.cari-lowongan-kerja")).map((item) => parse(item.body)).find((body) => Array.isArray(body?.jobs)) ??
+    // A direct visit is server-rendered: the same data sits in the page's Remix context.
+    { jobs: parse(jsonArrayAt(page?.html ?? "", '"jobs":[')) ?? [] }
+  return lokerid(data)
+}
+
+/** The JSON array that starts right after `marker` in `text`, cut at its matching bracket (strings respected). */
+function jsonArrayAt(text: string, marker: string) {
+  const start = text.indexOf(marker)
+  if (start < 0) return undefined
+  const open = start + marker.length - 1
+  let depth = 0
+  let quoted = false
+  for (let index = open; index < text.length; index++) {
+    const char = text[index]
+    if (quoted) {
+      if (char === "\\") index++
+      else if (char === '"') quoted = false
+      continue
+    }
+    if (char === '"') quoted = true
+    else if (char === "[" || char === "{") depth++
+    else if ((char === "]" || char === "}") && --depth === 0) return text.slice(open, index + 1)
+  }
+  return undefined
+}
+
+/** Karir.com: results are server-rendered cards; a card opens its detail inside the page (no own address), so the link is the search. */
+export async function fetchKarir(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
+  if (!ScrapeChromium.available()) return []
+  const out: Listing[] = []
+  for (const city of input.cities.slice(0, 3)) {
+    const search = `https://karir.com/search-lowongan?keyword=${encodeURIComponent(input.role)}&location=${encodeURIComponent(city)}`
+    const page = await ScrapeChromium.script(search, async () => {}, { timeoutMs: 45_000, waitMs: 3000 }).catch(() => undefined)
+    if (!page) continue
+    out.push(...karir(page.html, search))
+  }
+  return out
+}
+
+/** One card per `info-company-stack`: title (Heading4), then company, salary, city and date as plain lines. */
+export function karir(html: string, search: string): Listing[] {
+  return html
+    .split(/info-company-stack/)
+    .slice(1)
+    .flatMap((chunk, index) => {
+      const lines = chunk
+        .split(/<\/p>/)
+        .map((part) => part.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim())
+        .filter((line) => line && !line.startsWith('"'))
+      const title = chunk.match(/type="Heading4"[^>]*>([^<]+)</)?.[1]?.trim()
+      if (!title) return []
+      const rest = lines.filter((line) => line !== title && !/^\d+$/.test(line))
+      return [
+        {
+          id: `karir-${index}-${title}`,
+          title,
+          company: rest[0],
+          salary: rest.find((line) => /Rp/.test(line)),
+          location: rest.find((line) => !/Rp|\d{4}/.test(line) && line !== rest[0]),
+          posted: rest.find((line) => /\d{4}/.test(line) && !/Rp/.test(line)),
+          url: search,
+          board: "karir",
+        },
+      ]
+    })
+}
+
+/** Boards that cannot be read automatically, with the reason. Never bypassed: the user gets the board's search link. */
 export const manualSearch = (input: { role: string; cities: readonly string[] }) => [
   {
     board: "glassdoor",
     url: `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(input.role)}&locKeyword=${encodeURIComponent(`${input.cities[0] ?? ""}, Indonesia`)}`,
     note: 'Glassdoor menolak akses otomatis (cek "Humans only"); buka link ini sendiri.',
+  },
+  {
+    board: "jobs.id",
+    url: "https://www.jobs.id/",
+    note: "Sertifikat HTTPS situs jobs.id sendiri tidak valid (browser menampilkan \"Privacy error\"), jadi tidak dibaca.",
+  },
+  {
+    board: "topkarir",
+    url: "https://www.topkarir.com/",
+    note: "TopKarir tidak merespons (koneksi timeout) saat dicek.",
   },
 ]
 
@@ -233,6 +335,8 @@ export async function fetchAll(input: { role: string; cities: readonly string[] 
     ["dealls", () => fetchDealls(input)],
     ["indeed", () => fetchIndeed(input)],
     ["kitalulus", () => fetchKitaLulus(input)],
+    ["lokerid", () => fetchLokerId(input)],
+    ["karir", () => fetchKarir(input)],
   ]
   const reports: Report[] = []
   const listings: Listing[] = []
