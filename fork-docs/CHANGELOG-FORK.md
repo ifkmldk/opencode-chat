@@ -1,5 +1,12 @@
 # Fork changelog
 
+## 2.0.22-fork.2 (2026-10-05)
+
+- **Membuka .pptx tidak lagi mengosongkan panel samping.** zip.js membuat web worker dari blob, yang diblokir CSP aplikasi;
+  penolakannya membuat `createResource` error, dan membaca resource yang error melempar ke ErrorBoundary sehingga seluruh panel
+  kosong. Sekarang zip.js jalan tanpa worker (`artifact.ts`) dan error parse jatuh ke status "tidak bisa dipratinjau"
+  (`ArtifactOfficeQuick`). Bug ini sudah ada sebelum fork.8.
+
 ## 2.0.22-fork.1 (2026-10-05)
 
 Sinkron upstream "hibrida": backend naik ke upstream v2.0.22, UI tetap UI fork (v2.0.15).
