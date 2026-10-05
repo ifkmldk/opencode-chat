@@ -38,6 +38,7 @@ test("exposes every standard HTTP API group", () => {
     "maps",
     "config",
     "browserProxy",
+    "office",
   ])
   expect(Object.keys(client.debug)).toEqual(["location"])
   expect(Object.keys(client.debug.location)).toEqual(["list", "evict"])

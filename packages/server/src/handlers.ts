@@ -31,6 +31,7 @@ import { EventFeed } from "./event-feed"
 import { MigrationHandler } from "./handlers/migration"
 import { ConfigHandler } from "./handlers/config"
 import { BrowserProxyHandler } from "./handlers/browser-proxy"
+import { OfficeHandler } from "./handlers/office"
 import { MapsHandler } from "./handlers/maps"
 
 export const handlers = Layer.mergeAll(
@@ -65,5 +66,6 @@ export const handlers = Layer.mergeAll(
   VcsHandler,
   ConfigHandler,
   BrowserProxyHandler,
+  OfficeHandler,
   MapsHandler,
 )

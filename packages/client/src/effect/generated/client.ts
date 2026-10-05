@@ -269,6 +269,8 @@ import type {
   BrowserProxyTicketOutput,
   BrowserProxyPreviewInput,
   BrowserProxyPreviewOutput,
+  OfficePreviewInput,
+  OfficePreviewOutput,
 } from "../api/api.js"
 import { ClientError } from "./client-error.js"
 
@@ -1586,6 +1588,15 @@ const adaptGroupBrowserProxy = (raw: RawClient["server.browserProxy"]) => ({
   preview: EndpointBrowserProxyPreview(raw),
 })
 
+const EndpointOfficePreview = (raw: RawClient["server.office"]) => (input: OfficePreviewInput) =>
+  preserveEffect<OfficePreviewOutput>()(
+    raw["office.preview"]({ payload: { name: input["name"], data: input["data"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const adaptGroupOffice = (raw: RawClient["server.office"]) => ({ preview: EndpointOfficePreview(raw) })
+
 const adaptClient = (raw: RawClient) => ({
   server: adaptGroupServer(raw["server.server"]),
   location: adaptGroupLocation(raw["server.location"]),
@@ -1619,6 +1630,7 @@ const adaptClient = (raw: RawClient) => ({
   maps: adaptGroupMaps(raw["server.maps"]),
   config: adaptGroupConfig(raw["server.config"]),
   browserProxy: adaptGroupBrowserProxy(raw["server.browserProxy"]),
+  office: adaptGroupOffice(raw["server.office"]),
 })
 
 export const make = (options?: { readonly baseUrl?: URL | string }) =>

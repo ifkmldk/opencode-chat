@@ -444,6 +444,8 @@ export type ConfigShellOption = { path: string; name: string; acceptable: boolea
 
 export type BrowserProxyTicket = { ticket: string; expiresIn: number }
 
+export type OfficePreview = { engine: string; pdf: string }
+
 export type SessionMessageLocationSwitched = {
   id: string
   metadata?: { [x: string]: JsonValue }
@@ -6431,3 +6433,10 @@ export type BrowserProxyPreviewInput = {
 }
 
 export type BrowserProxyPreviewOutput = BrowserProxyTicket
+
+export type OfficePreviewInput = {
+  readonly name: { readonly name: string; readonly data: string }["name"]
+  readonly data: { readonly name: string; readonly data: string }["data"]
+}
+
+export type OfficePreviewOutput = OfficePreview

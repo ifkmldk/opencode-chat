@@ -75,6 +75,16 @@ const layer = Layer.effect(
                 changed: (_previous, text) => text,
               },
             }),
+            // fork: documents are designed, rendered and inspected, not dumped.
+            Instructions.make({
+              key: Instructions.Key.make("core/office"),
+              codec: Schema.toCodecJson(Schema.String),
+              read: Effect.succeed(office),
+              render: {
+                initial: (text) => text,
+                changed: (_previous, text) => text,
+              },
+            }),
             Instructions.make({
               key: Instructions.Key.make("core/date"),
               codec: Schema.toCodecJson(Schema.String),
@@ -91,6 +101,11 @@ const layer = Layer.effect(
 )
 
 export const node = makeLocationNode({ service: Service, layer, deps: [Global.node, Location.node] })
+
+const office = [
+  "When asked to create or edit a Word, PowerPoint, Excel or PDF file, first load the office-design skill and the format skill (docx, pptx, xlsx, pdf) with the skill tool, build the file with the office kit (office_kit), then call office_render and look at every page image before delivering.",
+  "Fix overflow, clipping, low contrast and uneven spacing and render again. Never invent numbers, quotes or names; mark placeholders. Match the look to the subject and the audience, and follow the user's template or brand when one is given.",
+].join("\n")
 
 const geo = [
   "For questions about real places, routes or locations, use the maps tools instead of memory (OSM-only: OpenStreetMap, keyless, never billed):",

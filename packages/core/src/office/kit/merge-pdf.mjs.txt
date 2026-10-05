@@ -1,0 +1,11 @@
+// OpenCode office kit: merge PDFs in order.   node merge-pdf.mjs <out.pdf> <a.pdf> <b.pdf> ...
+import fs from "node:fs"
+import { PDFDocument } from "pdf-lib"
+
+const [, , output, ...inputs] = process.argv
+const merged = await PDFDocument.create()
+for (const file of inputs.filter((name) => fs.existsSync(name))) {
+  const doc = await PDFDocument.load(fs.readFileSync(file))
+  for (const page of await merged.copyPages(doc, doc.getPageIndices())) merged.addPage(page)
+}
+fs.writeFileSync(output, await merged.save())
