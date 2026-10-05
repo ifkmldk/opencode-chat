@@ -13,6 +13,8 @@ import { UltimateScrape } from "../../scrape/engine.js"
 import { WebSearch } from "../../websearch.js"
 import { MemoryStore } from "../../memory/store.js"
 import { extractTextFromHTML } from "./webfetch.js"
+import { JobWeb } from "./job-web.js"
+import { JobBoards } from "../../scrape/jobboards.js"
 
 const Cats = ["job", "hotel", "flight", "product", "youtube", "place", "event", "course", "service", "other"] as const
 const Category = Schema.Literals(Cats)
@@ -51,6 +53,8 @@ const DeepOutput = Schema.Struct({
   category: Category,
   providers: Schema.Array(Schema.Struct({ provider: Schema.String, status: Schema.String })),
   candidates: Schema.Array(DeepCandidate),
+  table: Schema.optional(Schema.String),
+  careerTable: Schema.optional(Schema.String),
   limitations: Schema.optional(Schema.Array(Schema.String)),
   checkedAt: Schema.optional(Schema.Number),
 })
@@ -96,15 +100,24 @@ export const Plugin = {
                   Effect.map((out) => ({ text: extractTextFromHTML(out.output), source: out.engine })),
                   Effect.orElseSucceed(() => ({ text: "", source: "none" })),
                 ),
+              board: (boardInput: { query: string; location?: string }) =>
+                Effect.promise(() => {
+                  const places = JobBoards.cities(boardInput.query, boardInput.location)
+                  if (places.length === 0) return Promise.resolve([] as JobBoards.Listing[])
+                  const role = JobBoards.role(boardInput.query, places)
+                  return Promise.all([JobBoards.fetchJobstreet({ role, cities: places, pages: 3 }), JobBoards.fetchLinkedIn({ role, cities: places, pages: 2 })]).then(([a, b]) => JobBoards.dedupe([...a, ...b]))
+                }),
+              careers: (careerInput: { company: string; role: string }) =>
+                Effect.gen(function* () {
+                  const hits = yield* websearch
+                    .query({ query: `${careerInput.company} karir career lowongan resmi` }, { sessionID: c.sessionID })
+                    .pipe(Effect.map((web) => web.results), Effect.orElseSucceed(() => [] as readonly { url: string }[]))
+                  return yield* Effect.promise(() => JobBoards.careerCheck(hits, careerInput))
+                }),
               searchJobs: (jobInput: { query: string; limit: number }) =>
-                websearch
-                  .query({ query: `lowongan ${jobInput.query}` }, { sessionID: c.sessionID })
-                  .pipe(
-                    Effect.map((web) => ({ results: web.results.slice(0, jobInput.limit) })),
-                    Effect.catch((error) =>
-                      Effect.succeed({ results: [] as { url: string; title?: string; content?: string }[], error: error instanceof Error ? error.message : String(error) }),
-                    ),
-                  ),
+                JobWeb.search((text) => websearch.query({ query: text }, { sessionID: c.sessionID }), jobInput.query).pipe(
+                  Effect.map((web) => ({ results: web.results.slice(0, jobInput.limit), ...(web.error ? { error: web.error } : {}) })),
+                ),
             })
             const output = yield* deep({
               query: input.query,
@@ -116,7 +129,13 @@ export const Plugin = {
               ...(input.transitLine ? { transitLine: input.transitLine } : {}),
               ...(input.maxResults !== undefined ? { maxResults: input.maxResults } : {}),
             })
-            return { output, content: JSON.stringify(output), metadata: { count: output.candidates.length } }
+            const table = "table" in output ? output.table : undefined
+            const careers = "careerTable" in output ? output.careerTable : undefined
+            return { output, content: table ? `${table}
+
+${careers ? `${careers}
+
+` : ""}${JSON.stringify({ ...output, table: undefined, careerTable: undefined })}` : JSON.stringify(output), metadata: { count: output.candidates.length } }
           }),
       }),
     )

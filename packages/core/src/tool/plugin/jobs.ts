@@ -5,6 +5,7 @@ import { ToolFailure } from "@opencode/ai"
 import { Effect, Schema } from "effect"
 import { Permission } from "../../permission.js"
 import { WebSearch } from "../../websearch.js"
+import { JobWeb } from "./job-web.js"
 
 const SearchInput = Schema.Struct({ query: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)), location: Schema.optional(Schema.String.check(Schema.isMaxLength(200))), limit: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 50 }))) })
 const MatchInput = Schema.Struct({ title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)), description: Schema.optional(Schema.String.check(Schema.isMaxLength(20_000))), cvText: Schema.String.check(Schema.isMinLength(20), Schema.isMaxLength(100_000)) })
@@ -26,7 +27,8 @@ export const Plugin = {
       const base = yield* Effect.try({ try: endpoint, catch: (error) => new ToolFailure({ message: error instanceof Error ? error.message : String(error) }) }); if (!base) {
         // fork: location-aware web fallback — tanpa provider pun lokasi tidak dibuang.
         const q = [input.query, input.location].filter(Boolean).join(" ")
-        const web = yield* websearch.query({ query: `lowongan ${q}` }, { sessionID: context.sessionID }).pipe(Effect.orElseSucceed(() => ({ results: [] as WebSearch.Result[] })))
+        const web = yield* JobWeb.search((text) => websearch.query({ query: text }, { sessionID: context.sessionID }), q)
+        if (web.results.length === 0 && web.error) return yield* new ToolFailure({ message: `Web search failed: ${web.error.slice(0, 300)}. Tell the user the job search is unavailable; do not list jobs from memory.` })
         const jobs = web.results.slice(0, input.limit ?? 20).map((r) => ({ id: r.url, title: r.title ?? r.url, company: undefined, location: input.location, url: r.url, description: r.content?.slice(0, 2000) }))
         const output = { provider: "web-search", jobs }
         return { output, content: JSON.stringify(output), metadata: { provider: output.provider, count: jobs.length, fallback: true } }

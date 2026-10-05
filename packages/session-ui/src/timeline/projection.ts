@@ -11,7 +11,7 @@ import { createMemo, mapArray, type Accessor } from "solid-js"
 import { currentContentDefaultOpen, currentToolFailed, currentToolHasLoadedFiles } from "../message/current-tool-state"
 import { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap } from "./timeline-row"
 import { timelineCategory, timelineNoticeRequired, type TimelineDetail } from "./detail"
-import { timelineCardTool, timelineResultTool } from "./result-tools"
+import { timelineAnswerTool, timelineCardTool } from "./result-tools"
 
 export { TimelineRow, type PartGroup, type PartRef, type TimelineRowMap }
 
@@ -311,8 +311,8 @@ export namespace Timeline {
       detail?.thinking.placement === "hidden" &&
       working &&
       !!lastContent &&
-      lastContent.type !== "text" &&
-      !timelineResultTool(lastContent)
+      (lastContent.type !== "text" || !!lastAssistant?.content.some((part) => part.type === "tool")) &&
+      !timelineAnswerTool(lastContent)
     const thinking =
       hiddenWork ||
       ((detail ? detail.thinking.placement === "separate" : showReasoning) &&
@@ -332,7 +332,14 @@ export namespace Timeline {
         contentEntries(message)
           .filter(
             (entry) =>
-              isRenderable(entry.content, showReasoning, detail) && !(thinking && entry.content === lastContent),
+              isRenderable(entry.content, showReasoning, detail) &&
+              !(thinking && entry.content === lastContent) &&
+              // fork: Chat/Classifier show answers only; text beside tool calls is narration ("Siap, saya cek...").
+              !(
+                detail?.thinking.placement === "hidden" &&
+                entry.content.type === "text" &&
+                message.content.some((part) => part.type === "tool")
+              ),
           )
           .map((entry) => ({ messageID: message.id, messageIndex, partID: entry.id, content: entry.content })),
       )
@@ -599,7 +606,7 @@ function renderable(content: Content, showReasoning: boolean, detail?: TimelineD
   if (content.name === "todowrite") return false
   if (content.name === "question") return content.state.status !== "streaming" && content.state.status !== "running"
   // fork: result cards stay visible even when their category is hidden (Chat/Classifier views).
-  if (detail && timelineResultTool(content)) return true
+  if (detail && timelineAnswerTool(content)) return true
   if (detail && detail[timelineCategory(content)!].placement === "hidden") return false
   return true
 }

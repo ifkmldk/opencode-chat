@@ -32,7 +32,7 @@ import { ToolOutput } from "../../tool-output.js"
 import { Plugin } from "../../plugin.js"
 import { MAX_STEPS_PROMPT } from "./max-steps.js"
 import { CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "./completion.js"
-import { allowNudge, workedSinceLastUser } from "./completion-policy.js"
+import { allowNudge, REPEATED_NARRATION_STEER, repeatedNarration, workedSinceLastUser } from "./completion-policy.js"
 
 const CONTINUE_AFTER_INCOMPLETE_STREAM =
   "The previous response was interrupted. Continue from where you left off without repeating completed content."
@@ -241,7 +241,9 @@ const layer = Layer.effect(
           system: transcript.system,
           messages: stepLimitReached
             ? [...transcript.messages, Message.assistant(MAX_STEPS_PROMPT)]
-            : transcript.messages,
+            : repeatedNarration(loaded.messages)
+              ? [...transcript.messages, Message.user(REPEATED_NARRATION_STEER)]
+              : transcript.messages,
           // Keep tool definitions on the final Step to preserve the provider's cached prefix.
           toolChoice: stepLimitReached ? "none" : undefined,
           webSocket: "session",

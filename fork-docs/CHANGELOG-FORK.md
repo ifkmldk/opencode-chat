@@ -1,5 +1,17 @@
 # Fork changelog
 
+## 2.0.22-fork.9 (2026-10-05)
+
+Dari sesi "Loker Bandung" milik pemilik (jawaban berulang, lokasi dan link salah, hasil sedikit, banyak sampah di tampilan).
+
+- Riset lowongan membaca daftar Jobstreet dan LinkedIn langsung (kartu: judul, perusahaan, kota, gaji, link listing), disaring dengan kota di kartu, bukan cuplikan web search. Batas hasil 30 (maks 50), tabel siap tempel (`table`).
+- Halaman karir resmi perusahaan dari hasil dibuka oleh program (`careerTable`), bukan tergantung model; halaman kosong atau gagal dilaporkan apa adanya.
+- `jobs_search` dan `research_deep`: kata "lowongan" tidak ganda, kueri cadangan, error penyedia ditampilkan (sebelumnya disembunyikan).
+- Pembuka kalimat yang sama tiga kali dalam satu giliran memicu arahan sementara agar model berhenti menarasi.
+- Chat dan Classifier hanya menampilkan jawaban: narasi di samping tool call dan kartu proses (maps, scrape, search, fetch) disembunyikan; checklist, `office_render`, aksi tetap.
+- Belum: Glints/Kalibrr (daftar tidak menghormati kata kunci), interaksi "muat lebih banyak", sesi lama tidak diperbaiki isinya.
+
+
 ## 2.0.22-fork.8 (2026-10-05)
 
 Perbaikan dari UAT dengan model asli (laporan: `fork-docs/qa/REPORT.md`).
