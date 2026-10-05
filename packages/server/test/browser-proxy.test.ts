@@ -88,7 +88,7 @@ test("tickets are single-use, bound to one URL, and expire", () => {
   expect(consume(stale, url, 1_000 + 60_001)).toBe(false)
 })
 
-test("pages lose framing restrictions but keep their own content policy", async () => {
+test("pages lose framing restrictions and their own content policy (it blocks the bridge and base)", async () => {
   const response = await rewrite(
     new Response("<html><head><title>x</title></head><body>hi</body></html>", {
       headers: {
@@ -102,7 +102,7 @@ test("pages lose framing restrictions but keep their own content policy", async 
   )
   expect(response.headers.get("x-frame-options")).toBeNull()
   expect(response.headers.get("set-cookie")).toBeNull()
-  expect(response.headers.get("content-security-policy")).toBe("script-src 'self'")
+  expect(response.headers.get("content-security-policy")).toBeNull()
   expect(await response.text()).toContain('<head><base href="https://example.com/a"><script>')
 })
 
@@ -220,3 +220,13 @@ it.live("previews: minting needs credentials and the app header; the page is fra
     expect((yield* Effect.promise(() => fetch(new URL(`${PROXY}/preview`, base)))).status).toBe(401)
   }),
 )
+
+test("a meta content policy in the page is removed too", async () => {
+  const response = await rewrite(
+    new Response(`<html><head><meta http-equiv="Content-Security-Policy" content="script-src 'nonce-x'"><title>x</title></head><body>hi</body></html>`, { headers: { "content-type": "text/html" } }),
+    "https://example.com/",
+  )
+  const html = await response.text()
+  expect(html).not.toMatch(/content-security-policy/i)
+  expect(html).toContain("<title>x</title>")
+})

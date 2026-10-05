@@ -1,5 +1,13 @@
 # Fork changelog
 
+## 2.0.22-fork.10 (2026-10-05)
+
+- Panel Browser bisa dipakai lagi untuk mencari: CSP milik situs (nonce `script-src`, `base-uri`) memblokir skrip jembatan dan `<base>` proxy, jadi Google dan Bing kosong atau rusak. CSP situs (header dan meta) sekarang dibuang; sandbox proxy tetap membuat halaman beropini origin buram. Mesin pencari bawaan alamat bar: Bing (DuckDuckGo html memblokir fetch server). Google sendiri tetap menampilkan halaman cek bot untuk fetch server-side.
+- LinkedIn (halaman publik) ditambahkan ke riset lowongan di samping Jobstreet; duplikat antar papan digabung.
+- Halaman karir resmi perusahaan dibuka oleh program (`careerTable`), bukan oleh model.
+- Tidak dimasukkan: Glints dan Kalibrr (parameter kata kunci dan kota diabaikan, hasilnya acak), Indeed (hanya 3 kartu terbaca, satu id terlihat seperti umpan).
+
+
 ## 2.0.22-fork.9 (2026-10-05)
 
 Dari sesi "Loker Bandung" milik pemilik (jawaban berulang, lokasi dan link salah, hasil sedikit, banyak sampah di tampilan).

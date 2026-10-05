@@ -37,7 +37,7 @@ export function webBrowserAddress(input: string) {
   if (/^https?:\/\//i.test(value)) return value
   if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(value)) return `http://${value}`
   if (!/\s/.test(value) && /^[^/]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return `https://${value}`
-  return `https://duckduckgo.com/html/?q=${encodeURIComponent(value)}`
+  return `https://www.bing.com/search?q=${encodeURIComponent(value)}`
 }
 
 // One saved store for every caller (tab strip and panes), owned by a root that outlives any component.
