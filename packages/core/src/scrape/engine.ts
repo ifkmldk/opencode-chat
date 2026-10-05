@@ -2,9 +2,15 @@ export * as UltimateScrape from "./engine.js"
 
 import { Duration, Effect, Schema } from "effect"
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
-import { fileURLToPath } from "url"
+import fs from "node:fs"
+import os from "node:os"
 import path from "path"
 import type { ScrapeInput, ScrapeOutput } from "./types.js"
+import { ScrapeChromium } from "./chromium.js"
+import { ScrapeExtract } from "./extract.js"
+import camofoxBridge from "./bridges/camofox_py.py.txt" with { type: "text" }
+import scraplingBridge from "./bridges/scrapling.py.txt" with { type: "text" }
+import scrapegraphBridge from "./bridges/scrapegraph.py.txt" with { type: "text" }
 import { convertHTMLToMarkdown, MAX_MARKDOWN_BYTES } from "../tool/html-markdown.js"
 import { collectBoundedResponseBody } from "../tool/http-body.js"
 import { extractTextFromHTML } from "../tool/plugin/webfetch.js"
@@ -56,13 +62,14 @@ export const planFor = (input: { mode?: string }): string[] => {
     case viaWebfetch:
       return ["webfetch"]
     case viaStealth:
-      return ["camofox", "scrapling", "webfetch"]
+      return ["chromium", "camofox", "scrapling", "webfetch"]
     case viaAI:
       return ["scrapegraph", "webfetch"]
     case viaChannels:
       return ["agent-reach", "webfetch"]
+    // fork: auto escalates from a plain GET to a rendering browser when the page comes back empty, blocked or a shell.
     default:
-      return ["webfetch"]
+      return ["webfetch", "chromium"]
   }
 }
 
@@ -78,7 +85,16 @@ export const stubOutput = (input: ScrapeInput): ScrapeOutput => ({
 })
 
 const MAX_BYTES = MAX_MARKDOWN_BYTES
-const bridgesDir = path.dirname(fileURLToPath(import.meta.url))
+// fork: the bridge scripts are embedded in the executable (a compiled build has no source folder next to it, which is why
+// every Python tier failed with "can't open file B:\~BUN\root\bridges"). They are written to a cache folder on use.
+const BRIDGES = { "scrapling.py": scraplingBridge, "camofox_py.py": camofoxBridge, "scrapegraph.py": scrapegraphBridge } as const
+export const bridgeFile = (name: keyof typeof BRIDGES) => {
+  const directory = path.join(process.env.OPENCODE_SCRAPER_DIR ?? path.join(os.homedir(), ".local", "share", "opencode"), "scrape-bridges")
+  fs.mkdirSync(directory, { recursive: true })
+  const file = path.join(directory, name)
+  if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== BRIDGES[name]) fs.writeFileSync(file, BRIDGES[name])
+  return file
+}
 
 const titleOf = (html: string) => /<title[^>]*>([^<]{1,300})<\/title>/i.exec(html)?.[1]?.trim()
 
@@ -91,7 +107,13 @@ const toOutput = (
   extraWarnings: string[] = [],
 ): ScrapeOutput => {
   const format = input.format ?? "markdown"
-  const output = format === "html" ? html : format === "text" ? extractTextFromHTML(html) : convertHTMLToMarkdown(html)
+  // fork: markdown/text keep the main content (menus, banners and footers dropped) and add structured JobPosting data.
+  const main = ScrapeExtract.mainContent(html)
+  const jobs = format === "markdown" ? ScrapeExtract.jobPostingsMarkdown(ScrapeExtract.jobPostings(html)) : ""
+  const body = format === "html" ? html : format === "text" ? extractTextFromHTML(main) : convertHTMLToMarkdown(main)
+  const output = jobs ? `${body}
+
+${jobs}` : body
   const bytes = new TextEncoder().encode(output).byteLength
   return {
     url: input.url,
@@ -134,13 +156,24 @@ const fetchScrapling = (input: ScrapeInput, started: number) =>
     const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 60_000, 5000), 120_000)
     const out = yield* runBridge(
       "uvx",
-      ["--from", "scrapling[fetchers]", "python", path.join(bridgesDir, "bridges", "scrapling.py")],
+      ["--from", "scrapling[fetchers]", "python", bridgeFile("scrapling.py")],
       JSON.stringify({ url: input.url, timeout_ms: timeoutMs, proxy: input.proxy }),
       timeoutMs + 30_000,
     )
     const parsed = JSON.parse(out) as { ok: boolean; html?: string; final_url?: string; error?: string }
     if (!parsed.ok || !parsed.html) throw new Error(parsed.error ?? "Scrapling returned no HTML")
     return toOutput(input, parsed.html, "scrapling", parsed.final_url ?? input.url, started)
+  })
+
+const fetchChromium = (input: ScrapeInput, started: number) =>
+  Effect.gen(function* () {
+    assertHttpUrl(input.url)
+    const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 45_000, 5000), 120_000)
+    const page = yield* Effect.tryPromise({
+      try: () => ScrapeChromium.render(input.url, { timeoutMs, waitMs: input.waitMs, proxy: input.proxy }),
+      catch: (error) => error,
+    })
+    return toOutput(input, page.html, "chromium", page.finalUrl, started)
   })
 
 const fetchAgentReach = (input: ScrapeInput, started: number) =>
@@ -186,7 +219,7 @@ const fetchCamofoxPython = (input: ScrapeInput, started: number, timeoutMs: numb
   Effect.gen(function* () {
     const out = yield* runBridge(
       "uvx",
-      ["--from", CAMOFOX_PY_SPEC, "python", path.join(bridgesDir, "bridges", CAMOFOX_PY_BRIDGE)],
+      ["--from", CAMOFOX_PY_SPEC, "python", bridgeFile(CAMOFOX_PY_BRIDGE)],
       JSON.stringify(camofoxPythonPayload(input, timeoutMs)),
       timeoutMs + 60_000,
     )
@@ -240,7 +273,7 @@ const fetchScrapegraph = (input: ScrapeInput, started: number) =>
     const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 120_000, 5000), 180_000)
     const out = yield* runBridge(
       "uvx",
-      ["--from", SPEC_SCRAPEGRAPH, "--with", SPEC_SCRAPEGRAPH_WITH, "python", path.join(bridgesDir, "bridges", "scrapegraph.py")],
+      ["--from", SPEC_SCRAPEGRAPH, "--with", SPEC_SCRAPEGRAPH_WITH, "python", bridgeFile("scrapegraph.py")],
       JSON.stringify({
         url: input.url,
         prompt: "Extract the main content as markdown.",
@@ -294,6 +327,8 @@ const tierFor = (name: string, http: HttpClient.HttpClient, input: ScrapeInput, 
   switch (name) {
     case "camofox":
       return fetchCamofox(input, started)
+    case "chromium":
+      return fetchChromium(input, started)
     case "scrapling":
       return fetchScrapling(input, started)
     case "scrapegraph":
@@ -309,14 +344,22 @@ export const run = (http: HttpClient.HttpClient, input: ScrapeInput) =>
   Effect.gen(function* () {
     const started = Date.now()
     const warnings: string[] = []
+    let best: ScrapeOutput | undefined
     for (const tier of planFor(input)) {
       const attempt = yield* tierFor(tier, http, input, started).pipe(Effect.result)
-      if (attempt._tag === "Success") return { ...attempt.success, warnings: [...warnings, ...attempt.success.warnings] }
-      warnings.push(`${tier}: ${(attempt.failure as Error)?.message ?? String(attempt.failure)}`.slice(0, 300))
+      if (attempt._tag === "Failure") {
+        warnings.push(`${tier}: ${(attempt.failure as Error)?.message ?? String(attempt.failure)}`.slice(0, 300))
+        continue
+      }
+      // fork: a page that loaded but is empty, a menu stub or a bot wall is not a result: try the next tier, keep the best.
+      if (input.format === "html" || ScrapeExtract.isUseful(attempt.success.output)) return { ...attempt.success, warnings: [...warnings, ...attempt.success.warnings] }
+      warnings.push(`${tier}: empty, blocked or script-only page (${attempt.success.output.trim().length} characters)`)
+      if (!best || attempt.success.output.length > best.output.length) best = attempt.success
     }
+    if (best && best.output.trim().length > 0) return { ...best, warnings: ["The page text is short or looks blocked; treat it as incomplete.", ...warnings] }
     return { ...stubOutput(input), warnings: ["All scraper tiers failed.", ...warnings] }
   })
 
-export const __test = { planFor, stubOutput, assertHttpUrl, toOutput, scrapegraphProviderFromEnv }
+export const __test = { planFor, bridgeFile, stubOutput, assertHttpUrl, toOutput, scrapegraphProviderFromEnv }
 
 

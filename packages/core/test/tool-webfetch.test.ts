@@ -636,6 +636,7 @@ describe("WebFetchTool registration", () => {
     Effect.gen(function* () {
       reset()
       process.env.OPENCODE_SCRAPER_NO_AUTOSETUP = "1"
+      process.env.OPENCODE_SCRAPER_NO_CHROMIUM = "1"
       process.env.OPENCODE_CAMOFOX_BACKEND = "server"
       respond = () => Effect.succeed(new Response("forbidden", { status: 403 }))
       const registry = yield* Tool.Service
@@ -643,6 +644,7 @@ describe("WebFetchTool registration", () => {
 
       const result = yield* executeTool(registry, call({ url, format: "text" }))
       delete process.env.OPENCODE_SCRAPER_NO_AUTOSETUP
+      delete process.env.OPENCODE_SCRAPER_NO_CHROMIUM
       delete process.env.OPENCODE_CAMOFOX_BACKEND
       expect(result.status).toBe("error")
       expect(JSON.stringify(result)).toContain("HTTP 403")

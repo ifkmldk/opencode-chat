@@ -194,6 +194,17 @@ ${result.output}`,
               )
               if (fetched._tag === "Failure") {
                 const status = blockedStatus(fetched.failure)
+                // fork: a transport error (TLS or handshake refusals of plain clients) is often fine for a real browser.
+                if (status === undefined && /transport error/i.test(String((fetched.failure as Error)?.message ?? fetched.failure)))
+                  return yield* viaScraper("unreachable by a plain HTTP client").pipe(
+                    Effect.catch((error) =>
+                      Effect.fail(
+                        new Error(
+                          `${(fetched.failure as Error)?.message ?? "Transport error"}; the browser fallback failed too (${error instanceof Error ? error.message : String(error)}). Say the site could not be reached instead of guessing.`,
+                        ),
+                      ),
+                    ),
+                  )
                 if (status === undefined) return yield* Effect.fail(fetched.failure)
                 return yield* viaScraper(`blocked with HTTP ${status}`).pipe(
                   Effect.catch((error) =>

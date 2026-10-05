@@ -93,7 +93,9 @@ export const Plugin = {
                   .query({ query: `lowongan ${jobInput.query}` }, { sessionID: c.sessionID })
                   .pipe(
                     Effect.map((web) => ({ results: web.results.slice(0, jobInput.limit) })),
-                    Effect.orElseSucceed(() => ({ results: [] as { url: string; title?: string; content?: string }[] })),
+                    Effect.catch((error) =>
+                      Effect.succeed({ results: [] as { url: string; title?: string; content?: string }[], error: error instanceof Error ? error.message : String(error) }),
+                    ),
                   ),
             })
             const output = yield* deep({

@@ -92,6 +92,16 @@ const layer = Layer.effect(
                 changed: (_previous, text) => text,
               },
             }),
+            // fork: keeps answers on the question: constraints first, sources, honest gaps.
+            Instructions.make({
+              key: Instructions.Key.make("core/answer-plan"),
+              codec: Schema.toCodecJson(Schema.String),
+              read: Effect.succeed(answerPlan),
+              render: {
+                initial: (text) => text,
+                changed: (_previous, text) => text,
+              },
+            }),
             Instructions.make({
               key: Instructions.Key.make("core/todo"),
               codec: Schema.toCodecJson(Schema.String),
@@ -112,26 +122,18 @@ export const node = makeLocationNode({ service: Service, layer, deps: [Global.no
 const todo =
   "For work with three or more steps, keep a visible checklist with todo_write: one item in_progress at a time, mark each item completed as soon as it is truly done and checked, and send the whole list on every update. Skip it for single quick actions and plain questions."
 
-const office = [
-  "When asked to create or edit a Word, PowerPoint, Excel or PDF file, first load the office-design skill and the format skill (docx, pptx, xlsx, pdf) with the skill tool, build the file with the office kit (office_kit), then call office_render and look at every page image before delivering.",
-  "Fix overflow, clipping, low contrast and uneven spacing and render again. Never invent numbers, quotes or names; mark placeholders. Match the look to the subject and the audience, and follow the user's template or brand when one is given.",
-].join("\n")
+const office = "When asked to create or edit a Word, PowerPoint, Excel or PDF file, load the office-design skill and the format skill (docx, pptx, xlsx, pdf), build with the office kit (office_kit), then office_render it and look at every page before delivering; fix and render again. Never invent numbers, quotes or names."
 
 const geo = [
-  "For questions about real places, routes or locations, use the maps tools instead of memory (OSM-only: OpenStreetMap, keyless, never billed):",
-  "maps_search for places (OpenStreetMap addresses, coordinates, opening hours, hotel stars; ratings/reviews/prices only when scraped with attribution, else unknown), maps_ask for public-transport directions (KRL, TransJakarta, MRT) and local questions,",
-  "maps_route and maps_matrix for travel time over roads, maps_poi for what is around a place, and geo_compute for exact distances, areas, buffers, clusters and weighted rankings.",
-  "Never state a rating, price, opening time or address the tools did not return, and say where the data came from (OpenStreetMap, web-search, or scraped with attribution).",
-  'Decide "nearest" or "best" by travel time, not straight-line distance, and state the travel mode and assumptions.',
-  "Hard rules for research answers: (1) location/anchor is never dropped — resolve it via maps_search geocoding; (2) every candidate shows distance to the anchor/corridor station and its data source with the check date; (3) must-have attributes (e.g. carport) are hard filters — candidates without scraped proof are removed, never presented; (4) anything unverified is labelled unknown, never invented; (5) present a comparison table (Name | Distance/Time | Price | Verification | Source) with the top 3 first.",
-  "For spatial analysis, report the method, the data sources, the coordinate reference system (WGS84; UTM for areas and buffers) and the accuracy limits.",
-  "Pick the analysis that answers the question: geo_compute classify for thematic classes (it compares Jenks, quantile, equal interval, standard deviation and head/tail breaks and recommends one by goodness of variance fit; report the GVF),",
-  "morans_i to test whether values cluster, hotspots (Getis-Ord Gi*) to locate hot and cold spots, nearest_neighbor_index for point patterns, centrography for the centre and spread, and rank for multi-criteria choices.",
-  "To choose between places, gather them with maps_search, measure travel time with maps_matrix, count what is nearby with maps_poi, score them with geo_compute rank using explicit weights,",
-  "then, when classifier_classify is used for the decision, pass that ranking in its state and the candidate names as criteria; show the scoring table so the choice can be checked.",
-  "Link every place you recommend as [Name](place:<id>) using the id from maps_search, include the Google Maps link for the chosen route,",
-  "and finish an answer about places or routes by calling map_show with the shortlist, the route and any areas (place labels are optional; keep them to 1-3 characters).",
+  "For real places, routes or locations use the maps tools, not memory (OpenStreetMap, keyless): maps_search (places, coordinates, hours, hotel stars), maps_ask (KRL, TransJakarta, MRT directions), maps_route and maps_matrix (travel time over roads), maps_poi (what is around a place), geo_compute (distances, areas, buffers, clusters, classify, morans_i, hotspots, rank).",
+  "Never state a rating, price, opening time or address the tools did not return; name the source (OpenStreetMap, web search, or scraped with attribution) and the check date. Decide nearest or best by travel time and state the mode and assumptions.",
+  "The user's hard filters (area, must-have attributes, budget, dates) remove candidates; anything unverified is unknown, never invented. Report the method, sources, CRS (WGS84; UTM for areas and buffers) and accuracy limits for spatial analysis.",
+  "To choose between places: maps_search, maps_matrix, maps_poi, then geo_compute rank with explicit weights, then classifier_classify with the ranking, the user's question and the candidate names; show the scoring table.",
+  "Link each recommended place as [Name](place:<id>) using the id from maps_search, give the Google Maps link for the chosen route, and finish place or route answers with map_show (shortlist, route, areas; place labels optional, 1-3 characters).",
 ].join(" ")
+
+const answerPlan =
+  "For a request to find, compare or recommend something, first restate to yourself the exact question and its hard constraints (place, budget, dates, quantity, language, exclusions, and things already done such as jobs applied to). Keep those constraints in every search and filter, and drop results that break one instead of padding the list. Answer in the user's language, question first: a short answer, then the results (each with a source link and check date), then what you could not verify or find, then one next step. If tools fail or return nothing, say exactly that and what you tried; never fill gaps from memory or repeat results the user already rejected."
 
 function outputFiles(tmp: string) {
   return [

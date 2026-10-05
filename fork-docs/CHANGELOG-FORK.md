@@ -1,5 +1,27 @@
 # Fork changelog
 
+## 2.0.22-fork.5 (2026-10-05)
+
+Hasil audit sesi nyata (hotel BSD, loker Tangerang/Bandung): scraper dan jawaban riset diperbaiki. Rencana lengkap di `fork-docs/` (ringkasan di bawah).
+
+- **Scraper sungguhan jalan di situs perusahaan.** Tier baru `chromium` memakai Chrome/Brave/Playwright Chromium yang sudah ada, dikendalikan lewat DevTools
+  (muat halaman, tunggu teks berhenti bertambah, scroll sekali, ambil DOM; batas waktu tetap mengembalikan DOM sebagian). Mode `auto` naik dari fetch biasa ke
+  browser saat hasil kosong, menu saja, tembok bot, error TLS/transport. Uji nyata: Jobstreet (403 -> 989 lowongan terbaca), Telkom, bank bjb terbaca; efishery
+  jujur dilaporkan sertifikatnya bermasalah.
+- **Skrip jembatan Python ter-embed** (`*.py.txt`) dan ditulis ke `~/.local/share/opencode/scrape-bridges`; sebelumnya exe mencari `B:~BUNootridges...` (tidak ada)
+  sehingga camofox/scrapling selalu gagal. Skrip kini membaca stdin atau argv.
+- **Ekstraksi konten utama** (`scrape/extract.ts`): buang menu/footer/banner, ambil `<main>`/`<article>`, tambahkan data JSON-LD `JobPosting` (judul, perusahaan, lokasi, gaji, tanggal).
+- **Gagal = error, bukan halaman kosong.** `scrape_fetch` tanpa isi menolak dengan alasan dan perintah jangan menebak; `scrape_status` tidak lagi berbohong "ready"
+  (memeriksa Chromium sungguhan; tier Python ditandai sekadar cek paket). `webfetch` juga naik ke browser pada transport error. Klaim "respects robots/SSRF" dihapus dari deskripsi.
+- **Instruksi lebih pendek dan tidak bertabrakan:** geo 3,3k -> ~1,7k karakter, office/todo diringkas; kontrak jawaban diselaraskan (jawab pertanyaan di baris pertama, satu tabel dengan kolom
+  sumber + tanggal cek); instruksi baru `core/answer-plan` (konstrain keras tetap dipakai di tiap pencarian, jawaban berurutan: jawaban, hasil bersumber, yang tidak ditemukan, langkah berikut, tidak mengarang saat tool gagal).
+- **research_deep untuk pekerjaan:** tidak lagi memakai logika hotel (regex carport/furnished, geocode judul lalu buang). Semua lowongan dipertahankan, lokasi diverifikasi dari halamannya
+  (JSON-LD/teks), yang halamannya menunjukkan kota lain dibuang, yang terverifikasi di depan. Pencarian gagal = status `error`, nol hasil = `unavailable`, dengan perintah jangan menyusun daftar dari ingatan.
+  Mode koridor KRL tetap bila `transitLine` diberikan eksplisit.
+- **Classifier:** menerima `question`, dan peringatan fallback kini jujur (bukan model, pilihan = petunjuk, jangan sebut "terjamin").
+
+Belum (rencana Tahap 2-3): pin konstrain saat kompaksi, daftar "sudah dilamar", recall memory/Obsidian otomatis, katalog Code Mode yang membuat cache prompt tidak terpakai, sumber ATS khusus.
+
 ## 2.0.22-fork.4 (2026-10-05)
 
 - **Kartu halaman untuk `office_render`:** timeline menampilkan strip thumbnail halaman yang dirender (judul, jumlah halaman, mesin),

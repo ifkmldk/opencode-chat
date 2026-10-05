@@ -43,7 +43,7 @@ describe("InstructionBuiltIns", () => {
       // fork: the maps guidance (core/geo), the short response contract (core/response-contract) and the
       // office and todo guidance follow the output-files instruction.
       const blocks = initialized.text.split("\n\n")
-      const geo = blocks.find((block) => block.startsWith("For questions about real places"))
+      const geo = blocks.find((block) => block.startsWith("For real places"))
       expect(geo).toContain("[Name](place:<id>)")
       expect(geo).toContain("map_show")
       expect(geo).toContain("WGS84")
@@ -54,8 +54,10 @@ describe("InstructionBuiltIns", () => {
       expect(office).toContain("office_render")
       const todo = blocks.find((block) => block.startsWith("For work with three or more steps"))
       expect(todo).toContain("todo_write")
+      const plan = blocks.find((block) => block.startsWith("For a request to find, compare or recommend"))
+      expect(plan).toContain("hard constraints")
 
-      expect(blocks.filter((block) => ![geo, contract, office, todo].includes(block)).join("\n\n")).toBe(
+      expect(blocks.filter((block) => ![geo, contract, office, todo, plan].includes(block)).join("\n\n")).toBe(
         [
           `Today's date: ${localDate(timestamp)}`,
           "",
