@@ -19,6 +19,7 @@ const CARD_TOOLS = new Set([
   "scrape_status",
   "memory_search",
   "todo_write",
+  "office_render",
 ])
 const SOURCE_TOOLS = new Set(["websearch", "webfetch"])
 

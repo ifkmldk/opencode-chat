@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.22-fork.4 (2026-10-05)
+
+- **Kartu halaman untuk `office_render`:** timeline menampilkan strip thumbnail halaman yang dirender (judul, jumlah halaman, mesin),
+  dibaca lewat pembaca gambar yang sama dengan kartu file. Data kartu ada di `metadata` hasil tool.
+- **Hook pengguna + pagar pengaman shell** (`core/src/plugin/user-hooks.ts`): `hooks.json` di folder config (sebelah `opencode.json`)
+  menolak panggilan tool yang cocok (`before`) atau menjalankan perintah sesudah tool selesai (`after`, mis. `prettier --write {path}`).
+  Pagar bawaan (bisa dimatikan dengan `"guard": false`) menolak perintah shell yang merusak: hapus rekursif root/home/drive, format,
+  tulis ke disk, shutdown, hapus registri HKLM, dan unduhan yang dipipa ke shell. Ini sabuk pengaman, bukan sandbox; prompt izin tetap kendali utama.
+  Dokumentasi: `fork-docs/hooks.md`.
+
 ## 2.0.22-fork.3 (2026-10-05)
 
 Polesan mesin dokumen setelah QA visual 6 jenis dokumen (`fork-docs/qa/`: pitch deck, proposal, laporan, workbook, CV, brosur).

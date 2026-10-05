@@ -83,7 +83,7 @@ export const Plugin = {
             return {
               output: { pdf: result.pdf, engine: result.engine, pages: result.pages, files },
               content: [{ type: "text" as const, text: summary }, ...images],
-              metadata: { engine: result.engine, pages: result.pages },
+              metadata: { engine: result.engine, pages: result.pages, pdf: result.pdf, files },
             }
           }),
       }),
