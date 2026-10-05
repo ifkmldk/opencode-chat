@@ -17,6 +17,21 @@ Best route for designed output (brochures, one-pagers, invoices, certificates, r
 2. `office_render` accepts `.html` and returns the page images and the PDF path (reported in the tool result). Look at the pages, fix, render again, then copy the PDF to where the user wants it.
 3. For charts use inline SVG you generate from the data. No CDN scripts: printing happens offline and scripts may not finish.
 
+Starter that renders well (page-sized sections, design tokens, serif headings, one accent):
+
+```html
+<style>
+@page { size: A4; margin: 0 }
+:root { --ink:#1d261f; --muted:#62705f; --accent:#3f6b4f; --paper:#f7f8f4; --rule:#d2d9c8 }
+* { box-sizing: border-box } body { margin:0; font-family:"Segoe UI",Calibri,sans-serif; color:var(--ink); background:var(--paper) }
+.page { width:210mm; height:297mm; padding:20mm 18mm; page-break-after:always; overflow:hidden; position:relative }
+.kicker { font-size:10pt; letter-spacing:.25em; text-transform:uppercase; color:var(--accent); font-weight:700 }
+h1 { font-family:Georgia,serif; font-weight:400; font-size:44pt; line-height:1.05; margin:10mm 0 6mm }
+.grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8mm } .card { border-top:2px solid var(--accent); padding-top:4mm }
+</style>
+```
+Use mm/pt units, one `.page` section per sheet, a full-bleed band for the key number or call to action, and real content only.
+
 If the user also needs it editable in Word, build a .docx (see the `docx` skill) and render it instead; Word exports a faithful PDF.
 
 ## Changing an existing PDF

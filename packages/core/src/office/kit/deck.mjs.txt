@@ -365,19 +365,18 @@ export function createDeck(options = {}) {
         if (spec.heading)
           slide.addText(spec.heading, {
             x,
-            y: 2.05,
+            y: 2.1,
             w: cw(5.4),
-            h: 0.5,
-            fontFace: f.body,
-            fontSize: scale.lead,
-            bold: true,
+            h: 0.6,
+            fontFace: f.head,
+            fontSize: scale.h3 + 2,
             color: hex(p.accent),
             margin: 0,
           })
         if (spec.bullets)
-          slide.addText(bullets(spec.bullets, { size: scale.lead - 1 }), {
+          slide.addText(bullets(spec.bullets, { size: scale.lead + 3 }), {
             x,
-            y: 2.7,
+            y: 2.95,
             w: cw(5.4),
             h: 3.9,
             fontFace: f.body,
@@ -388,17 +387,18 @@ export function createDeck(options = {}) {
         if (spec.text)
           slide.addText(spec.text, {
             x,
-            y: 2.7,
+            y: 2.95,
             w: cw(5.4),
             h: 3.9,
             fontFace: f.body,
-            fontSize: scale.lead - 1,
+            fontSize: scale.lead + 3,
             color: hex(p.ink),
             margin: 0,
             valign: "top",
             lineSpacingMultiple: 1.2,
           })
       }
+      slide.addShape(pptx.ShapeType.line, { x: cx(6.0), y: 2.15, w: 0, h: 3.9, line: { color: hex(p.rule), width: 1 } })
       col(left, cx(0))
       col(right, cx(6.6))
       return slide

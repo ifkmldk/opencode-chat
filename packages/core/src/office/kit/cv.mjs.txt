@@ -1,0 +1,115 @@
+// OpenCode office kit: one-page CV / resume as a Word document (docx library). Single column, name large, section
+// labels in small caps, dates right-aligned on a tab stop, no tables for layout, no photo, no skill bars. These are
+// the things recruiters' parsers and human readers both handle well. RENDER the file (office_render) before delivering.
+//
+//   import { createCV } from "<kit>/cv.mjs"
+//   const cv = createCV({ palette: "graphite", fonts: "modern" })
+//   cv.header({ name: "Dewi Lestari", title: "Data analyst", contacts: ["dewi@example.com", "+62 812 0000 0000", "Bandung"] })
+//   cv.section("Experience")
+//   cv.entry({ role: "Senior analyst", org: "PT Maju", dates: "2022 - now", bullets: ["Cut reporting time from 3 days to 4 hours"] })
+//   cv.section("Skills"); cv.line("SQL, Python, Power BI, dbt")
+//   await cv.save("out/cv.docx")
+import fs from "node:fs"
+import path from "node:path"
+import { AlignmentType, BorderStyle, Document, LevelFormat, Packer, Paragraph, TabStopType, TextRun } from "docx"
+import { fontPair, hex, palette } from "./design.mjs"
+
+const PAGE = { width: 11906, height: 16838 }
+const MARGIN = 1020 // 1.8 cm
+const CONTENT = PAGE.width - 2 * MARGIN
+const pt = (points) => Math.round(points * 2)
+const twip = (points) => Math.round(points * 20)
+
+export function createCV(options = {}) {
+  const p = palette(options.palette ?? "graphite")
+  const f = fontPair(options.fonts ?? "modern")
+  const body = []
+  const text = (value, extra = {}) => new TextRun({ text: value, font: f.body, size: pt(10.5), color: hex(p.ink), ...extra })
+
+  const api = {
+    header({ name, title, contacts = [] }) {
+      body.push(new Paragraph({ spacing: { after: twip(2) }, children: [new TextRun({ text: name, font: f.head, size: pt(28), color: hex(p.ink) })] }))
+      if (title)
+        body.push(new Paragraph({ spacing: { after: twip(4) }, children: [new TextRun({ text: title, font: f.body, size: pt(13), color: hex(p.accent) })] }))
+      if (contacts.length)
+        body.push(
+          new Paragraph({
+            spacing: { after: twip(8) },
+            border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: hex(p.rule), space: 8 } },
+            children: [text(contacts.join("   ·   "), { size: pt(9.5), color: hex(p.muted) })],
+          }),
+        )
+      return api
+    },
+
+    section(label) {
+      body.push(
+        new Paragraph({
+          keepNext: true,
+          spacing: { before: twip(12), after: twip(4) },
+          children: [new TextRun({ text: label.toUpperCase(), font: f.body, size: pt(9.5), bold: true, characterSpacing: 40, color: hex(p.accent) })],
+        }),
+      )
+      return api
+    },
+
+    // role + organisation on the left, dates on the right, then achievement bullets with numbers where you have them.
+    entry({ role, org, dates, bullets = [] }) {
+      body.push(
+        new Paragraph({
+          keepNext: bullets.length > 0,
+          spacing: { before: twip(4), after: twip(1) },
+          tabStops: [{ type: TabStopType.RIGHT, position: CONTENT }],
+          children: [
+            text(role, { bold: true, size: pt(11) }),
+            ...(org ? [text(`  ${org}`, { color: hex(p.muted) })] : []),
+            ...(dates ? [text(`\t${dates}`, { color: hex(p.muted), size: pt(10) })] : []),
+          ],
+        }),
+      )
+      bullets.forEach((item) =>
+        body.push(new Paragraph({ numbering: { reference: "cv-bullets", level: 0 }, spacing: { after: twip(1.5), line: 264 }, children: [text(item)] })),
+      )
+      return api
+    },
+
+    line(value) {
+      body.push(new Paragraph({ spacing: { after: twip(2), line: 276 }, children: [text(value)] }))
+      return api
+    },
+
+    async save(file) {
+      const doc = new Document({
+        creator: options.author ?? "",
+        title: options.title ?? "CV",
+        styles: { default: { document: { run: { font: f.body, size: pt(10.5), color: hex(p.ink) } } } },
+        numbering: {
+          config: [
+            {
+              reference: "cv-bullets",
+              levels: [
+                {
+                  level: 0,
+                  format: LevelFormat.BULLET,
+                  text: "–",
+                  alignment: AlignmentType.LEFT,
+                  style: { paragraph: { indent: { left: 360, hanging: 240 } }, run: { color: hex(p.accent) } },
+                },
+              ],
+            },
+          ],
+        },
+        sections: [
+          {
+            properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN } } },
+            children: body,
+          },
+        ],
+      })
+      fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true })
+      fs.writeFileSync(file, await Packer.toBuffer(doc))
+      return { file }
+    },
+  }
+  return api
+}

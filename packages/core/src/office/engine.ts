@@ -224,7 +224,15 @@ try {
   const pdfs: string[] = []
   for (const [index, page] of pages.entries()) {
     const pdf = path.join(directory, `sheet_${index + 1}.pdf`)
-    await run(chromium()!, ["--headless=new", "--disable-gpu", "--no-pdf-header-footer", `--print-to-pdf=${pdf}`, `file:///${page.replaceAll("\\", "/")}`], 120_000)
+    // Excel's sheet page redirects itself into its tabbed frameset, which would print a tab strip. Print a copy
+    // without that script (next to the original so the stylesheet link still resolves).
+    const printable = page.replace(/\.htm$/, ".print.htm")
+    fs.writeFileSync(printable, fs.readFileSync(page, "utf8").replace(/<script[\s\S]*?<\/script>/gi, ""))
+    await run(
+      chromium()!,
+      ["--headless=new", "--disable-gpu", "--no-pdf-header-footer", `--print-to-pdf=${pdf}`, `file:///${printable.replaceAll("\\", "/")}`],
+      120_000,
+    )
     pdfs.push(pdf)
   }
   return OfficeKit.node([path.join(OfficeKit.directory(), "merge-pdf.mjs"), output, ...pdfs], 60_000)

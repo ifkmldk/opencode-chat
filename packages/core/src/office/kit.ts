@@ -6,6 +6,7 @@ import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import cv from "./kit/cv.mjs.txt" with { type: "text" }
 import deck from "./kit/deck.mjs.txt" with { type: "text" }
 import design from "./kit/design.mjs.txt" with { type: "text" }
 import mergePdf from "./kit/merge-pdf.mjs.txt" with { type: "text" }
@@ -26,6 +27,7 @@ const DEPENDENCIES = {
 }
 
 const FILES: Record<string, string> = {
+  "cv.mjs": cv,
   "deck.mjs": deck,
   "design.mjs": design,
   "merge-pdf.mjs": mergePdf,
@@ -117,6 +119,7 @@ export function importHint() {
     `import { createDeck } from "file:///${dir}/deck.mjs"      // slides (pptxgenjs)`,
     `import { createReport } from "file:///${dir}/report.mjs"   // Word (docx)`,
     `import { createWorkbook } from "file:///${dir}/sheet.mjs"  // Excel (exceljs)`,
+    `import { createCV } from "file:///${dir}/cv.mjs"          // one-page CV (docx)`,
     `import { palettes, fonts } from "file:///${dir}/design.mjs"`,
     "Run scripts with: node <script>.mjs (from any folder; the imports are absolute).",
   ].join("\n")

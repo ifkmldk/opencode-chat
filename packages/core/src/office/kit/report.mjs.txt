@@ -168,17 +168,17 @@ export function createReport(options = {}) {
       return api
     },
 
-    // header: ["Item", "Amount"], rows: [["A", "10"]], widths: relative weights, align: ["left", "right"]
-    table({ header, rows, widths, align = [] }) {
+    // header: ["Item", "Amount"], rows: [["A", "10"]], widths: relative weights, align: ["left", "right"], totalRow: true bolds the last row
+    table({ header, rows, widths, align = [], totalRow = false }) {
       const total = (widths ?? header.map(() => 1)).reduce((a, b) => a + b, 0)
       const columns = (widths ?? header.map(() => 1)).map((weight) => Math.floor((CONTENT * weight) / total))
       const line = (color, size) => ({ style: BorderStyle.SINGLE, size, color })
       const none = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
-      const cell = (text, index, head) =>
+      const cell = (text, index, head, last = false) =>
         new TableCell({
           width: { size: columns[index], type: WidthType.DXA },
           margins: { top: twip(4), bottom: twip(4), left: twip(5), right: twip(5) },
-          borders: { top: none, left: none, right: none, bottom: head ? line(hex(p.ink), 8) : line(hex(p.rule), 4) },
+          borders: { top: last ? line(hex(p.ink), 8) : none, left: none, right: none, bottom: head ? line(hex(p.ink), 8) : line(hex(p.rule), 4) },
           children: [
             new Paragraph({
               alignment: align[index] === "right" ? AlignmentType.RIGHT : AlignmentType.LEFT,
@@ -187,7 +187,7 @@ export function createReport(options = {}) {
                   text: String(text),
                   font: f.body,
                   size: pt(head ? 9.5 : 10.5),
-                  bold: head,
+                  bold: head || last,
                   color: hex(head ? p.muted : p.ink),
                   allCaps: head,
                   characterSpacing: head ? 20 : 0,
@@ -202,7 +202,7 @@ export function createReport(options = {}) {
           columnWidths: columns,
           rows: [
             new TableRow({ tableHeader: true, cantSplit: true, children: header.map((text, index) => cell(text, index, true)) }),
-            ...rows.map((row) => new TableRow({ cantSplit: true, children: row.map((text, index) => cell(text, index, false)) })),
+            ...rows.map((row, r) => new TableRow({ cantSplit: true, children: row.map((text, index) => cell(text, index, false, totalRow && r === rows.length - 1)) })),
           ],
         }),
       )
