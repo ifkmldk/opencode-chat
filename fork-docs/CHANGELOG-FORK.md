@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.22-fork.8 (2026-10-05)
+
+Perbaikan dari UAT dengan model asli (laporan: `fork-docs/qa/REPORT.md`).
+
+- **Jawaban sederhana tidak lagi "ngalor ngidul".** Penanda selesai (`[[OPENCODE_TASK_COMPLETE]]`) kini hanya dituntut setelah ada kerja dengan tool pada giliran itu; teks kontrak dan dorongan dilunakkan.
+  Sebelumnya agen dengan `requireCompletionMarker: true` didorong memeriksa ulang folder kerja setelah jawaban biasa (78 dtk, 8 tool, isi proyek bocor ke jawaban); kini 3 dtk, 0 tool.
+- **`websearch` tidak lagi selalu "cancelled".** Pemilihan penyedia gratis otomatis pada pemakaian pertama (form izin tak pernah dijawab pada sesi latar); `OPENCODE_WEBSEARCH_ASK=1` mengembalikan pertanyaan.
+- `research_classify`/`classifier_classify` menerima bentuk argumen yang dikirim model; mirror Overpass saat server utama 504; aturan: `research_deep` dulu untuk riset, tanpa narasi per langkah; dukungan jawaban: tidak menyebut hal tak bersumber.
+- Harness QA: `fork-docs/qa/{harness,smoke,uat,modes,pentest}.mjs`, `REPORT.md`, `pentest.md`.
+
 ## 2.0.22-fork.7 (2026-10-05)
 
 Memory, Obsidian dan konteks yang benar-benar terhubung.

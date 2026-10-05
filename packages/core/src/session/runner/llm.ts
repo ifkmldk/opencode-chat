@@ -32,7 +32,7 @@ import { ToolOutput } from "../../tool-output.js"
 import { Plugin } from "../../plugin.js"
 import { MAX_STEPS_PROMPT } from "./max-steps.js"
 import { CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "./completion.js"
-import { allowNudge } from "./completion-policy.js"
+import { allowNudge, workedSinceLastUser } from "./completion-policy.js"
 
 const CONTINUE_AFTER_INCOMPLETE_STREAM =
   "The previous response was interrupted. Continue from where you left off without repeating completed content."
@@ -276,6 +276,8 @@ const layer = Layer.effect(
         const completed = yield* SessionStep.Outcome.$match(outcome, {
           Completed: Effect.fnUntraced(function* (outcome) {
             if (outcome.completionRequired) {
+              // A plain answer to a question is complete as it is (see workedSinceLastUser).
+              if (!workedSinceLastUser(loaded.messages)) return false
               if (!allowNudge(completionNags)) return outcome.needsContinuation
               completionNags++
               yield* bus.publish(SessionEvent.Synthetic, {

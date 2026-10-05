@@ -72,6 +72,13 @@ export const Plugin = {
                         const providers = (yield* ctx.websearch.providers()).data
                         const defaultProvider = providers[0]
                         if (!defaultProvider) return yield* new WebSearch.ProviderRequiredError()
+                        // fork: the first search used to open a question form ("Allow web search?"). Nobody answers it in a background
+                        // or API session, so every search ended "Web search cancelled" after a minute and research had no web at all.
+                        // Pick the free providers automatically; OPENCODE_WEBSEARCH_ASK=1 brings the question back.
+                        if (process.env.OPENCODE_WEBSEARCH_ASK !== "1") {
+                          yield* websearch.select("random")
+                          return
+                        }
                         const response = yield* forms.ask({
                           sessionID: context.sessionID,
                           title: "Web Search",
