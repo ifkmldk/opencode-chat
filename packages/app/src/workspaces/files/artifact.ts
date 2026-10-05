@@ -155,7 +155,10 @@ export const parseOfficeDocument = async (bytes: Uint8Array) => {
 }
 
 export const parseOfficeSlides = async (bytes: Uint8Array) => {
-  const { BlobReader, TextWriter, ZipReader } = await import("@zip.js/zip.js")
+  const { BlobReader, TextWriter, ZipReader, configure } = await import("@zip.js/zip.js")
+  // fork: the app CSP forbids blob: workers, which zip.js spawns by default. The failed worker rejected the resource
+  // and the rejection blanked the whole side panel whenever a .pptx was opened.
+  configure({ useWebWorkers: false })
   const reader = new ZipReader(new BlobReader(new Blob([Uint8Array.from(bytes)])))
   try {
     const entries = await reader.getEntries()

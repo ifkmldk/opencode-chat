@@ -627,9 +627,36 @@ function OfficeTable(props: { rows: unknown[][] }) {
 function ArtifactOfficeQuick(props: { path: string; content: FileContent; onInfo: (info: ArtifactInfo) => void }) {
   const bytes = () => officeBytes(props.content)
   const type = () => artifactKind(props.path)
-  const [workbook] = createResource(() => (type() === "spreadsheet" ? bytes() : undefined), parseOfficeWorkbook)
-  const [document] = createResource(() => (type() === "document" ? bytes() : undefined), parseOfficeDocument)
-  const [slides] = createResource(() => (type() === "presentation" ? bytes() : undefined), parseOfficeSlides)
+  const [workbookResource] = createResource(() => (type() === "spreadsheet" ? bytes() : undefined), parseOfficeWorkbook)
+  const [documentResource] = createResource(() => (type() === "document" ? bytes() : undefined), parseOfficeDocument)
+  const [slidesResource] = createResource(() => (type() === "presentation" ? bytes() : undefined), parseOfficeSlides)
+  // fork: reading an errored resource throws, and that blanked the whole side panel (a .pptx did it when its parser
+  // failed). A failed parse now falls through to the "unavailable" state instead.
+  const settled = <T,>(resource: { (): T | undefined; error?: unknown }) => (resource.error ? undefined : resource())
+  const workbook = Object.assign(() => settled(workbookResource), {
+    get loading() {
+      return workbookResource.loading
+    },
+    get error() {
+      return workbookResource.error as unknown
+    },
+  })
+  const document = Object.assign(() => settled(documentResource), {
+    get loading() {
+      return documentResource.loading
+    },
+    get error() {
+      return documentResource.error as unknown
+    },
+  })
+  const slides = Object.assign(() => settled(slidesResource), {
+    get loading() {
+      return slidesResource.loading
+    },
+    get error() {
+      return slidesResource.error as unknown
+    },
+  })
   createEffect(() => {
     if (workbook()) props.onInfo({ rows: workbook()?.reduce((max, sheet) => Math.max(max, sheet.rows.length), 0), columns: 0 })
     if (slides()) props.onInfo({ rows: slides()?.length })
