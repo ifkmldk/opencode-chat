@@ -7,13 +7,14 @@ import { InstallationEvent } from "@opencode/schema/installation-event"
 import { hasPtyConnectTicketURL } from "@opencode/protocol/groups/pty"
 import { hasPersistentPtyConnectTicketURL } from "@opencode/protocol/groups/persistent-pty"
 import { hasBrowserProxyTicketURL } from "@opencode/protocol/groups/browser-proxy"
+import { isPairingConnectURL } from "@opencode/protocol/groups/server"
 import { Global } from "@opencode/util/global"
 import { Cause, Context, Effect, Exit, Latch, Layer, Option, Ref, Scope } from "effect"
 import { HttpMiddleware, HttpRouter, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
 import { createServer } from "node:http"
 import { ServerAuth } from "./auth"
 import { isAllowedCorsOrigin } from "./cors"
-import { authorizedRequest } from "./middleware/authorization"
+import { authorizedRequest, unauthorizedResponse } from "./middleware/authorization"
 import { withoutParentSpan } from "./request-tracing"
 import { createRoutes } from "./routes"
 import { ServerInfo } from "./server-info"
@@ -183,25 +184,19 @@ function dispatch(
     const app = yield* Ref.get(application)
     const ready = state.type === "ready" && Option.isSome(app)
     if (request.method === "GET" && url.pathname === "/api/info" && !ready) {
-      if (!(yield* authorizedRequest(request, auth))) return unauthorized()
+      if (!(yield* authorizedRequest(request, auth))) return unauthorizedResponse(request)
       return yield* infoResponse(status, version, urls, tmp)
     }
     if (
+      !isPairingConnectURL(url) &&
       // fork: browser-proxy iframe requests carry a single-use ticket instead of credentials.
       (!ready ||
         (!hasPtyConnectTicketURL(url) && !hasPersistentPtyConnectTicketURL(url) && !hasBrowserProxyTicketURL(url))) &&
       !(yield* authorizedRequest(request, auth))
     )
-      return unauthorized()
+      return unauthorizedResponse(request)
     if (ready) return yield* app.value
     return unavailable(state)
-  })
-}
-
-function unauthorized() {
-  return HttpServerResponse.empty({
-    status: 401,
-    headers: { "www-authenticate": 'Basic realm="Secure Area"' },
   })
 }
 

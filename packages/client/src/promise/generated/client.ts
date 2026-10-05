@@ -353,7 +353,7 @@ export function make(options: ClientOptions) {
     try {
       await response.body?.cancel()
     } catch {}
-    throw new ClientError("UnexpectedStatus", { cause: { status: response.status } })
+    throw new ClientError("UnexpectedStatus", { cause: { status: response.status }, detail: String(response.status) })
   }
 
   const request = async <A>(descriptor: RequestDescriptor, requestOptions?: RequestOptions): Promise<A> => {
@@ -377,7 +377,7 @@ export function make(options: ClientOptions) {
         try {
           await response.body?.cancel()
         } catch {}
-        throw new ClientError("UnsupportedContentType")
+        throw new ClientError("UnsupportedContentType", { detail: response.headers.get("content-type") })
       }
       if (response.body === null) throw new ClientError("MalformedResponse")
       const reader = response.body.getReader()
@@ -2336,7 +2336,7 @@ async function json(response: Response): Promise<unknown> {
     try {
       await response.body?.cancel()
     } catch {}
-    throw new ClientError("UnsupportedContentType")
+    throw new ClientError("UnsupportedContentType", { detail: response.headers.get("content-type") })
   }
   let text: string
   try {
