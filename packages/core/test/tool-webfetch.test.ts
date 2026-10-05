@@ -49,6 +49,9 @@ const toolLayer = (replacements: LayerNode.Replacements = []) =>
 const it = testEffect(toolLayer([LayerNodePlatform.httpClient.replace(http)]))
 const live = testEffect(toolLayer())
 
+// fork: tools refuse private addresses by default; these tests use mock transports on localhost URLs on purpose.
+process.env.OPENCODE_FETCH_ALLOW_PRIVATE = "1"
+
 const reset = () => {
   requests.length = 0
   assertions.length = 0
@@ -632,6 +635,19 @@ describe("WebFetchTool registration", () => {
   // fork: an ordinary 403 is not retried with another user agent, but it now escalates to the scraper's stealth
   // tiers. Auto-setup is off here so the test never installs anything; with every tier failing the model gets an
   // actionable message instead of a bare "Unable to fetch".
+  it.effect("refuses private and loopback destinations unless the owner allows them", () =>
+    Effect.gen(function* () {
+      reset()
+      delete process.env.OPENCODE_FETCH_ALLOW_PRIVATE
+      const registry = yield* Tool.Service
+      const result = yield* executeTool(registry, call({ url: "http://127.0.0.1:20128/v1/models", format: "text" }))
+      process.env.OPENCODE_FETCH_ALLOW_PRIVATE = "1"
+      expect(result.status).toBe("error")
+      expect(JSON.stringify(result)).toContain("Refusing to fetch")
+      expect(requests).toEqual([])
+    }),
+  )
+
   it.effect("does not retry ordinary 403 responses and explains the scraper fallback failed", () =>
     Effect.gen(function* () {
       reset()

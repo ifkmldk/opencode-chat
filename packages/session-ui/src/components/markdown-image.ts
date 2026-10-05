@@ -14,6 +14,17 @@ export function localImagePath(source: string) {
 }
 
 /**
+ * fork: a web image in model-written markdown. Rendering it sends a request to a host the model (or text injected into the
+ * conversation) chose, with whatever it put in the URL: a data-exfiltration channel. The host of such an image is returned so the
+ * view can show a blocked placeholder instead of loading it.
+ */
+export function remoteImageHost(source: string) {
+  const value = source.trim()
+  const match = /^(?:https?:)?[/]{2}([^/?#:]+)/i.exec(value.replaceAll("\\", "/"))
+  return match ? match[1]!.toLowerCase() : undefined
+}
+
+/**
  * A link is local when it names a file on disk instead of a web resource. Fragment-only and
  * query-only hrefs stay in-page; mailto and other schemes stay external.
  */

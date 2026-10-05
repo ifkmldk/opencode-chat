@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test"
-import { localImagePath, localLinkPath } from "./markdown-image"
+import { describe, expect, test } from "bun:test"
+import { localImagePath, localLinkPath, remoteImageHost } from "./markdown-image"
 
 test.each([
   ["./out/report.html", "./out/report.html"],
@@ -51,4 +51,19 @@ test.each([
   "",
 ])("does not read non-local or invalid source %s", (source) => {
   expect(localImagePath(source)).toBeUndefined()
+})
+
+describe("remoteImageHost", () => {
+  test("returns the host of web images, including protocol-relative and backslash forms", () => {
+    expect(remoteImageHost("https://attacker.example/pixel.png?d=secret")).toBe("attacker.example")
+    expect(remoteImageHost("//Evil.TEST/x.gif")).toBe("evil.test")
+    expect(remoteImageHost("http://127.0.0.1:9/x")).toBe("127.0.0.1")
+    expect(remoteImageHost(String.raw`https:\\bad.test\x.png`)).toBe("bad.test")
+  })
+
+  test("leaves local paths and data URLs alone", () => {
+    expect(remoteImageHost("C:/Users/x/chart.png")).toBeUndefined()
+    expect(remoteImageHost("./chart.png")).toBeUndefined()
+    expect(remoteImageHost("data:image/png;base64,AAAA")).toBeUndefined()
+  })
 })

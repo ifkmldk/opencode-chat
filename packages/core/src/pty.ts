@@ -6,6 +6,7 @@ import { Context, Effect, Layer, Schema, Types } from "effect"
 import { Pty } from "@opencode/schema/pty"
 import { Bus } from "./bus.js"
 import { Location } from "./location.js"
+import { Secrets } from "./secrets.js"
 import { ShellSelect } from "./shell/select.js"
 import { lazy } from "./util/lazy.js"
 
@@ -169,7 +170,7 @@ const layer = Layer.effect(
       const args = ShellSelect.login(command) ? [...(input.args ?? []), "-l"] : [...(input.args ?? [])]
       const cwd = input.cwd || location.directory
       const env = {
-        ...process.env,
+        ...Secrets.scrub(),
         ...input.env,
         TERM: "xterm-256color",
         OPENCODE_TERMINAL: "1",

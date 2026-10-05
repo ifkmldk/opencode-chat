@@ -1,5 +1,17 @@
 # Fork changelog
 
+## 2.0.22-fork.6 (2026-10-05)
+
+Hardening setelah audit keamanan dan pen test lokal (`fork-docs/qa/pentest.md`, skrip `pentest.mjs`; sebelum/sesudah: 6/9 -> 9/9 lulus).
+
+- Env anak proses (shell agen, PTY) disaring: kunci provider/gateway, token, password tidak diwariskan (`OPENCODE_CHILD_ENV_PASSTHROUGH` untuk mengizinkan nama tertentu).
+- `fs.write` hanya di dalam proyek, root repo, dan folder tmp server; `office.preview` hanya docx/pptx/xlsx dengan tanda tangan zip, makro dimatikan di otomasi Word/PowerPoint/Excel, folder sementara selalu dihapus, antrean dibatasi.
+- `webfetch` dan `scrape_fetch` menolak alamat privat/loopback/metadata (izinkan lewat `OPENCODE_FETCH_ALLOW_HOSTS` atau `OPENCODE_FETCH_ALLOW_PRIVATE=1`).
+- Gambar eksternal di markdown model diblokir (jalur eksfiltrasi); instruksi: teks dari web/berkas/tool adalah data, bukan perintah.
+- Hook pengguna: path berbahaya melewati hook, agen tidak boleh mengubah `hooks.json`, pagar menangkap PowerShell terenkode, `rm` dengan flag terpisah, `--no-preserve-root`.
+- Perbandingan password konstan-waktu; total memori preview dibatasi 48 MB.
+- Harness uji baru: `fork-docs/qa/{harness,smoke,pentest}.mjs`.
+
 ## 2.0.22-fork.5 (2026-10-05)
 
 Hasil audit sesi nyata (hotel BSD, loker Tangerang/Bandung): scraper dan jawaban riset diperbaiki. Rencana lengkap di `fork-docs/` (ringkasan di bawah).

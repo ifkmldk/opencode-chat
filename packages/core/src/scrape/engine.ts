@@ -6,6 +6,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "path"
 import type { ScrapeInput, ScrapeOutput } from "./types.js"
+import { NetGuard } from "../net-guard.js"
 import { ScrapeChromium } from "./chromium.js"
 import { ScrapeExtract } from "./extract.js"
 import camofoxBridge from "./bridges/camofox_py.py.txt" with { type: "text" }
@@ -343,6 +344,9 @@ const tierFor = (name: string, http: HttpClient.HttpClient, input: ScrapeInput, 
 export const run = (http: HttpClient.HttpClient, input: ScrapeInput) =>
   Effect.gen(function* () {
     const started = Date.now()
+    // fork: public destinations only (see net-guard.ts); a refusal is returned as the failure, with its reason.
+    const refused = yield* Effect.tryPromise({ try: () => NetGuard.assertPublicUrl(input.url), catch: (error) => error }).pipe(Effect.result)
+    if (refused._tag === "Failure") return { ...stubOutput(input), warnings: ["All scraper tiers failed.", (refused.failure as Error).message] }
     const warnings: string[] = []
     let best: ScrapeOutput | undefined
     for (const tier of planFor(input)) {

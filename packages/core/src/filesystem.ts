@@ -2,6 +2,7 @@ export * as FileSystem from "./filesystem.js"
 
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import path from "path"
+import os from "os"
 import { Context, Effect, Layer, Schema } from "effect"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Location } from "./location.js"
@@ -197,12 +198,26 @@ const baseLayer = Layer.effect(
       // server tmp directory, which the model is already told to prefer and permitted to access.
       write: Effect.fn("FileSystem.write")(function* (input) {
         const target = path.resolve(location.directory, input.path)
+        // fork: clients may stage files in the project, its repository root or the server tmp folder, nowhere else
+        // (an authenticated page or compromised script must not be able to drop files into startup or config folders).
+        if (!writeAllowed(target, [location.directory, location.project.directory, path.join(os.tmpdir(), "opencode")]))
+          return yield* Effect.die(new Error(`Refusing to write outside the project or the server tmp folder: ${target}`))
         yield* fs.writeWithDirs(target, input.data).pipe(Effect.orDie)
         return Write.make({ path: AbsolutePath.make(target) })
       }),
     })
   }),
 )
+
+/** True when `target` is inside one of `roots` (case-insensitive on Windows; `..` already resolved by the caller). */
+export function writeAllowed(target: string, roots: readonly string[]) {
+  const fold = (value: string) => (process.platform === "win32" ? value.toLowerCase() : value)
+  const resolved = fold(path.resolve(target))
+  return roots.some((root) => {
+    const base = fold(path.resolve(root))
+    return resolved === base || resolved.startsWith(base.endsWith(path.sep) ? base : base + path.sep)
+  })
+}
 
 export const node = makeLocationNode({
   service: Service,

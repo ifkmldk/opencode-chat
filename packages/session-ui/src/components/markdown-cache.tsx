@@ -2,7 +2,7 @@ import { checksum } from "@opencode/util/encode"
 import { parseSmallMarkdown } from "@opencode/ui/context/marked-base"
 import DOMPurify from "dompurify"
 import { MarkdownWorkerDisposedError, parseMarkdown } from "./markdown-worker"
-import { localImagePath, localLinkPath } from "./markdown-image"
+import { localImagePath, localLinkPath, remoteImageHost } from "./markdown-image"
 
 export type MarkdownCacheEntry = {
   raw: string
@@ -55,6 +55,14 @@ if (typeof window !== "undefined" && purifier.isSupported) {
     if (!(node instanceof HTMLImageElement)) return
     // Local paths are not browser URLs. Keep them inert until the host reads them.
     node.removeAttribute("data-local-image")
+    const remote = remoteImageHost(node.getAttribute("src") ?? "")
+    if (remote) {
+      node.removeAttribute("src")
+      node.removeAttribute("srcset")
+      node.setAttribute("data-blocked-image", remote)
+      node.setAttribute("alt", `[external image blocked: ${remote}]`)
+      return
+    }
     const path = localImagePath(node.getAttribute("src") ?? "")
     if (!path) return
     node.setAttribute("data-local-image", path)
