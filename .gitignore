@@ -40,3 +40,6 @@ __pycache__/
 *.pyc
 *.pyo
 packages/cli/.bun-cache/
+
+# QA transcripts hold real prompts and web results: keep local
+fork-docs/qa/answers/
