@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.22-fork.11 (2026-10-05)
+
+- Riset lowongan membaca 7 papan sekaligus: Jobstreet, LinkedIn, Glints (data halaman + id lokasi), Kalibrr dan Dealls (API publik yang dipakai situsnya), Indeed (data kartu), KitaLulus (data server halaman). Kota disaring dari kartu, duplikat digabung, ejaan "analis/analyst" disamakan, sampai 50 baris. Glassdoor menolak akses otomatis ("Humans only"): tidak dibobol, pengguna diberi link pencariannya.
+- Tool baru `web_browser`: agen memakai browser seperti orang (buka, isi, klik, gulir, sorot, screenshot), profil tetap, tidak pernah mengetik password, berhenti di login/cek manusia (`needsUser`), alamat privat ditolak. (Nama `browser_*` dipakai plugin desktop upstream.)
+- ScrapeGraphAI terpasang dan jalan lewat 9router (kunci dibaca dari opencode.json, dikirim via stdin); diberi HTML hasil render browser; dipakai untuk halaman karir perusahaan yang tidak terbaca parser. Perbaikan: `OPENAI_API_KEY` tidak lagi dipasangkan dengan alamat 9router; `model_tokens` diisi.
+- User guide dari web → PPTX: skill `userguide`, tipe slide `step` (screenshot utuh, nomor, langkah, tip). Sorotan lama dibersihkan tiap panggilan.
+- Batas gambar per permintaan: hanya hasil tool bergambar terakhir yang dikirim ulang; `office_render` 4 halaman per panggilan; screenshot ke model dalam JPEG. Sebelumnya user guide gagal dengan 413 (payload 9router ~4,5 MB).
+- Panel Browser: pencarian Google dialihkan ke Bing dengan kata yang sama (Google menampilkan cek bot untuk proxy server).
+
+
 ## 2.0.22-fork.10 (2026-10-05)
 
 - Panel Browser bisa dipakai lagi untuk mencari: CSP milik situs (nonce `script-src`, `base-uri`) memblokir skrip jembatan dan `<base>` proxy, jadi Google dan Bing kosong atau rusak. CSP situs (header dan meta) sekarang dibuang; sandbox proxy tetap membuat halaman beropini origin buram. Mesin pencari bawaan alamat bar: Bing (DuckDuckGo html memblokir fetch server). Google sendiri tetap menampilkan halaman cek bot untuk fetch server-side.

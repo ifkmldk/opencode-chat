@@ -90,6 +90,7 @@ import { JobsTool } from "../tool/plugin/jobs.js"
 import { MapsTool } from "../tool/plugin/maps.js"
 import { OfficeTool } from "../tool/plugin/office.js"
 import { TodoTool } from "../tool/plugin/todo.js"
+import { BrowserTool } from "../tool/plugin/browser.js"
 import { ResearchTool } from "../tool/plugin/research.js"
 import { ResearchDeep } from "../tool/plugin/research-deep.js"
 import { Plugin as ClassifierPlugin } from "../classifier/engine.js"
@@ -104,6 +105,7 @@ import { IdentityPlugin } from "./identity.js"
 import { PlanPlugin } from "./plan.js"
 import { UserHooksPlugin } from "./user-hooks.js"
 import { MemoryRecallPlugin } from "./memory-recall.js"
+import { ImageBudgetPlugin } from "./image-budget.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
 import { ProviderPlugins } from "./provider.js"
@@ -240,6 +242,7 @@ const pre = [
   PlanPlugin.Plugin,
   UserHooksPlugin.Plugin,
   MemoryRecallPlugin.Plugin,
+  ImageBudgetPlugin.Plugin,
   CommandPlugin.Plugin,
   SkillPlugin.Plugin,
   OfficePlugin.Plugin,
@@ -269,6 +272,7 @@ const pre = [
   MapsTool.Plugin,
   OfficeTool.Plugin,
   TodoTool.Plugin,
+  BrowserTool.Plugin,
   ResearchTool.Plugin,
   ResearchDeep.Plugin,
   ClassifierPlugin,

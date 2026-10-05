@@ -51,8 +51,8 @@ def main() -> None:
 
         graph = SmartScraperGraph(
             prompt=payload.get("prompt", "Extract the main content as markdown."),
-            source=payload.get("url", ""),
-            config={"llm": {"model_instance": build_llm(llm_config)}},
+            source=payload.get("html") or payload.get("url", ""),
+            config={"llm": {"model_instance": build_llm(llm_config), "model_tokens": int(llm_config.get("model_tokens") or 128000)}, "headless": True, "verbose": False},
         )
         result = graph.run()
         print(json.dumps({"ok": True, "result": result}))

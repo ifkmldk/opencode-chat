@@ -15,6 +15,7 @@ import { MemoryStore } from "../../memory/store.js"
 import { extractTextFromHTML } from "./webfetch.js"
 import { JobWeb } from "./job-web.js"
 import { JobBoards } from "../../scrape/jobboards.js"
+import { Boards } from "../../scrape/boards.js"
 
 const Cats = ["job", "hotel", "flight", "product", "youtube", "place", "event", "course", "service", "other"] as const
 const Category = Schema.Literals(Cats)
@@ -103,16 +104,34 @@ export const Plugin = {
               board: (boardInput: { query: string; location?: string }) =>
                 Effect.promise(() => {
                   const places = JobBoards.cities(boardInput.query, boardInput.location)
-                  if (places.length === 0) return Promise.resolve([] as JobBoards.Listing[])
+                  if (places.length === 0) return Promise.resolve({ listings: [], reports: [], manual: [] })
                   const role = JobBoards.role(boardInput.query, places)
-                  return Promise.all([JobBoards.fetchJobstreet({ role, cities: places, pages: 3 }), JobBoards.fetchLinkedIn({ role, cities: places, pages: 2 })]).then(([a, b]) => JobBoards.dedupe([...a, ...b]))
+                  return Boards.fetchAll({ role, cities: places }).then((found) => ({ ...found, manual: Boards.manualSearch({ role, cities: places }) }))
                 }),
               careers: (careerInput: { company: string; role: string }) =>
                 Effect.gen(function* () {
                   const hits = yield* websearch
                     .query({ query: `${careerInput.company} karir career lowongan resmi` }, { sessionID: c.sessionID })
                     .pipe(Effect.map((web) => web.results), Effect.orElseSucceed(() => [] as readonly { url: string }[]))
-                  return yield* Effect.promise(() => JobBoards.careerCheck(hits, careerInput))
+                  const checked = yield* Effect.promise(() => JobBoards.careerCheck(hits, careerInput))
+                  // The page opened but plain reading found no matching title: let ScrapeGraphAI list its openings.
+                  if (!checked.url || !checked.note.startsWith("Dibuka: tidak ada posisi")) return checked
+                  const ai = yield* UltimateScrape.run(http, {
+                    url: checked.url,
+                    mode: "ai",
+                    timeoutMs: 90_000,
+                    prompt: "List every job opening on this page as JSON array items with title, location and link. Return [] if there are none.",
+                  }).pipe(Effect.option)
+                  if (ai._tag === "None" || ai.value.engine !== "scrapegraph") return checked
+                  const titles = [...ai.value.output.matchAll(/"title"s*:s*"([^"]+)"/g)].map((match) => match[1] ?? "")
+                  const words = careerInput.role.toLowerCase().split(" ").filter(Boolean)
+                  const hit = titles.filter((title) => words.every((word) => title.toLowerCase().includes(word)))
+                  return {
+                    ...checked,
+                    note: hit.length
+                      ? `Ada (dibaca ScrapeGraphAI): ${hit.slice(0, 3).join("; ")}`
+                      : `Dibuka (ScrapeGraphAI): ${titles.length} lowongan, tidak ada ${careerInput.role}${titles.length ? ` (mis. ${titles.slice(0, 3).join("; ")})` : ""}`,
+                  }
                 }),
               searchJobs: (jobInput: { query: string; limit: number }) =>
                 JobWeb.search((text) => websearch.query({ query: text }, { sessionID: c.sessionID }), jobInput.query).pipe(

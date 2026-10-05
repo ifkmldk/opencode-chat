@@ -37,7 +37,11 @@ export function runDeep(deps: {
   /** Listings the user already applied to or rejected (saved as memory notes): they never come back in results. */
   excluded?: () => Effect.Effect<readonly string[]>
   /** Listings read from a job board's own result pages (title, company, city, salary, listing link). */
-  board?: (input: { query: string; location?: string }) => Effect.Effect<readonly JobBoards.Listing[]>
+  board?: (input: { query: string; location?: string }) => Effect.Effect<{
+    listings: readonly JobBoards.Listing[]
+    reports: readonly { board: string; count: number; error?: string }[]
+    manual: readonly { board: string; url: string; note: string }[]
+  }>
   /** Opens the employer's own career page and says whether a matching role shows up there. */
   careers?: (input: { company: string; role: string }) => Effect.Effect<{ company: string; url?: string; note: string }>
 }) {
@@ -165,12 +169,13 @@ export function runDeep(deps: {
         // swallowed search errors, so real listings were thrown away and an outage looked like "no jobs". Now: search once
         // more widely, keep every listing, verify location by reading the page, put verified ones first, and say plainly
         // when the search failed or found nothing.
-        const jobLimit = Math.min(50, input.maxResults ?? 30)
+        const jobLimit = 50
         const boardPlace = anchorText ?? input.location
         const placesWanted = JobBoards.cities(input.query, boardPlace)
-        const boardAll = deps.board ? yield* deps.board({ query: input.query, ...(boardPlace ? { location: boardPlace } : {}) }) : []
+        const boardResult = deps.board ? yield* deps.board({ query: input.query, ...(boardPlace ? { location: boardPlace } : {}) }) : { listings: [], reports: [], manual: [] }
+        const boardAll = boardResult.listings
         // The city printed on each card decides: "Jawa Barat" alone, or another city, is dropped and never guessed.
-        const boardRows = boardAll.filter((row) => placesWanted.length === 0 || JobBoards.inCities(row, placesWanted))
+        const boardRows = boardAll.filter((row) => (placesWanted.length === 0 || JobBoards.inCities(row, placesWanted)) && !JobBoards.basedElsewhere(row.title, placesWanted))
         const searched = yield* boardRows.length >= 10
           ? Effect.succeed({ _tag: "Success" as const, success: { results: [] as { url: string; title?: string; content?: string }[], error: undefined as string | undefined } })
           : deps.searchJobs({ query: input.query, limit: Math.max(jobLimit * 2, 10) }).pipe(Effect.result)
@@ -202,8 +207,8 @@ export function runDeep(deps: {
         }
         const seenNotes = deps.excluded ? yield* deps.excluded() : []
         const roleWords = JobBoards.role(input.query, placesWanted).split(" ").filter(Boolean)
-        const fits = (title: string) => roleWords.every((word) => title.toLowerCase().includes(word))
-        const ordered = boardRows.filter((row) => roleWords.length === 0 || roleWords.some((word) => row.title.toLowerCase().includes(word))).sort((a, b) => Number(fits(b.title)) - Number(fits(a.title))).filter((row) => !isExcluded(row, seenNotes))
+        const fits = (title: string) => roleWords.every((word) => JobBoards.titleHas(title, word))
+        const ordered = boardRows.filter((row) => roleWords.length === 0 || roleWords.some((word) => JobBoards.titleHas(row.title, word))).sort((a, b) => Number(fits(b.title)) - Number(fits(a.title))).filter((row) => !isExcluded(row, seenNotes))
         const cell = (value: string | undefined) => (value ?? "-").replace(/\|/g, "/")
         const shown = ordered.slice(0, jobLimit)
         const table = ordered.length === 0 ? undefined : [
@@ -246,9 +251,11 @@ export function runDeep(deps: {
           query: input.query,
           category: input.category,
           providers: [
-            ...(deps.board
-              ? [{ provider: "jobstreet", status: boardRows.length > 0 ? ("configured" as const) : ("unavailable" as const), message: `${boardAll.length} cards read, ${boardRows.length} in ${placesWanted.join(", ") || "any city"}.` }]
-              : []),
+            ...boardResult.reports.map((report) => ({
+              provider: report.board,
+              status: report.error ? ("error" as const) : report.count > 0 ? ("configured" as const) : ("unavailable" as const),
+              message: report.error ? `failed: ${report.error}` : `${report.count} listings read`,
+            })),
             {
               provider: "web-search",
               status: failure ? ("error" as const) : empty ? ("unavailable" as const) : ("configured" as const),
@@ -260,7 +267,8 @@ export function runDeep(deps: {
           ...(careerTable ? { careerTable } : {}),
           limitations: [
             `Checked ${new Date(checkedAt).toISOString().slice(0, 10)} via web-search.`,
-            ...(table ? [`The field "table" lists ${Math.min(ordered.length, jobLimit)} listings read from the job board, each in the requested city, with its own listing link. Always paste it unchanged as a list in your answer, even when you also check company career pages (label it as the Jobstreet listing, with the check date); never re-type or shorten the links. Company career pages are an addition, not a replacement.${careerTable ? " The field careerTable is what the program read on each employer's own career page today: paste it too, and do not open those pages again." : ""}`] : []),
+            ...(boardResult.manual.length ? [`Not readable automatically (they block automated visits); give the user these search links: ${boardResult.manual.map((item) => `${item.board} ${item.url}`).join("; ")}.`] : []),
+            ...(table ? [`Listings come from ${boardResult.reports.filter((report) => report.count > 0).map((report) => report.board).join(", ")}. The field "table" lists ${Math.min(ordered.length, jobLimit)} of ${ordered.length} matching listings read from the job boards, each in the requested city, with its own listing link. Always paste it unchanged as a list in your answer, even when you also check company career pages (label it as the Jobstreet listing, with the check date); never re-type or shorten the links. Company career pages are an addition, not a replacement.${careerTable ? " The field careerTable is what the program read on each employer's own career page today: paste it too, and do not open those pages again." : ""}`] : []),
             ...(failure ? [`The job search failed (${failure.slice(0, 200)}). Report this to the user; do not list jobs from memory.`] : []),
             ...(empty && !failure ? ["No listings were found. Say so and suggest a broader query; do not invent any."] : []),
             tokens.length > 0

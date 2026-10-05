@@ -13,14 +13,14 @@ import { Permission } from "../../permission.js"
 // step that separates a designed document from a blind one. office_kit installs/locates the layout kit that the
 // docx/pptx/xlsx skills tell the model to import.
 
-const MAX_INLINE = 8
+const MAX_INLINE = 4
 
 const RenderInput = Schema.Struct({
   file: Schema.String.annotate({ description: "Path to a .docx, .pptx, .xlsx, .pdf or .html file." }),
   pages: Schema.optional(Schema.String).annotate({
-    description: 'Pages or slides to return as images, e.g. "1", "2-4" or "1,3,5". Default: the first 8.',
+    description: 'Pages or slides to return as images, e.g. "1", "2-4" or "1,3,5". Default: the first 4; ask for the rest in further calls.',
   }),
-  scale: Schema.optional(Schema.Finite).annotate({ description: "Zoom for the images, 0.5 to 4. Default 1.5 (about 1200px for a slide)." }),
+  scale: Schema.optional(Schema.Finite).annotate({ description: "Zoom for the images, 0.5 to 4. Default 1.1 (about 1050px for a slide)." }),
 })
 const RenderOutput = Schema.Struct({
   pdf: Schema.String,
@@ -54,7 +54,7 @@ export const Plugin = {
         name: "office_render",
         options: { codemode: false, permission: "office.render" },
         description:
-          "Render a Word, PowerPoint, Excel, PDF or HTML file to page images and show them to you. ALWAYS call this on every document, deck or workbook you create or edit and look at each page before telling the user it is done: fix overflowing text, clipped tables, low contrast and uneven spacing, then render again. Uses the Microsoft Office or LibreOffice installed on this computer (HTML: a Chromium browser). Returns up to 8 page images per call; pass `pages` for others.",
+          "Render a Word, PowerPoint, Excel, PDF or HTML file to page images and show them to you. ALWAYS call this on every document, deck or workbook you create or edit and look at each page before telling the user it is done: fix overflowing text, clipped tables, low contrast and uneven spacing, then render again. Uses the Microsoft Office or LibreOffice installed on this computer (HTML: a Chromium browser). Returns up to 4 page images per call; pass `pages` for the others (e.g. 5-8).",
         input: RenderInput,
         output: RenderOutput,
         execute: (input, c) =>
@@ -62,7 +62,7 @@ export const Plugin = {
             yield* guard(permission, "office.render", [input.file], c)
             const wanted = input.pages ?? `1-${MAX_INLINE}`
             const result = yield* Effect.tryPromise({
-              try: () => OfficeEngine.render({ file: input.file, pages: wanted, scale: input.scale }),
+              try: () => OfficeEngine.render({ file: input.file, pages: wanted, scale: input.scale ?? 1.1 }),
               catch: (error) => new ToolFailure({ message: error instanceof Error ? error.message : String(error), error }),
             })
             const shown = result.files.slice(0, MAX_INLINE)

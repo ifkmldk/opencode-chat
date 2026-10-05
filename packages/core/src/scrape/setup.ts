@@ -45,11 +45,11 @@ export const resolveScrapegraphLLM = (input: {
       // fall through to env/provider fallbacks
     }
   }
-  const apiKey = env.OPENAI_API_KEY ?? input.provider?.apiKey
-  const baseURL = env.OPENAI_BASE_URL ?? input.provider?.baseURL
-  const model = input.provider?.model ?? "gpt-4o-mini"
-  if (!apiKey) return undefined
-  return { model, apiKey, ...(baseURL ? { baseURL } : {}) }
+  // fork: a key and its endpoint go together. Mixing OPENAI_API_KEY with the 9router address gave "Invalid API key".
+  if (input.provider?.apiKey)
+    return { model: input.provider.model ?? "gpt-4o-mini", apiKey: input.provider.apiKey, ...(input.provider.baseURL ? { baseURL: input.provider.baseURL } : {}) }
+  if (!env.OPENAI_API_KEY) return undefined
+  return { model: "gpt-4o-mini", apiKey: env.OPENAI_API_KEY, ...(env.OPENAI_BASE_URL ? { baseURL: env.OPENAI_BASE_URL } : {}) }
 }
 
 export const describeAvailability = (env: NodeJS.ProcessEnv = process.env) => ({

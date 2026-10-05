@@ -44,3 +44,8 @@ test("official host check and cross-board dedupe", () => {
   const a = { id: "1", title: "Data Analyst", company: "PT Maju", url: "u1", board: "jobstreet" }
   expect(JobBoards.dedupe([a, { ...a, id: "2", url: "u2", board: "linkedin" }])).toHaveLength(1)
 })
+
+test("Indonesian spelling counts as the same job word", () => {
+  expect(JobBoards.titleHas("Staff Data Analis", "analyst")).toBe(true)
+  expect(JobBoards.titleHas("Sales Trainee", "analyst")).toBe(false)
+})

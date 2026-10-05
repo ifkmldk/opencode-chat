@@ -10,6 +10,8 @@ import { useServerSDK } from "@/runtime/server/client"
 // pages are framed through the server's /api/experimental/browser-proxy route instead.
 
 export { isWebBrowserTab, webBrowserTab, WEB_BROWSER_TAB_PREFIX } from "./tab"
+export { webBrowserAddress } from "./address"
+import { webBrowserAddress } from "./address"
 
 // Mirrors BROWSER_PROXY_TOKEN_HEADER in @opencode/protocol (the app depends on the client, not protocol):
 // the custom header forces a CORS preflight so other origins cannot mint tickets.
@@ -30,15 +32,6 @@ export function isLoopback(url: string) {
   }
 }
 
-/** Turn what the user typed into a URL: add a scheme, or search when it is not an address. */
-export function webBrowserAddress(input: string) {
-  const value = input.trim()
-  if (!value) return ""
-  if (/^https?:\/\//i.test(value)) return value
-  if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(value)) return `http://${value}`
-  if (!/\s/.test(value) && /^[^/]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return `https://${value}`
-  return `https://www.bing.com/search?q=${encodeURIComponent(value)}`
-}
 
 // One saved store for every caller (tab strip and panes), owned by a root that outlives any component.
 let shared: ReturnType<typeof createSaved> | undefined

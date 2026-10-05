@@ -37,6 +37,7 @@ export const Input = Schema.Struct({
   waitMs: Schema.optional(Schema.Number),
   proxy: Schema.optional(Schema.String),
   screenshot: Schema.optional(Schema.Boolean),
+  prompt: Schema.optional(Schema.String.check(Schema.isMaxLength(2000))).annotate({ description: "mode \"ai\" only: what to extract, e.g. \"every job opening with title, location and apply link as JSON\"." }),
 })
 
 export const Output = Schema.Struct({
@@ -256,12 +257,29 @@ const fetchCamofox = (input: ScrapeInput, started: number) =>
 
 // fork: 9router is an OpenAI-compatible gateway (see opencode.json provider
 // "9router" -> http://127.0.0.1:20128/v1). Reuse it so scrapegraph works
-// without a new key. Reads env only — the caller may inject provider config.
+// without a new key. Env first, then the owner's opencode.json.
 const scrapegraphProviderFromEnv = () => {
-  const baseURL = process.env.OPENCODE_9ROUTER_BASE_URL ?? "http://127.0.0.1:20128/v1"
-  const apiKey = process.env.OPENCODE_9ROUTER_API_KEY
-  const model = process.env.OPENCODE_SCRAPEGRAPH_MODEL ?? "opencode-9router"
+  const fromConfig = nineRouterFromConfig()
+  const baseURL = process.env.OPENCODE_9ROUTER_BASE_URL ?? fromConfig?.baseURL ?? "http://127.0.0.1:20128/v1"
+  const apiKey = process.env.OPENCODE_9ROUTER_API_KEY ?? fromConfig?.apiKey
+  const model = process.env.OPENCODE_SCRAPEGRAPH_MODEL ?? fromConfig?.model ?? "opencode-9router"
   return { baseURL, ...(apiKey ? { apiKey } : {}), model }
+}
+
+// fork: the owner keeps the 9router key in opencode.json (provider "9router"), not in the environment. Read it there,
+// in this process only; it goes to the bridge on stdin and is never logged or put in the bridge's environment.
+const nineRouterFromConfig = () => {
+  const dir = process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, "opencode") : path.join(os.homedir(), ".config", "opencode")
+  const file = ["opencode.json", "opencode.jsonc"].map((name) => path.join(dir, name)).find((candidate) => fs.existsSync(candidate))
+  if (!file) return undefined
+  try {
+    const config = JSON.parse(fs.readFileSync(file, "utf8").replace(/^\s*\/\/.*$/gm, "")) as { provider?: Record<string, { options?: { baseURL?: string; apiKey?: string }; models?: Record<string, unknown> }> }
+    const provider = config.provider?.["9router"]
+    if (!provider?.options?.apiKey || provider.options.apiKey.startsWith("{env:")) return undefined
+    return { baseURL: provider.options.baseURL, apiKey: provider.options.apiKey, model: Object.keys(provider.models ?? {})[0] }
+  } catch {
+    return undefined
+  }
 }
 
 const fetchScrapegraph = (input: ScrapeInput, started: number) =>
@@ -272,12 +290,18 @@ const fetchScrapegraph = (input: ScrapeInput, started: number) =>
     const llm = resolveScrapegraphLLM({ provider: scrapegraphProviderFromEnv() })
     if (!llm?.apiKey) throw new Error("Scrapegraph needs an LLM key: set OPENCODE_SCRAPEGRAPH_LLM or OPENAI_API_KEY (9router reuse supported)")
     const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 120_000, 5000), 180_000)
+    // ScrapeGraphAI's own loader often gets an empty shell from script-built pages; give it the page our browser
+    // tier already rendered, so the LLM extracts from what a person would see.
+    const rendered = ScrapeChromium.available()
+      ? yield* Effect.promise(() => ScrapeChromium.render(input.url, { timeoutMs: 45_000, waitMs: 4000 }).catch(() => undefined))
+      : undefined
     const out = yield* runBridge(
       "uvx",
       ["--from", SPEC_SCRAPEGRAPH, "--with", SPEC_SCRAPEGRAPH_WITH, "python", bridgeFile("scrapegraph.py")],
       JSON.stringify({
         url: input.url,
-        prompt: "Extract the main content as markdown.",
+        ...(rendered && rendered.html.length > 500 ? { html: ScrapeExtract.mainContent(rendered.html).slice(0, 400_000) } : {}),
+        prompt: input.prompt ?? "Extract the main content as markdown.",
         llm: { model: llm.model, api_key: llm.apiKey, base_url: llm.baseURL },
       }),
       timeoutMs + 30_000,

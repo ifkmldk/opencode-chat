@@ -12,6 +12,7 @@ import docx from "./skill/docx.md" with { type: "text" }
 import pdf from "./skill/pdf.md" with { type: "text" }
 import pptx from "./skill/pptx.md" with { type: "text" }
 import xlsx from "./skill/xlsx.md" with { type: "text" }
+import userguide from "./skill/userguide.md" with { type: "text" }
 
 // fork: built-in skills for documents. They carry the recipes (office kit), the design rules and the mandatory
 // render-then-look loop, so the model produces designed files instead of default-styled ones.
@@ -51,6 +52,13 @@ const SKILLS = [
     description:
       "Use to read, create, merge, split, fill or visually inspect PDF files, and to turn designed HTML into PDF (brochures, one-pagers, invoices, certificates).",
     content: pdf,
+  },
+  {
+    id: "userguide",
+    name: "User guide",
+    description:
+      "Use to make a user guide, tutorial, SOP or training deck for a website or web app (e.g. \"buatkan user guide web A tema B\"): plan the steps, capture each screen with web_browser (highlight, screenshot), build one slide per step with the office kit, render and check.",
+    content: userguide,
   },
 ] as const
 

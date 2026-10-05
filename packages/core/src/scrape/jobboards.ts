@@ -186,3 +186,27 @@ export async function careerCheck(hits: readonly { url: string }[], input: { com
   const none = /0 jobs|no jobs|tidak ada lowongan|belum ada lowongan|no open positions/i.test(body)
   return { company: input.company, url: rendered.finalUrl, note: none ? "Dibuka: halaman menyatakan tidak ada lowongan" : `Dibuka: tidak ada posisi ${input.role} yang tampil` }
 }
+
+/** "Analyst (Bangkok Based, relocation provided)": the card says Bandung but the job is elsewhere. */
+export function basedElsewhere(title: string, places: readonly string[]) {
+  const based = title.toLowerCase().match(/\(([a-z ]+?)\s+based\b/)?.[1]?.trim()
+  return !!based && !places.some((place) => based.includes(place))
+}
+
+// Indonesian and English spellings of the same job words ("Data Analis" is a Data Analyst job).
+const SPELLINGS: Record<string, string[]> = {
+  analyst: ["analyst", "analis", "analytics"],
+  analis: ["analis", "analyst"],
+  engineer: ["engineer", "insinyur"],
+  developer: ["developer", "pengembang", "programmer"],
+  accountant: ["accountant", "akuntan", "accounting"],
+  akuntan: ["akuntan", "accountant", "accounting"],
+  marketing: ["marketing", "pemasaran"],
+  admin: ["admin", "administrasi", "administration"],
+}
+
+/** True when the title contains the word or one of its spellings. */
+export function titleHas(title: string, word: string) {
+  const lower = title.toLowerCase()
+  return (SPELLINGS[word] ?? [word]).some((spelling) => lower.includes(spelling))
+}

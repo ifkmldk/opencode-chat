@@ -72,6 +72,14 @@ if (session) {
     return `${call.output.length} characters`
   })
 
+  await check("web_browser: opens a public page in the agent's browser", async () => {
+    const t = await turn("buka browser https://example.com/", 90000)
+    const call = t.tools.find((tool) => tool.name === "web_browser")
+    expect(call?.status === "completed", `web_browser ${call?.status ?? "not called"} ${call?.error ?? ""}`)
+    expect(/Example Domain/.test(call.output), "page text missing")
+    return "Example Domain read"
+  })
+
   await check("write tool: file created", async () => {
     const t = await turn("tulis file", 60000)
     const call = t.tools.find((tool) => tool.name === "write")
