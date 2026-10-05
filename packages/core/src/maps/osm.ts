@@ -28,6 +28,11 @@ const endpoint = {
   photon: () => process.env.OPENCODE_MAPS_PHOTON_URL ?? "https://photon.komoot.io",
   osrm: () => process.env.OPENCODE_MAPS_OSRM_URL ?? "https://routing.openstreetmap.de",
   overpass: () => process.env.OPENCODE_MAPS_OVERPASS_URL ?? "https://overpass-api.de/api/interpreter",
+  // fork: public mirrors, tried in order after the main server fails (it returns 504 under load).
+  overpassMirrors: () =>
+    process.env.OPENCODE_MAPS_OVERPASS_URL
+      ? [process.env.OPENCODE_MAPS_OVERPASS_URL]
+      : ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"],
 }
 
 export async function search(query: string, options: { limit?: number; near?: Geo.Point } = {}) {
@@ -167,13 +172,22 @@ export async function poi(input: { center: Geo.Point; radiusMeters: number; tags
     return `nwr["${key}"${value ? `="${value}"` : ""}]${around};`
   })
   const query = `[out:json][timeout:25];(${selectors.join("")});out center tags ${Math.max(1, Math.min(500, input.limit))};`
-  const body = record(
-    await request("overpass", endpoint.overpass(), {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ data: query }).toString(),
-    }),
-  )
+  const send = async () => {
+    let failure: unknown
+    for (const url of endpoint.overpassMirrors()) {
+      try {
+        return await request("overpass", url, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ data: query }).toString(),
+        })
+      } catch (error) {
+        failure = error
+      }
+    }
+    throw failure
+  }
+  const body = record(await send())
   const items = (Array.isArray(body.elements) ? body.elements : []).flatMap((element) => {
     const value = record(element)
     const center = record(value.center)

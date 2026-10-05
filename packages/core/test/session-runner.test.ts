@@ -1065,35 +1065,24 @@ describe("SessionRunnerLLM", () => {
     expect((yield* s.session.get(sessionID)).title).toBe("Generated title")
   })
 
-  scenario("continues an opted-in agent until its final text includes the completion marker", function* (s) {
+  scenario("does not demand the completion marker for a plain answer without tool work", function* (s) {
     const agents = yield* Agent.Service
     yield* agents.transform((editor) =>
       editor.update(Agent.defaultID, (agent) => {
         agent.requireCompletionMarker = true
       }),
     )
-    yield* s.admit("Finish every item")
-    yield* s.llm.push(
-      TestLLM.text("I am still working", "text-unconfirmed"),
-      TestLLM.text(`Everything is verified ${COMPLETION_MARKER}`, "text-complete"),
-    )
+    yield* s.admit("What is REST?")
+    yield* s.llm.push(TestLLM.text("REST uses one URL per resource.", "text-plain"))
 
     yield* s.resume
 
-    expect(s.requests).toHaveLength(2)
-    expect(s.requests[0]?.system.map((part) => part.text)).toContainEqual(
-      expect.stringContaining(COMPLETION_MARKER),
-    )
-    expect(messageRoles(s.requests[1])).toEqual(["user", "assistant", "user"])
-    expect(userTexts(s.requests[1]!)).toContain(CONTINUE_AFTER_UNCONFIRMED_COMPLETION)
+    // fork: only work (tool activity in the turn) must be confirmed with the marker; an answer is complete as it is.
+    expect(s.requests).toHaveLength(1)
+    expect(s.requests[0]?.system.map((part) => part.text)).toContainEqual(expect.stringContaining(COMPLETION_MARKER))
     expect(yield* s.context).toMatchObject([
-      Expected.user("Finish every item"),
-      Expected.assistant({ finish: "stop" }, [Expected.text("I am still working")]),
-      { type: "synthetic", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION },
-      Expected.assistant(
-        { finish: "stop" },
-        [Expected.text(`Everything is verified ${COMPLETION_MARKER}`)],
-      ),
+      Expected.user("What is REST?"),
+      Expected.assistant({ finish: "stop" }, [Expected.text("REST uses one URL per resource.")]),
     ])
   })
 
@@ -5607,7 +5596,6 @@ describe("SessionRunnerLLM", () => {
     ])
     yield* s.llm.push(
       TestLLM.text(" continuation", "missing-finish-continuation"),
-      TestLLM.text(` verified ${COMPLETION_MARKER}`, "missing-finish-complete"),
     )
 
     const scheduled = yield* subscribeRetries(s)
@@ -5616,25 +5604,16 @@ describe("SessionRunnerLLM", () => {
     yield* TestClock.adjust("2400 millis")
     yield* Fiber.join(run)
 
-    expect(s.requests).toHaveLength(3)
+    expect(s.requests).toHaveLength(2)
     expect(s.requests[1]?.messages.at(-1)).toMatchObject({
       role: "user",
       content: [{ type: "text", text: INCOMPLETE_STREAM_CONTINUATION }],
-    })
-    expect(s.requests[2]?.messages.at(-1)).toMatchObject({
-      role: "user",
-      content: [{ type: "text", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION }],
     })
     expect(yield* s.context).toMatchObject([
       { type: "user" },
       Expected.assistant({ finish: "error" }, [Expected.text("Partial")]),
       { type: "synthetic", text: INCOMPLETE_STREAM_CONTINUATION },
       Expected.assistant({ finish: "stop" }, [Expected.text(" continuation")]),
-      { type: "synthetic", text: CONTINUE_AFTER_UNCONFIRMED_COMPLETION },
-      Expected.assistant(
-        { finish: "stop" },
-        [Expected.text(` verified ${COMPLETION_MARKER}`)],
-      ),
     ])
   })
 

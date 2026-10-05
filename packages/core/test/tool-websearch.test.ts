@@ -96,6 +96,9 @@ const setup = Effect.gen(function* () {
   return Object.assign(fixture, { websearch, kv, registry: Context.get(context, Tool.Service) })
 })
 
+// fork: the question form is opt-in now (OPENCODE_WEBSEARCH_ASK=1); these tests cover that flow.
+process.env.OPENCODE_WEBSEARCH_ASK = "1"
+
 describe("WebSearchTool registration", () => {
   it.effect("asserts permission before delegating to WebSearch", () =>
     Effect.gen(function* () {
@@ -200,6 +203,23 @@ describe("WebSearchTool registration", () => {
         status: "completed",
         content: [{ type: "text", text: WebSearchTool.NO_RESULTS }],
       })
+    }),
+  )
+
+  it.effect("picks the free providers silently on first use instead of waiting for a question nobody answers", () =>
+    Effect.gen(function* () {
+      delete process.env.OPENCODE_WEBSEARCH_ASK
+      const fixture = yield* setup
+      fixture.formResponse = { status: "cancelled" }
+      const result = yield* executeTool(fixture.registry, {
+        sessionID,
+        ...toolIdentity,
+        call: { type: "tool-call", id: "call-auto", name: "websearch", input: { query: "effect" } },
+      })
+      process.env.OPENCODE_WEBSEARCH_ASK = "1"
+      expect(result.status).toBe("completed")
+      expect(fixture.formRequests).toEqual([])
+      expect(yield* fixture.kv.get(WebSearch.ProviderKey)).toBe("random")
     }),
   )
 

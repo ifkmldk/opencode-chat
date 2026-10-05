@@ -13,7 +13,8 @@ export const Question = Schema.Struct({
 })
 export const Input = Schema.Struct({
   state: State,
-  questions: Schema.Record(Schema.String, Question),
+  // fork: models often send one question object instead of a map of named questions; both are accepted.
+  questions: Schema.Union([Schema.Record(Schema.String, Question), Question]),
   // fork: the user's own question, so the answer stays tied to what was asked.
   question: Schema.optional(Schema.String),
 })
@@ -43,7 +44,17 @@ except Exception:
  print(json.dumps({"available": False, "reason": "classifier runtime is not installed"})); raise SystemExit(0)
 payload=json.loads(os.environ["CLASSIFIER_PAYLOAD"]); agent=clf.load(os.environ.get("CLASSIFIER_MODEL", "aac6fef/laya-mlx")); print(json.dumps({"available": True, "model": os.environ.get("CLASSIFIER_MODEL", "aac6fef/laya-mlx"), "result": agent.predict(payload["state"], payload["questions"])}))`
 
-export const fallback = (input: typeof Input.Type) => {
+export type Normalized = { state: typeof Input.Type.state; questions: Record<string, typeof Question.Type>; question?: string }
+
+/** Always a map of named questions: a lone question object is wrapped as `answer`. */
+export const normalize = (input: typeof Input.Type): Normalized => {
+  const questions = input.questions as Record<string, typeof Question.Type> | typeof Question.Type
+  const single = typeof (questions as { type?: unknown }).type === "string" && typeof (questions as { instructions?: unknown }).instructions === "string"
+  return { state: input.state, question: input.question, questions: single ? { answer: questions as typeof Question.Type } : (questions as Record<string, typeof Question.Type>) }
+}
+
+export const fallback = (raw: typeof Input.Type | Normalized) => {
+  const input = normalize(raw as typeof Input.Type)
   const state = typeof input.state === "string" ? input.state : JSON.stringify(input.state)
   const answers: Record<string, { type: string; decision: string; confidence: number; rationale: string }> = {}
   const ranking = stateRanking(input.state)
@@ -172,7 +183,7 @@ export const readResult = (value: unknown, input: typeof Input.Type) => {
   }
 }
 
-export const runNative = (input: typeof Input.Type, modelDir: string | undefined) =>
+export const runNative = (input: Normalized, modelDir: string | undefined) =>
   Effect.tryPromise({
     try: async () => {
       const proc = Bun.spawn([python, "-c", script], {
@@ -223,8 +234,9 @@ export const Plugin = {
           const output = fallback(input)
           return { output, content: JSON.stringify(output), metadata: { engine: output.engine, available: false } }
         }
-        const result = yield* runNative(input, classifier?.modelDir)
-        const output = readResult(result, input)
+        const normalized = normalize(input)
+        const result = yield* runNative(normalized, classifier?.modelDir)
+        const output = readResult(result, normalized)
         return { output, content: JSON.stringify(output), metadata: { engine: output.engine, available: output.available } }
       })
     const register = (name: string, action: string) =>
