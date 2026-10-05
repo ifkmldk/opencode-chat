@@ -239,6 +239,8 @@ const source = {
   "ui.tool.scrape.empty": "Nothing was scraped. Check the warnings below.",
   "ui.tool.scrape.warnings.one": "{{count}} warning",
   "ui.tool.scrape.warnings.other": "{{count}} warnings",
+  "ui.tool.todo.title": "Checklist",
+  "ui.tool.todo.progress": "{{done}} of {{total}} done",
   "ui.tool.memory.result": "Memory",
   "ui.tool.memory.entry": "Memory entry",
   "ui.tool.memory.results.one": "{{count}} entry",

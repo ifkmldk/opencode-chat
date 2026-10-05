@@ -1,5 +1,20 @@
 # Fork changelog
 
+## 2.0.15-fork.10 (2026-10-05)
+
+Fase 3 dari audit paritas agen (bagian yang aman dikerjakan tanpa LLM nyata).
+
+- **Tool `todo_write`:** checklist multi-langkah yang terlihat (setara TodoWrite Claude Code / rencana Codex). Model
+  mengirim seluruh daftar tiap pembaruan (pending / in_progress / completed); panggilannya sendiri adalah state, jadi
+  tidak ada penyimpanan baru dan aman terhadap compaction. Kartu timeline "Checklist" menampilkan "2 of 5 done · item
+  aktif" dan daftar lengkap bila dibuka; tampil juga di mode Chat dan Classifier. Instruksi `core/todo` memberi tahu
+  kapan memakainya.
+- **Pesan error yang membimbing:** kegagalan `scrape_fetch`, provider jobs dan provider research kini menyuruh model
+  tidak mengarang data dan menyebut langkah berikutnya (mode lain, `websearch`, atau katakan terus terang).
+- **Hasil audit Fase 3:** mode izin (agen `plan` + setelan "auto-approve"), panel pekerjaan latar belakang untuk
+  subagen (`session/summary/background.tsx`) dan Undo (`command.session.undo`) ternyata sudah ada di upstream, jadi
+  tidak dibangun ulang. Ditunda dengan alasan: gerbang tool `browser.*` per sesi (registri tool di-scope per
+  Location, butuh desain inti), hook shell pengguna dan sandbox (permukaan keamanan, perlu keputusan pemilik).
 ## 2.0.15-fork.9 (2026-10-05)
 
 Fase 2 dari audit paritas agen: mesin dokumen "ala Claude" (kode + skill + render lalu periksa).

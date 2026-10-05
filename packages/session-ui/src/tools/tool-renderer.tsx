@@ -19,6 +19,7 @@ import stripAnsi from "strip-ansi"
 import { createTwoFilesPatch, diffLines } from "diff"
 import { Dynamic } from "solid-js/web"
 import { MapsToolOutput } from "../fork/places/maps-output"
+import { TodoToolOutput } from "../fork/todo/todo-output"
 import { type SessionSummary, useData } from "../context"
 import { useFileComponent } from "@opencode/ui/context/file"
 import { type UiI18n, useI18n } from "@opencode/ui/context/i18n"
@@ -2603,6 +2604,7 @@ ToolRegistry.register({ name: "scrape_status", render: ScrapeToolOutput })
 ToolRegistry.register({ name: "memory_save", render: MemoryToolOutput })
 ToolRegistry.register({ name: "memory_search", render: MemoryToolOutput })
 ToolRegistry.register({ name: "memory_forget", render: MemoryToolOutput })
+ToolRegistry.register({ name: "todo_write", render: TodoToolOutput })
 
 ToolRegistry.register({
   name: "question",
