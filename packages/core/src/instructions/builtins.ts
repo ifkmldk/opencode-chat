@@ -86,6 +86,15 @@ const layer = Layer.effect(
               },
             }),
             Instructions.make({
+              key: Instructions.Key.make("core/todo"),
+              codec: Schema.toCodecJson(Schema.String),
+              read: Effect.succeed(todo),
+              render: {
+                initial: (text) => text,
+                changed: (_previous, text) => text,
+              },
+            }),
+            Instructions.make({
               key: Instructions.Key.make("core/date"),
               codec: Schema.toCodecJson(Schema.String),
               read: DateTime.nowAsDate.pipe(Effect.map((date) => date.toDateString())),
@@ -101,6 +110,9 @@ const layer = Layer.effect(
 )
 
 export const node = makeLocationNode({ service: Service, layer, deps: [Global.node, Location.node] })
+
+const todo =
+  "For work with three or more steps, keep a visible checklist with todo_write: one item in_progress at a time, mark each item completed as soon as it is truly done and checked, and send the whole list on every update. Skip it for single quick actions and plain questions."
 
 const office = [
   "When asked to create or edit a Word, PowerPoint, Excel or PDF file, first load the office-design skill and the format skill (docx, pptx, xlsx, pdf) with the skill tool, build the file with the office kit (office_kit), then call office_render and look at every page image before delivering.",

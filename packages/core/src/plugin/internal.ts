@@ -88,6 +88,7 @@ import { MemoryTool } from "../tool/plugin/memory.js"
 import { JobsTool } from "../tool/plugin/jobs.js"
 import { MapsTool } from "../tool/plugin/maps.js"
 import { OfficeTool } from "../tool/plugin/office.js"
+import { TodoTool } from "../tool/plugin/todo.js"
 import { ResearchTool } from "../tool/plugin/research.js"
 import { ResearchDeep } from "../tool/plugin/research-deep.js"
 import { Plugin as ClassifierPlugin } from "../classifier/engine.js"
@@ -262,6 +263,7 @@ const pre = [
   JobsTool.Plugin,
   MapsTool.Plugin,
   OfficeTool.Plugin,
+  TodoTool.Plugin,
   ResearchTool.Plugin,
   ResearchDeep.Plugin,
   ClassifierPlugin,

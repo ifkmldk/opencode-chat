@@ -34,7 +34,7 @@ export const Plugin = {
           Effect.gen(function* () {
             yield* guard(permission, "scrape.fetch", [input.url], c)
             const output = yield* UltimateScrape.run(http, input).pipe(
-              Effect.mapError((error) => new ToolFailure({ message: `Unable to scrape ${input.url}`, error })),
+              Effect.mapError((error) => new ToolFailure({ message: `Unable to scrape ${input.url}. Try mode "stealth" or "ai" if you used "fast", read the page through the browser pane or ask the user to paste the content, and say plainly that the page could not be read.`, error })),
             )
             return { output, content: output.output || JSON.stringify(output), metadata: { engine: output.engine } }
           }),
