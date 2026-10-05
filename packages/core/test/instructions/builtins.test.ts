@@ -8,7 +8,6 @@ import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
 import { AbsolutePath } from "@opencode/core/schema"
 import { InstructionBuiltIns } from "@opencode/core/instructions/builtins"
-import { SessionSchema } from "@opencode/core/session/schema"
 import { location } from "../fixture/location"
 import { testEffect } from "../lib/effect"
 import { readInitial, readUpdate } from "../lib/instructions"
@@ -16,7 +15,6 @@ import { readInitial, readUpdate } from "../lib/instructions"
 const directory = AbsolutePath.make(FSUtil.resolve("/repo/packages/core"))
 const projectDirectory = AbsolutePath.make(FSUtil.resolve("/repo"))
 const timestamp = Date.parse("2026-06-03T12:00:00.000Z")
-const sessionID = SessionSchema.ID.make("ses_builtin_test")
 const temporary = os.tmpdir()
 const temporaryLinkRoot = temporary.replaceAll("\\", "/")
 const localDate = (time: number) => new Date(time).toDateString()
@@ -41,9 +39,9 @@ describe("InstructionBuiltIns", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(timestamp)
       const context = yield* InstructionBuiltIns.Service
-      const initialized = yield* readInitial(yield* context.load(sessionID))
-      // fork: the maps guidance (core/geo) and the short response contract
-      // (core/response-contract) sit between the output-files and date instructions.
+      const initialized = yield* readInitial(yield* context.load())
+      // fork: the maps guidance (core/geo), the short response contract (core/response-contract) and the
+      // office and todo guidance follow the output-files instruction.
       const blocks = initialized.text.split("\n\n")
       const geo = blocks.find((block) => block.startsWith("For questions about real places"))
       expect(geo).toContain("[Name](place:<id>)")
@@ -52,12 +50,17 @@ describe("InstructionBuiltIns", () => {
       const contract = blocks.find((block) => block.startsWith("# Response contract (fork)"))
       expect(contract).toContain("Summary")
       expect(contract).toContain("Verify")
+      const office = blocks.find((block) => block.startsWith("When asked to create or edit a Word"))
+      expect(office).toContain("office_render")
+      const todo = blocks.find((block) => block.startsWith("For work with three or more steps"))
+      expect(todo).toContain("todo_write")
 
-      expect(blocks.filter((block) => block !== geo && block !== contract).join("\n\n")).toBe(
+      expect(blocks.filter((block) => ![geo, contract, office, todo].includes(block)).join("\n\n")).toBe(
         [
+          `Today's date: ${localDate(timestamp)}`,
+          "",
           "Here is some useful information about the environment you are running in:",
           "<env>",
-          `  Current conversation session ID: ${sessionID}`,
           `  Working directory: ${directory}`,
           `  Workspace root folder: ${projectDirectory}`,
           "  Is directory a git repo: yes",
@@ -71,8 +74,6 @@ describe("InstructionBuiltIns", () => {
             `Wrap a path that contains spaces in angle brackets, for example [My report.pdf](<${temporaryLinkRoot}/My report.pdf>).`,
             "Do not link source files you only edited while working.",
           ].join(" "),
-          "",
-          `Today's date: ${localDate(timestamp)}`,
         ].join("\n"),
       )
     }),
@@ -82,10 +83,10 @@ describe("InstructionBuiltIns", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(timestamp)
       const context = yield* InstructionBuiltIns.Service
-      const initialized = yield* readInitial(yield* context.load(sessionID))
+      const initialized = yield* readInitial(yield* context.load())
 
       yield* TestClock.setTime(timestamp + 24 * 60 * 60 * 1000)
-      const refreshed = yield* readUpdate(yield* context.load(sessionID), initialized)
+      const refreshed = yield* readUpdate(yield* context.load(), initialized)
 
       expect(refreshed.text).toBe(`Today's date is now: ${localDate(timestamp + 24 * 60 * 60 * 1000)}`)
     }),
@@ -95,10 +96,10 @@ describe("InstructionBuiltIns", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(timestamp)
       const context = yield* InstructionBuiltIns.Service
-      const initialized = yield* readInitial(yield* context.load(sessionID))
+      const initialized = yield* readInitial(yield* context.load())
 
       yield* TestClock.setTime(timestamp + 60 * 60 * 1000)
-      expect((yield* readUpdate(yield* context.load(sessionID), initialized)).changed).toBe(false)
+      expect((yield* readUpdate(yield* context.load(), initialized)).changed).toBe(false)
     }),
   )
 })

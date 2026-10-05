@@ -1,5 +1,18 @@
 # Fork changelog
 
+## 2.0.22-fork.1 (2026-10-05)
+
+Sinkron upstream "hibrida": backend naik ke upstream v2.0.22, UI tetap UI fork (v2.0.15).
+
+- **Naik ke v2.0.22:** `ai`, `core`, `schema`, `plugin`, `util`, `codemode`, `protocol`, `server`, `tui`, `cli`, `sdk`, `client` (digenerate ulang)
+  dan paket non-UI lain. Membawa ~110 perbaikan core/ai: stream putus di tengah jalan, timeout provider 5 menit,
+  urutan instruksi untuk prompt-cache, error MCP yang jelas, batas output vs konteks, banyak perbaikan provider.
+- **Tetap UI fork:** `app`, `ui`, `session-ui`, `desktop` (upstream memindahkan browser/file/review/side chat ke
+  `packages/gui-extensions`; migrasi UI ke SDK itu ditunda, lihat UPSTREAM-SYNC.md).
+- **Hook fork dipasang ulang:** `core/instructions/builtins.ts` (signature `load()` baru tanpa session ID; instruksi
+  output-files, response, geo, office, todo), `server/middleware/authorization.ts` + `server/process.ts` (tiket browser-proxy
+  berdampingan dengan `isPairingConnectURL` upstream), `plugin-browser/src/connection.ts` (pesan web UI), `tui/context/storage.tsx`.
+- **Skema DB bisa maju** (migrasi upstream): cadangkan DB sebelum deploy; exe lama tidak bisa membaca skema baru.
 ## 2.0.15-fork.10 (2026-10-05)
 
 Fase 3 dari audit paritas agen (bagian yang aman dikerjakan tanpa LLM nyata).
