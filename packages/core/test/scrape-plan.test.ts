@@ -21,13 +21,13 @@ import {
 } from "../src/scrape/bridges/camofox.js"
 
 describe("ultimate scraper plan", () => {
-  test("routes modes to engine chains ending in webfetch", () => {
-    expect(planFor({})).toEqual(["webfetch"])
+  test("routes modes to engine chains: auto escalates to a rendering browser, stealth leads with it", () => {
+    expect(planFor({})).toEqual(["webfetch", "chromium"])
     expect(planFor({ mode: "fast" })).toEqual(["webfetch"])
-    expect(planFor({ mode: "stealth" })).toEqual(["camofox", "scrapling", "webfetch"])
+    expect(planFor({ mode: "stealth" })).toEqual(["chromium", "camofox", "scrapling", "webfetch"])
     expect(planFor({ mode: "ai" })).toEqual(["scrapegraph", "webfetch"])
     expect(planFor({ mode: "channels" })).toEqual(["agent-reach", "webfetch"])
-    expect(planFor({ mode: "auto" })).toEqual(["webfetch"])
+    expect(planFor({ mode: "auto" })).toEqual(["webfetch", "chromium"])
   })
 
   test("stage 1 stub is honest about the fast tier", () => {
