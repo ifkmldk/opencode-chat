@@ -79,5 +79,29 @@ if (session) {
   })
 }
 
+// Memory <-> Obsidian: needs the server started with OPENCODE_MEMORY_VAULT pointing at an existing vault folder with entries/.
+const vault = process.env.QA_VAULT
+if (vault) {
+  const fs = await import("node:fs")
+  const path = await import("node:path")
+  await check("memory: save writes a note to the Obsidian vault", async () => {
+    const first = await qa.session("memory-save")
+    const t = await qa.ask(first, "simpan memori", { timeoutMs: 60000 })
+    const call = t.tools.find((tool) => tool.name === "memory_save")
+    expect(call?.status === "completed", `memory_save ${call?.status ?? "not called"} ${call?.error ?? ""}`)
+    expect(call.output.includes("Obsidian vault"), `not written to the vault: ${call.output}`)
+    const files = fs.readdirSync(path.join(vault, "entries")).filter((name) => name.endsWith(".md"))
+    expect(files.length > 0, "no file in vault/entries")
+    return `${files.length} note(s)`
+  })
+  await check("memory: a relevant question gets the saved note, an unrelated one does not", async () => {
+    const second = await qa.session("memory-recall")
+    const related = await qa.ask(second, "tes memori lowongan kerja data analyst di Tangerang", { timeoutMs: 60000 })
+    expect(related.text.includes("MEMORY_SEEN"), `recall missing: ${related.text.slice(0, 60)}`)
+    const unrelated = await qa.ask(await qa.session("memory-unrelated"), "tes memori resep nasi goreng pedas untuk empat orang", { timeoutMs: 60000 })
+    expect(unrelated.text.includes("NO_MEMORY"), `unrelated note leaked: ${unrelated.text.slice(0, 60)}`)
+  })
+}
+
 const ok = report("SMOKE", results)
 process.exit(ok ? 0 : 1)

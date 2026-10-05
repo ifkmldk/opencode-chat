@@ -11,6 +11,7 @@ import { MapsSearch } from "../../maps/search.js"
 import { runDeep } from "../../research/orchestrate.js"
 import { UltimateScrape } from "../../scrape/engine.js"
 import { WebSearch } from "../../websearch.js"
+import { MemoryStore } from "../../memory/store.js"
 import { extractTextFromHTML } from "./webfetch.js"
 
 const Cats = ["job", "hotel", "flight", "product", "youtube", "place", "event", "course", "service", "other"] as const
@@ -62,6 +63,7 @@ export const Plugin = {
     const kv = yield* KV.Service
     const http = yield* HttpClient.HttpClient
     const websearch = yield* WebSearch.Service
+    const memory = yield* MemoryStore.Service
     const guard = (action: string, resources: string[], c: Tool.Context) =>
       permission
         .assert({ action, resources, sessionID: c.sessionID, agent: c.agent, source: { type: "tool", messageID: c.messageID, id: c.id } })
@@ -83,6 +85,12 @@ export const Plugin = {
                 MapsSearch.make(ctx, kv)
                   .places({ query, ...(near ? { near } : {}), limit })
                   .pipe(Effect.map((found) => ({ provider: found.provider, places: found.places }))),
+              // fork: notes the user saved as already applied / rejected (title starts with "Sudah dilamar", "Ditolak", "Applied" or "Rejected").
+              excluded: () =>
+                memory.list().pipe(
+                  Effect.map((entries) => entries.filter((entry) => /^(sudah dilamar|ditolak|applied|rejected)/i.test(entry.title)).map((entry) => `${entry.title} ${entry.body}`)),
+                  Effect.orElseSucceed(() => [] as string[]),
+                ),
               scrape: (url: string) =>
                 UltimateScrape.run(http, { url, mode: "stealth" }).pipe(
                   Effect.map((out) => ({ text: extractTextFromHTML(out.output), source: out.engine })),

@@ -6,6 +6,9 @@ import { ToolFailure } from "@opencode/ai"
 import { Effect, Schema } from "effect"
 import { Permission } from "../../permission.js"
 import { MemoryStore } from "../../memory/store.js"
+import { MemoryRank } from "../../memory/rank.js"
+import { MemoryVaultFiles } from "../../memory/vault.js"
+import { Global } from "@opencode/util/global"
 
 const Save = Schema.Struct({
   scope: MemoryStore.Scope,
@@ -39,6 +42,8 @@ export const Plugin = {
   effect: Effect.fn("MemoryTool.Plugin")(function* (ctx: Context) {
     const permission = yield* Permission.Service
     const memory = yield* MemoryStore.Service
+    const global = yield* Global.Service
+    const vault = () => MemoryVaultFiles.settings(global.config)
     yield* ctx.tool.transform((editor) =>
       editor.add({
         name: "memory_save",
@@ -50,8 +55,11 @@ export const Plugin = {
           Effect.gen(function* () {
             yield* guard(permission, "memory.save", [input.scope], c)
             const entry = yield* memory.save({ scope: input.scope, kind: input.kind, title: input.title, body: input.body, ...(input.projectID ? { projectID: input.projectID } : {}), ...(input.sessionID ? { sessionID: input.sessionID } : {}) })
+            // fork: the Obsidian vault is the shared copy; write the note there too (memory.json: { "write": false } turns it off).
+            const target = vault()
+            const written = target.dir && target.write ? yield* Effect.try(() => MemoryVaultFiles.write(target.dir!, { id: entry.id, kind: entry.kind, scope: entry.scope, title: entry.title, body: entry.body, updated: Date.now(), source: entry.source })).pipe(Effect.result) : undefined
             const output = { id: entry.id, scope: entry.scope, kind: entry.kind, title: entry.title, body: entry.body }
-            return { output, content: `Saved [${entry.kind}] ${entry.title}`, metadata: { id: entry.id } }
+            return { output, content: `Saved [${entry.kind}] ${entry.title}${written ? (written._tag === "Success" ? " (also written to the Obsidian vault)" : ` (could not write the Obsidian note: ${(written.failure as Error)?.message ?? written.failure})`) : ""}`, metadata: { id: entry.id } }
           }),
       }),
     )
@@ -65,7 +73,13 @@ export const Plugin = {
         execute: (input, c) =>
           Effect.gen(function* () {
             yield* guard(permission, "memory.search", [input.query.slice(0, 120)], c)
-            const found = yield* memory.search(input.query, input.scope, input.limit)
+            // fork: ranked recall over the database and the Obsidian vault (word-based, stricter than the old whole-sentence LIKE).
+            const target = vault()
+            const pool = [
+              ...(yield* memory.list(input.scope)),
+              ...(target.dir ? MemoryVaultFiles.read(target.dir).filter((entry) => !input.scope || entry.scope === input.scope) : []),
+            ]
+            const found = MemoryRank.rank(input.query, pool, { limit: Math.min(Math.max(Math.floor(input.limit ?? 8), 1), 20), minScore: 2 })
             const items = found.map((entry) => ({ id: entry.id, scope: entry.scope, kind: entry.kind, title: entry.title, body: entry.body }))
             return { output: { items }, content: JSON.stringify(items), metadata: { count: items.length } }
           }),
@@ -81,7 +95,9 @@ export const Plugin = {
         execute: (input, c) =>
           Effect.gen(function* () {
             yield* guard(permission, "memory.forget", [input.id], c)
-            const removed = yield* memory.forget(input.id)
+            const target = vault()
+            const fromVault = target.dir && target.write ? MemoryVaultFiles.remove(target.dir, input.id) : false
+            const removed = (yield* memory.forget(input.id)) || fromVault
             return { output: { removed }, content: removed ? "Forgot that memory." : "Nothing to forget.", metadata: {} }
           }),
       }),

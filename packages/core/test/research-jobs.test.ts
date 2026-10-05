@@ -52,3 +52,27 @@ describe("research_deep job search", () => {
     expect(locationTokens(undefined)).toEqual([])
   })
 })
+
+describe("already-applied listings", () => {
+  test("a saved note with the same link or the same title never comes back", async () => {
+    const deep = runDeep({
+      searchPlaces: places,
+      searchJobs: () =>
+        Effect.succeed({
+          results: [
+            { url: "https://www.jobstreet.co.id/id/job/111?ref=search", title: "Data Analyst - PT Alpha Tangerang", content: "Tangerang" },
+            { url: "https://jobs.test/b", title: "Business Intelligence Analyst PT Beta Tangerang", content: "Tangerang" },
+            { url: "https://jobs.test/c", title: "Reporting Analyst PT Gamma Tangerang", content: "Tangerang" },
+          ],
+        }),
+      scrape: () => Effect.succeed({ text: "", source: "none" }),
+      excluded: () =>
+        Effect.succeed([
+          "Sudah dilamar: PT Alpha https://jobstreet.co.id/id/job/111",
+          "Sudah dilamar: business intelligence analyst pt beta tangerang",
+        ]),
+    })
+    const out = await Effect.runPromise(deep({ query: "data analyst", category: "job", location: "Tangerang" }))
+    expect(out.candidates.map((c) => c.url)).toEqual(["https://jobs.test/c"])
+  })
+})
