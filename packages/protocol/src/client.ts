@@ -64,6 +64,7 @@ export const groupNames = {
   "server.vcs": "vcs",
   "server.config": "config",
   "server.browserProxy": "browserProxy",
+  "server.office": "office",
   "server.maps": "maps",
 } as const
 

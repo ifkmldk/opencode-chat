@@ -2422,6 +2422,14 @@ export interface BrowserProxyApi<E = never> {
   readonly preview: BrowserProxyPreviewOperation<E>
 }
 
+export type OfficePreviewInput = { readonly name: string; readonly data: string }
+export type OfficePreviewOutput = { readonly engine: string; readonly pdf: string }
+export type OfficePreviewOperation<E = never> = (input: OfficePreviewInput) => Effect.Effect<OfficePreviewOutput, E>
+
+export interface OfficeApi<E = never> {
+  readonly preview: OfficePreviewOperation<E>
+}
+
 export interface AppApi<E = never> {
   readonly server: ServerApi<E>
   readonly location: LocationApi<E>
@@ -2455,4 +2463,5 @@ export interface AppApi<E = never> {
   readonly maps: MapsApi<E>
   readonly config: ConfigApi<E>
   readonly browserProxy: BrowserProxyApi<E>
+  readonly office: OfficeApi<E>
 }

@@ -267,6 +267,8 @@ import type {
   BrowserProxyTicketOutput,
   BrowserProxyPreviewInput,
   BrowserProxyPreviewOutput,
+  OfficePreviewInput,
+  OfficePreviewOutput,
 } from "./types.js"
 import { ClientError } from "./client-error.js"
 
@@ -2233,6 +2235,20 @@ export function make(options: ClientOptions) {
             body: { html: input["html"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 403],
+            empty: false,
+          },
+          requestOptions,
+        ),
+    },
+    office: {
+      preview: (input: OfficePreviewInput, requestOptions?: RequestOptions) =>
+        request<OfficePreviewOutput>(
+          {
+            method: "POST",
+            path: `/api/experimental/office/preview`,
+            body: { name: input["name"], data: input["data"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 503],
             empty: false,
           },
           requestOptions,

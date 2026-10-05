@@ -1,0 +1,137 @@
+// OpenCode office kit: Excel workbooks with exceljs. A data sheet that reads like a designed table (title block,
+// quiet header, number formats that match the data, frozen header, filters, totals as real formulas) instead of a
+// dump of cells. Charts are not supported by exceljs: for a native chart use the python route in the xlsx skill
+// (openpyxl) or put the chart in a deck/report. RENDER the workbook (office_render) before delivering.
+//
+//   import { createWorkbook } from "<kit>/sheet.mjs"
+//   const book = createWorkbook({ palette: "ledger", title: "Sales 2026" })
+//   book.table("Sales", {
+//     title: "Sales by region", subtitle: "Net of returns, IDR",
+//     columns: [{ header: "Region", key: "region", width: 22 }, { header: "Revenue", key: "revenue", format: "idr" }],
+//     rows: [{ region: "Jakarta", revenue: 1250000000 }],
+//     totals: { label: "Total", sum: ["revenue"] },
+//   })
+//   await book.save("out/sales.xlsx")
+import fs from "node:fs"
+import path from "node:path"
+import ExcelJS from "exceljs"
+import { fontPair, hex, palette, shade } from "./design.mjs"
+
+// Named number formats. Anything else is passed through as an Excel format string.
+export const formats = {
+  int: "#,##0",
+  decimal: "#,##0.00",
+  usd: '"$"#,##0.00',
+  idr: '"Rp"#,##0',
+  eur: '"€"#,##0.00',
+  pct: "0.0%",
+  date: "yyyy-mm-dd",
+  datetime: "yyyy-mm-dd hh:mm",
+  text: "@",
+}
+
+export function createWorkbook(options = {}) {
+  const p = palette(options.palette ?? "graphite")
+  const f = fontPair(options.fonts ?? "clean")
+  const book = new ExcelJS.Workbook()
+  book.creator = options.author ?? ""
+  book.title = options.title ?? ""
+
+  const font = (extra = {}) => ({ name: f.body, size: 11, color: { argb: `FF${hex(p.ink)}` }, ...extra })
+  const fill = (color) => ({ type: "pattern", pattern: "solid", fgColor: { argb: `FF${hex(color)}` } })
+  const line = (color, style = "thin") => ({ style, color: { argb: `FF${hex(color)}` } })
+
+  const api = {
+    book,
+    formats,
+
+    // columns: [{ header, key, width?, format?, align? }], rows: objects keyed by column key (or arrays).
+    // totals: { label, sum: [keys], average: [keys] } writes live formulas under the data.
+    table(name, { title, subtitle, columns, rows, totals, freeze = true, filter = true, banding = true }) {
+      const sheet = book.addWorksheet(name.slice(0, 31), { views: [{ showGridLines: false }] })
+      let row = 1
+      if (title) {
+        sheet.getCell(row, 1).value = title
+        sheet.getCell(row, 1).font = font({ name: f.head, size: 18, bold: false })
+        sheet.getRow(row).height = 28
+        row += 1
+      }
+      if (subtitle) {
+        sheet.getCell(row, 1).value = subtitle
+        sheet.getCell(row, 1).font = font({ size: 10.5, color: { argb: `FF${hex(p.muted)}` } })
+        row += 1
+      }
+      if (title || subtitle) row += 1
+      const headerRow = row
+      columns.forEach((column, index) => {
+        const cell = sheet.getCell(headerRow, index + 1)
+        cell.value = column.header
+        cell.font = font({ size: 10, bold: true, color: { argb: `FF${hex(p.muted)}` } })
+        cell.alignment = { vertical: "middle", horizontal: column.align ?? (column.format ? "right" : "left"), wrapText: true }
+        cell.border = { bottom: line(p.ink, "medium") }
+        sheet.getColumn(index + 1).width = column.width ?? Math.max(12, Math.min(40, String(column.header).length + 6))
+      })
+      sheet.getRow(headerRow).height = 24
+      rows.forEach((data, r) => {
+        const target = headerRow + 1 + r
+        columns.forEach((column, index) => {
+          const cell = sheet.getCell(target, index + 1)
+          const value = Array.isArray(data) ? data[index] : data[column.key]
+          cell.value = value ?? null
+          cell.font = font()
+          if (column.format) cell.numFmt = formats[column.format] ?? column.format
+          cell.alignment = { vertical: "middle", horizontal: column.align ?? (column.format ? "right" : "left"), wrapText: !column.format }
+          cell.border = { bottom: line(banding && r % 2 === 0 ? p.rule : p.rule, "hair") }
+          if (banding && r % 2 === 1) cell.fill = fill(shade(p.surface, 0.4))
+        })
+      })
+      const lastData = headerRow + rows.length
+      if (totals && rows.length) {
+        const target = lastData + 1
+        const label = sheet.getCell(target, 1)
+        label.value = totals.label ?? "Total"
+        label.font = font({ bold: true })
+        columns.forEach((column, index) => {
+          const cell = sheet.getCell(target, index + 1)
+          const letter = sheet.getColumn(index + 1).letter
+          if (totals.sum?.includes(column.key)) cell.value = { formula: `SUBTOTAL(109,${letter}${headerRow + 1}:${letter}${lastData})` }
+          else if (totals.average?.includes(column.key)) cell.value = { formula: `SUBTOTAL(101,${letter}${headerRow + 1}:${letter}${lastData})` }
+          else if (index > 0) return
+          if (index > 0) {
+            cell.font = font({ bold: true })
+            if (column.format) cell.numFmt = formats[column.format] ?? column.format
+            cell.alignment = { horizontal: "right" }
+          }
+          cell.border = { top: line(p.ink, "thin") }
+        })
+        sheet.getCell(target, 1).border = { top: line(p.ink, "thin") }
+      }
+      if (freeze) sheet.views = [{ state: "frozen", ySplit: headerRow, showGridLines: false }]
+      if (filter && rows.length)
+        sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastData, column: columns.length } }
+      sheet.pageSetup = { orientation: columns.length > 7 ? "landscape" : "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+      return sheet
+    },
+
+    // Free text sheet (assumptions, notes, how to read the workbook): lines of text, first line is the heading.
+    notes(name, lines) {
+      const sheet = book.addWorksheet(name.slice(0, 31), { views: [{ showGridLines: false }] })
+      sheet.getColumn(1).width = 100
+      lines.forEach((text, index) => {
+        const cell = sheet.getCell(index + 1, 1)
+        cell.value = text
+        cell.font = index === 0 ? font({ name: f.head, size: 16 }) : font({ color: { argb: `FF${hex(p.muted)}` } })
+        cell.alignment = { wrapText: true, vertical: "top" }
+        if (index === 0) sheet.getRow(1).height = 26
+      })
+      return sheet
+    },
+
+    async save(file) {
+      fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true })
+      await book.xlsx.writeFile(file)
+      return { file, sheets: book.worksheets.map((sheet) => sheet.name) }
+    },
+  }
+  return api
+}

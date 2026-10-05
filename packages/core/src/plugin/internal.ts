@@ -87,6 +87,7 @@ import { ScrapeTool } from "../tool/plugin/scrape.js"
 import { MemoryTool } from "../tool/plugin/memory.js"
 import { JobsTool } from "../tool/plugin/jobs.js"
 import { MapsTool } from "../tool/plugin/maps.js"
+import { OfficeTool } from "../tool/plugin/office.js"
 import { ResearchTool } from "../tool/plugin/research.js"
 import { ResearchDeep } from "../tool/plugin/research-deep.js"
 import { Plugin as ClassifierPlugin } from "../classifier/engine.js"
@@ -106,6 +107,7 @@ import { ProviderPlugins } from "./provider.js"
 import { OpencodePlugin } from "./provider/opencode.js"
 import { WebSearchPlugins } from "./websearch/index.js"
 import { SkillPlugin } from "./skill.js"
+import { OfficePlugin } from "../office/plugin.js"
 import { VcsHgPlugin } from "./vcs/hg.js"
 import { ToolInputRepairPlugin } from "./tool-input-repair.js"
 import { OptimizePlugin } from "./optimize.js"
@@ -235,6 +237,7 @@ const pre = [
   PlanPlugin.Plugin,
   CommandPlugin.Plugin,
   SkillPlugin.Plugin,
+  OfficePlugin.Plugin,
   VcsHgPlugin.Plugin,
   ModelsDevPlugin,
   NativeCompactionPlugin.Plugin,
@@ -258,6 +261,7 @@ const pre = [
   ScrapeTool.Plugin,
   JobsTool.Plugin,
   MapsTool.Plugin,
+  OfficeTool.Plugin,
   ResearchTool.Plugin,
   ResearchDeep.Plugin,
   ClassifierPlugin,

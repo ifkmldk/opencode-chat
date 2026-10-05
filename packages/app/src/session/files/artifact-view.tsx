@@ -29,6 +29,7 @@ import {
 } from "@/workspaces/files/artifact"
 import { extractPdfText } from "@/workspaces/files/pdf-text"
 import { PdfPages } from "@/fork/pdf/pdf-pages"
+import { fromBase64, toBase64 } from "@/fork/pdf/base64"
 import { useServerSDK } from "@/runtime/server/client"
 import { useArtifactOpener } from "@/session/files/open-artifact"
 import { showToast } from "@/shell/notifications/toast"
@@ -623,7 +624,7 @@ function OfficeTable(props: { rows: unknown[][] }) {
   )
 }
 
-function ArtifactOffice(props: { path: string; content: FileContent; onInfo: (info: ArtifactInfo) => void }) {
+function ArtifactOfficeQuick(props: { path: string; content: FileContent; onInfo: (info: ArtifactInfo) => void }) {
   const bytes = () => officeBytes(props.content)
   const type = () => artifactKind(props.path)
   const [workbook] = createResource(() => (type() === "spreadsheet" ? bytes() : undefined), parseOfficeWorkbook)
@@ -667,6 +668,63 @@ function ArtifactOffice(props: { path: string; content: FileContent; onInfo: (in
         </Show>
       </Match>
     </Switch>
+  )
+}
+
+/**
+ * fork: Word, PowerPoint and Excel files open as the exact pages Office draws. The server converts the file to PDF with
+ * the Office or LibreOffice on its host and pdf.js shows it; until that arrives (or when no engine exists) the quick
+ * client-side view stays on screen.
+ */
+function ArtifactOffice(props: { path: string; content: FileContent; onInfo: (info: ArtifactInfo) => void }) {
+  const language = useLanguage()
+  const sdk = useServerSDK()
+  const [exact, setExact] = createSignal<{ state: "loading" | "failed" } | { state: "ready"; pdf: Uint8Array }>({ state: "loading" })
+  const [mode, setMode] = createSignal<"exact" | "quick">("exact")
+  createEffect(() => {
+    const bytes = officeBytes(props.content)
+    setExact({ state: "loading" })
+    if (!bytes) return setExact({ state: "failed" })
+    const state = { cancelled: false }
+    void sdk.api.office
+      .preview({ name: getFilename(props.path), data: toBase64(bytes) })
+      .then((result) => !state.cancelled && setExact({ state: "ready", pdf: fromBase64(result.pdf) }))
+      .catch(() => !state.cancelled && setExact({ state: "failed" }))
+    onCleanup(() => (state.cancelled = true))
+  })
+  const ready = () => {
+    const value = exact()
+    return value.state === "ready" && mode() === "exact" ? value.pdf : undefined
+  }
+  return (
+    <div class="flex min-h-0 flex-1 flex-col">
+      <Show when={exact().state !== "failed"}>
+        <div class="flex shrink-0 items-center justify-end gap-3 border-b border-border-weaker-base px-4 py-2">
+          <Show when={exact().state === "loading"}>
+            <span class="text-12-regular text-text-weak" data-slot="office-exact-status">
+              {language.t("file.view.office.rendering")}
+            </span>
+          </Show>
+          <Show when={exact().state === "ready"}>
+            <SegmentedControl
+              value={mode()}
+              onChange={(value) => {
+                if (value === "exact" || value === "quick") setMode(value)
+              }}
+            >
+              <SegmentedControlItem value="exact">{language.t("file.view.office.exact")}</SegmentedControlItem>
+              <SegmentedControlItem value="quick">{language.t("file.view.office.quick")}</SegmentedControlItem>
+            </SegmentedControl>
+          </Show>
+        </div>
+      </Show>
+      <Show
+        when={ready()}
+        fallback={<ArtifactOfficeQuick path={props.path} content={props.content} onInfo={props.onInfo} />}
+      >
+        {(pdf) => <PdfPages bytes={pdf()} title={getFilename(props.path)} />}
+      </Show>
+    </div>
   )
 }
 

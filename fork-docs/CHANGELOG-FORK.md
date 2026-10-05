@@ -1,5 +1,26 @@
 # Fork changelog
 
+## 2.0.15-fork.9 (2026-10-05)
+
+Fase 2 dari audit paritas agen: mesin dokumen "ala Claude" (kode + skill + render lalu periksa).
+
+- **Tool `office_render`:** mengubah docx/pptx/xlsx/pdf/html menjadi PDF dan PNG per halaman, lalu menampilkan gambarnya
+  ke model (maks 8 per panggilan, argumen `pages`/`scale`). Mesin, berurutan: Microsoft Word/PowerPoint/Excel yang
+  terpasang (COM, tanpa jendela, proses sisa dibersihkan), LibreOffice bila ada, Chromium untuk HTML. Windows tanpa
+  printer memblokir ekspor PDF Excel; fallback-nya Excel→HTML per sheet→Chromium→gabung PDF.
+- **Tool `office_kit`:** memasang sekali (npm) dan menemukan "office kit": pustaka tata letak untuk deck
+  (`pptxgenjs`), laporan Word (`docx`), workbook (`exceljs`), plus `mupdf` (WASM) untuk merender PDF ke PNG. Folder
+  default `~/.local/share/opencode/office-kit` (`OPENCODE_OFFICE_KIT`; `OPENCODE_OFFICE_NO_INSTALL=1` mematikan
+  pemasangan otomatis). Kit: 6 palet, 5 pasangan font, 13 tipe slide, laporan dengan style heading/daftar asli.
+- **Skill bawaan:** `office-design` (proses, pilihan tampilan, aturan anti-AI-slop, daftar periksa render),
+  `pptx`, `docx`, `xlsx`, `pdf`. Instruksi `core/office` menyuruh model memuatnya, membangun dengan kit, lalu
+  render dan melihat tiap halaman sebelum menyerahkan.
+- **Preview dokumen akurat:** docx/pptx/xlsx di panel file dirender server menjadi PDF (endpoint
+  `office.preview`, di-cache per hash) dan ditampilkan pdf.js, dengan toggle Exact/Quick; tampilan Quick lama
+  (mammoth, pptx-preview, tabel) tetap sebagai cadangan saat mesin tidak ada.
+- Catatan: pemindai artefak rilis menolak string pustaka canvas native, jadi rasterizer memakai `mupdf` (WASM).
+  Preview pptx di panel file kosong pada harness QA (juga di build fork.8): belum diselidiki.
+
 ## 2.0.15-fork.8 (2026-10-05)
 
 Fase 1 dari audit paritas agen: perbaikan cepat atas kegagalan nyata di sesi pemilik.

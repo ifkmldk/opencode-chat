@@ -1,0 +1,340 @@
+// OpenCode office kit: Word documents with the `docx` library. Real heading styles (so the navigation pane and a
+// table of contents work), a type scale, restrained tables and callouts, page numbers. Build with the helpers,
+// `await report.save(path)`, then RENDER the file (office_render) and look at every page before delivering.
+//
+//   import { createReport } from "<kit>/report.mjs"
+//   const report = createReport({ title: "Market entry plan", palette: "editorial", fonts: "editorial", footer: "Acme · Confidential" })
+//   report.cover({ kicker: "STRATEGY", title: "Market entry plan", subtitle: "Indonesia, 2027", meta: "Prepared for the board" })
+//   report.h1("Summary"); report.p("Three findings matter..."); report.bullets(["...", "..."])
+//   await report.save("out/plan.docx")
+import fs from "node:fs"
+import path from "node:path"
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  Footer,
+  Header,
+  ImageRun,
+  LevelFormat,
+  Packer,
+  PageBreak,
+  PageNumber,
+  Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx"
+import { fontPair, hex, palette, shade } from "./design.mjs"
+
+const PAGE = { width: 11906, height: 16838 } // A4 in twips
+const MARGIN = 1247 // ~2.2 cm
+const CONTENT = PAGE.width - 2 * MARGIN
+const pt = (points) => Math.round(points * 2) // docx sizes are half-points
+const twip = (points) => Math.round(points * 20)
+
+export function createReport(options = {}) {
+  const p = palette(options.palette ?? "graphite")
+  const f = fontPair(options.fonts ?? "modern")
+  const body = []
+
+  const run = (text, extra = {}) => new TextRun({ text, font: f.body, size: pt(11), color: hex(p.ink), ...extra })
+  const runs = (content, extra = {}) =>
+    Array.isArray(content)
+      ? content.map((part) => (typeof part === "string" ? run(part, extra) : run(part.text, { ...extra, ...part })))
+      : [run(content, extra)]
+
+  const api = {
+    cover({ kicker, title, subtitle, meta }) {
+      body.push(new Paragraph({ spacing: { before: twip(150) }, children: [] }))
+      if (kicker)
+        body.push(
+          new Paragraph({
+            spacing: { after: twip(10) },
+            children: [new TextRun({ text: kicker, font: f.body, size: pt(10), bold: true, characterSpacing: 60, color: hex(p.accent) })],
+          }),
+        )
+      body.push(
+        new Paragraph({
+          spacing: { after: twip(10), line: 240 },
+          children: [new TextRun({ text: title, font: f.head, size: pt(40), color: hex(p.ink) })],
+          border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: hex(p.accent), space: 14 } },
+        }),
+      )
+      if (subtitle)
+        body.push(
+          new Paragraph({
+            spacing: { before: twip(14), after: twip(6) },
+            children: [new TextRun({ text: subtitle, font: f.body, size: pt(16), color: hex(p.muted) })],
+          }),
+        )
+      if (meta)
+        body.push(new Paragraph({ children: [new TextRun({ text: meta, font: f.body, size: pt(10.5), color: hex(p.muted) })] }))
+      body.push(new Paragraph({ children: [new PageBreak()] }))
+      return api
+    },
+
+    h1(text) {
+      body.push(new Paragraph({ text, heading: "Heading1", keepNext: true }))
+      return api
+    },
+    h2(text) {
+      body.push(new Paragraph({ text, heading: "Heading2", keepNext: true }))
+      return api
+    },
+    h3(text) {
+      body.push(new Paragraph({ text, heading: "Heading3", keepNext: true }))
+      return api
+    },
+
+    // text, or an array of strings / { text, bold, italics, color }
+    p(content, extra = {}) {
+      body.push(new Paragraph({ spacing: { after: twip(7), line: 300 }, children: runs(content), ...extra }))
+      return api
+    },
+    lead(content) {
+      body.push(
+        new Paragraph({
+          spacing: { after: twip(10), line: 320 },
+          children: runs(content, { size: pt(14), color: hex(p.muted) }),
+        }),
+      )
+      return api
+    },
+
+    bullets(items, level = 0) {
+      items.forEach((item) =>
+        body.push(
+          new Paragraph({
+            numbering: { reference: "bullets", level },
+            spacing: { after: twip(4), line: 288 },
+            children: runs(item),
+          }),
+        ),
+      )
+      return api
+    },
+    numbered(items, level = 0) {
+      items.forEach((item) =>
+        body.push(
+          new Paragraph({
+            numbering: { reference: "numbers", level },
+            spacing: { after: twip(4), line: 288 },
+            children: runs(item),
+          }),
+        ),
+      )
+      return api
+    },
+
+    // A highlighted aside: an accent bar and a quiet fill.
+    callout(content, label) {
+      const border = (color, size) => ({ style: BorderStyle.SINGLE, size, color })
+      const none = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      body.push(
+        new Table({
+          width: { size: CONTENT, type: WidthType.DXA },
+          columnWidths: [CONTENT],
+          rows: [
+            new TableRow({
+              cantSplit: true,
+              children: [
+                new TableCell({
+                  width: { size: CONTENT, type: WidthType.DXA },
+                  shading: { type: ShadingType.CLEAR, fill: hex(p.surface), color: "auto" },
+                  margins: { top: twip(9), bottom: twip(9), left: twip(14), right: twip(14) },
+                  borders: { top: none, bottom: none, right: none, left: border(hex(p.accent), 24) },
+                  children: [
+                    ...(label
+                      ? [
+                          new Paragraph({
+                            spacing: { after: twip(2) },
+                            children: [new TextRun({ text: label.toUpperCase(), font: f.body, size: pt(9), bold: true, characterSpacing: 40, color: hex(p.accent) })],
+                          }),
+                        ]
+                      : []),
+                    new Paragraph({ spacing: { line: 288 }, children: runs(content) }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      )
+      body.push(new Paragraph({ spacing: { after: twip(6) }, children: [] }))
+      return api
+    },
+
+    // header: ["Item", "Amount"], rows: [["A", "10"]], widths: relative weights, align: ["left", "right"]
+    table({ header, rows, widths, align = [] }) {
+      const total = (widths ?? header.map(() => 1)).reduce((a, b) => a + b, 0)
+      const columns = (widths ?? header.map(() => 1)).map((weight) => Math.floor((CONTENT * weight) / total))
+      const line = (color, size) => ({ style: BorderStyle.SINGLE, size, color })
+      const none = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      const cell = (text, index, head) =>
+        new TableCell({
+          width: { size: columns[index], type: WidthType.DXA },
+          margins: { top: twip(4), bottom: twip(4), left: twip(5), right: twip(5) },
+          borders: { top: none, left: none, right: none, bottom: head ? line(hex(p.ink), 8) : line(hex(p.rule), 4) },
+          children: [
+            new Paragraph({
+              alignment: align[index] === "right" ? AlignmentType.RIGHT : AlignmentType.LEFT,
+              children: [
+                new TextRun({
+                  text: String(text),
+                  font: f.body,
+                  size: pt(head ? 9.5 : 10.5),
+                  bold: head,
+                  color: hex(head ? p.muted : p.ink),
+                  allCaps: head,
+                  characterSpacing: head ? 20 : 0,
+                }),
+              ],
+            }),
+          ],
+        })
+      body.push(
+        new Table({
+          width: { size: CONTENT, type: WidthType.DXA },
+          columnWidths: columns,
+          rows: [
+            new TableRow({ tableHeader: true, cantSplit: true, children: header.map((text, index) => cell(text, index, true)) }),
+            ...rows.map((row) => new TableRow({ cantSplit: true, children: row.map((text, index) => cell(text, index, false)) })),
+          ],
+        }),
+      )
+      body.push(new Paragraph({ spacing: { after: twip(8) }, children: [] }))
+      return api
+    },
+
+    quote(text, by) {
+      body.push(
+        new Paragraph({
+          spacing: { before: twip(8), after: twip(by ? 2 : 8), line: 320 },
+          indent: { left: 360 },
+          border: { left: { style: BorderStyle.SINGLE, size: 18, color: hex(p.accent), space: 12 } },
+          children: [new TextRun({ text, font: f.head, size: pt(15), italics: true, color: hex(p.ink) })],
+        }),
+      )
+      if (by)
+        body.push(
+          new Paragraph({
+            spacing: { after: twip(8) },
+            indent: { left: 360 },
+            children: [new TextRun({ text: by, font: f.body, size: pt(10), color: hex(p.muted) })],
+          }),
+        )
+      return api
+    },
+
+    // An image from a file path; width in points (the height keeps the ratio when `height` is omitted).
+    image(file, { width = 420, height, caption } = {}) {
+      const data = fs.readFileSync(file)
+      body.push(
+        new Paragraph({
+          spacing: { before: twip(4), after: twip(caption ? 2 : 8) },
+          children: [
+            new ImageRun({
+              data,
+              type: path.extname(file).slice(1).replace("jpeg", "jpg"),
+              transformation: { width, height: height ?? Math.round(width * 0.6) },
+            }),
+          ],
+        }),
+      )
+      if (caption)
+        body.push(
+          new Paragraph({
+            spacing: { after: twip(8) },
+            children: [new TextRun({ text: caption, font: f.body, size: pt(9), color: hex(p.muted) })],
+          }),
+        )
+      return api
+    },
+
+    pagebreak() {
+      body.push(new Paragraph({ children: [new PageBreak()] }))
+      return api
+    },
+
+    async save(file) {
+      const heading = (size, color, before, after, face) => ({
+        run: { font: face, size: pt(size), bold: false, color: hex(color) },
+        paragraph: { spacing: { before: twip(before), after: twip(after), line: 264 }, keepNext: true },
+      })
+      const doc = new Document({
+        creator: options.author ?? "",
+        title: options.title ?? "",
+        styles: {
+          default: { document: { run: { font: f.body, size: pt(11), color: hex(p.ink) } } },
+          paragraphStyles: [
+            { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, ...heading(24, p.ink, 22, 8, f.head) },
+            { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, ...heading(16, p.accent, 16, 5, f.head) },
+            { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, ...heading(12, p.muted, 12, 3, f.body) },
+          ],
+        },
+        numbering: {
+          config: [
+            {
+              reference: "bullets",
+              levels: [0, 1, 2].map((level) => ({
+                level,
+                format: LevelFormat.BULLET,
+                text: level === 0 ? "–" : "·",
+                alignment: AlignmentType.LEFT,
+                style: { paragraph: { indent: { left: 540 + level * 360, hanging: 270 } }, run: { color: hex(p.accent) } },
+              })),
+            },
+            {
+              reference: "numbers",
+              levels: [0, 1, 2].map((level) => ({
+                level,
+                format: LevelFormat.DECIMAL,
+                text: `%${level + 1}.`,
+                alignment: AlignmentType.LEFT,
+                style: { paragraph: { indent: { left: 540 + level * 360, hanging: 360 } }, run: { color: hex(p.accent), bold: true } },
+              })),
+            },
+          ],
+        },
+        sections: [
+          {
+            properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN } } },
+            headers: {
+              default: new Header({
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: options.header ?? options.title ?? "", font: f.body, size: pt(9), color: hex(p.muted) })],
+                  }),
+                ],
+              }),
+            },
+            footers: {
+              default: new Footer({
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [
+                      new TextRun({ text: options.footer ? `${options.footer}   ` : "", font: f.body, size: pt(9), color: hex(p.muted) }),
+                      new TextRun({ children: [PageNumber.CURRENT], font: f.body, size: pt(9), color: hex(p.muted) }),
+                    ],
+                  }),
+                ],
+              }),
+            },
+            children: body,
+          },
+        ],
+      })
+      fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true })
+      fs.writeFileSync(file, await Packer.toBuffer(doc))
+      return { file }
+    },
+  }
+  return api
+}
+
+export { shade }

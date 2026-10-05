@@ -34,6 +34,7 @@ import { VcsGroup } from "./groups/vcs.js"
 import { MigrationGroup } from "./groups/migration.js"
 import { ConfigGroup } from "./groups/config.js"
 import { BrowserProxyGroup } from "./groups/browser-proxy.js"
+import { OfficeGroup } from "./groups/office.js"
 import { MapsGroup } from "./groups/maps.js"
 
 type LocationGroups<LocationId extends HttpApiMiddleware.AnyId> =
@@ -97,6 +98,7 @@ type ApiGroups<
   | typeof PersistentPtyGroup
   | typeof CredentialGroup
   | typeof BrowserProxyGroup
+  | typeof OfficeGroup
   | LocationGroups<LocationId>
   | LocationGroup<LocationId, LocationService>
   | FormGroups<LocationId, LocationService>
@@ -189,6 +191,7 @@ const makeApiFromGroup = <
     .add(MapsGroup.middleware(locationMiddleware))
     .add(ConfigGroup.middleware(locationMiddleware))
     .add(BrowserProxyGroup)
+    .add(OfficeGroup)
     .annotateMerge(
       OpenApi.annotations({
         title: "opencode HttpApi",

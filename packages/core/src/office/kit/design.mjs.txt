@@ -1,0 +1,61 @@
+// OpenCode office kit: design tokens shared by deck.mjs, report.mjs and sheet.mjs.
+// Palettes are chosen, not generated: each has a paper tone, ink, one accent and a quiet second tone. Pick the one
+// that fits the subject (see the skill's "Choosing a look"); never mix palettes inside one document.
+
+export const palettes = {
+  // warm paper, near-black ink, rust accent: reports, proposals, editorial decks
+  editorial: { bg: "FBF8F3", surface: "F1EBE1", ink: "1F1B16", muted: "6E655A", rule: "D9CFC0", accent: "B5532A", accent2: "2F5D62" },
+  // cool white, graphite, one saturated blue: product, data, engineering
+  graphite: { bg: "FFFFFF", surface: "F3F5F8", ink: "14181F", muted: "5C6675", rule: "DDE2EA", accent: "1F5EFF", accent2: "0B8F7A" },
+  // deep navy ground, light ink: keynotes, closing decks (use for the whole document, not single slides)
+  midnight: { bg: "0F1724", surface: "172236", ink: "F2F4F8", muted: "9AA7BC", rule: "2A3852", accent: "F2B84B", accent2: "6FB7FF" },
+  // soft green and clay: sustainability, health, education
+  sage: { bg: "F7F8F4", surface: "E9EDE3", ink: "1D261F", muted: "62705F", rule: "D2D9C8", accent: "3F6B4F", accent2: "C07A4C" },
+  // monochrome with a single red signal: finance, legal, formal
+  ledger: { bg: "FFFFFF", surface: "F4F4F2", ink: "111111", muted: "666666", rule: "D4D4D0", accent: "C1272D", accent2: "111111" },
+  // plum and gold on cream: culture, hospitality, brand storytelling
+  plum: { bg: "FAF6F1", surface: "EFE5DD", ink: "2A1B2D", muted: "7A6679", rule: "DDCFC6", accent: "6B2D5C", accent2: "B8872E" },
+}
+
+// Font pairs that exist on stock Windows and Office installs, so the file looks the same on the reader's machine.
+export const fonts = {
+  editorial: { head: "Georgia", body: "Calibri", mono: "Consolas" },
+  modern: { head: "Segoe UI Semibold", body: "Segoe UI", mono: "Consolas" },
+  classic: { head: "Cambria", body: "Calibri", mono: "Consolas" },
+  clean: { head: "Calibri Light", body: "Calibri", mono: "Consolas" },
+  bold: { head: "Bahnschrift", body: "Segoe UI", mono: "Consolas" },
+}
+
+// Modular type scale (1.25) in points, anchored at body 12.
+export const scale = { caption: 9, small: 10.5, body: 12, lead: 15, h3: 18, h2: 24, h1: 32, display: 48, hero: 64 }
+
+export function palette(name = "graphite") {
+  const found = palettes[name]
+  if (!found) throw new Error(`Unknown palette "${name}". Choose one of: ${Object.keys(palettes).join(", ")}`)
+  return found
+}
+
+export function fontPair(name = "modern") {
+  const found = fonts[name]
+  if (!found) throw new Error(`Unknown font pair "${name}". Choose one of: ${Object.keys(fonts).join(", ")}`)
+  return found
+}
+
+/** "#B5532A" or "B5532A" -> "B5532A" (office formats want bare hex). */
+export const hex = (value) => String(value).replace(/^#/, "").toUpperCase()
+
+/** Lighten (amount > 0) or darken (amount < 0) a bare hex colour; amount is -1..1. */
+export function shade(value, amount) {
+  const color = hex(value)
+  const channel = (index) => {
+    const base = Number.parseInt(color.slice(index, index + 2), 16)
+    const mixed = amount >= 0 ? base + (255 - base) * amount : base * (1 + amount)
+    return Math.max(0, Math.min(255, Math.round(mixed))).toString(16).padStart(2, "0")
+  }
+  return `${channel(0)}${channel(2)}${channel(4)}`.toUpperCase()
+}
+
+/** A categorical series for charts: the accent first, then quiet companions; never more than six. */
+export function series(p) {
+  return [p.accent, p.accent2, shade(p.accent, 0.45), shade(p.accent2, 0.45), p.muted, shade(p.muted, 0.5)]
+}
