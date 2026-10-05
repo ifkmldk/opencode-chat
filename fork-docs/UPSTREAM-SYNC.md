@@ -59,3 +59,4 @@ distinctive features to protect are:
 | Date | Upstream | Adopted | Kept ours | Notes |
 | --- | --- | --- | --- | --- |
 | 2026-09-30 | v2.0.15 (base) | — | — | First versioned fork release `2.0.15-fork.1`. |
+| 2026-10-05 | v2.0.22 (trial, aborted) | — | — | 321 commits, 2531 files. `git merge v2.0.22` conflicts in about 100 files: upstream deleted the files the fork modified for the browser pane and side panel (`session/browser/*`, `runtime/platform/browser-pane.ts`, `session/files/{open-artifact,session-side-panel}.tsx`) and reshaped composer, settings shell, `session/screen.tsx`, `workspaces/files/artifact.ts`, `core/src/instructions/builtins.ts`, plus every `package.json`. Not merged: needs a planned, owner-approved migration of the fork hooks, not a one-sitting merge. |
