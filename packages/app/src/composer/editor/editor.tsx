@@ -42,6 +42,7 @@ import type { ComposerEditorModel, ComposerSelectControl } from "./interaction"
 import { isAttachment } from "../prompt-parts"
 import "../attachments/attachments.css"
 import "./editor.css"
+import { handleListKey, listKeyOf } from "./list-dom"
 
 export type {
   ComposerAttachment,
@@ -220,6 +221,12 @@ export function ComposerEditor(props: ComposerEditorProps) {
               const mod = event.metaKey || event.ctrlKey
               if (mod && event.key === "ArrowUp" && !event.shiftKey && !event.altKey) {
                 if (view.submit.queue?.editFirst()) event.preventDefault()
+                return
+              }
+              // fork: Claude-style list editing (Shift+Enter continues, Tab/Shift+Tab indent, Backspace outdents).
+              const listKey = state.mode === "normal" ? listKeyOf(event) : undefined
+              if (listKey && editor && handleListKey(editor, props.controller.value(), listKey)) {
+                event.preventDefault()
                 return
               }
               if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {

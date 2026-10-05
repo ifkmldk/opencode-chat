@@ -265,6 +265,8 @@ import type {
   ConfigUpdateOutput,
   BrowserProxyTicketInput,
   BrowserProxyTicketOutput,
+  BrowserProxyPreviewInput,
+  BrowserProxyPreviewOutput,
 } from "./types.js"
 import { ClientError } from "./client-error.js"
 
@@ -2216,6 +2218,19 @@ export function make(options: ClientOptions) {
             path: `/api/experimental/browser-proxy/ticket`,
             headers: { "x-opencode-ticket": input["x-opencode-ticket"] },
             body: { url: input["url"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401, 403],
+            empty: false,
+          },
+          requestOptions,
+        ),
+      preview: (input: BrowserProxyPreviewInput, requestOptions?: RequestOptions) =>
+        request<BrowserProxyPreviewOutput>(
+          {
+            method: "POST",
+            path: `/api/experimental/browser-proxy/preview`,
+            headers: { "x-opencode-ticket": input["x-opencode-ticket"] },
+            body: { html: input["html"] },
             successStatus: 200,
             declaredStatuses: [400, 401, 403],
             empty: false,

@@ -64,6 +64,20 @@ const isCloudflareChallenge = (error: HttpClientError.HttpClientError) => {
   return response.status === 403 && response.headers["cf-mitigated"] === "challenge"
 }
 
+/** The HTTP status when the failure looks like an anti-bot wall the scraper can try to get past. */
+export const blockedStatus = (error: unknown) => {
+  const reason = (error as { reason?: { _tag?: string; response?: { status?: number } } } | undefined)?.reason
+  const status = reason?._tag === "StatusCodeError" ? reason.response?.status : undefined
+  return status !== undefined && (status === 403 || status === 429 || status === 451 || status >= 500) ? status : undefined
+}
+
+/**
+ * A page whose visible text is nearly empty although it is large and ships scripts: a client-rendered shell.
+ * Small pages with a script tag (a short static page) are not shells.
+ */
+export const isEmptyShell = (html: string, contentType: string, converted: string) =>
+  contentType.includes("text/html") && html.length >= 600 && converted.trim().length < 80 && /<script[\s>]/i.test(html)
+
 const request = (url: string, format: Format, userAgent = openCodeUserAgent) =>
   HttpClientRequest.get(url).pipe(HttpClientRequest.setHeaders(headers(format, userAgent)))
 
@@ -131,7 +145,36 @@ export const Plugin = {
                 source: { type: "tool", messageID: context.messageID, id: context.id },
               })
 
-              const { body, contentType } = yield* Effect.gen(function* () {
+              // fork: anti-bot walls (403/429/5xx) and empty JS shells go to the ultimate scraper (stealth tiers) instead of
+              // failing, after the same permission check as scrape_fetch. The model got "Unable to fetch" for Traveloka.
+              const viaScraper = (why: string) =>
+                Effect.gen(function* () {
+                  yield* permission.assert({
+                    action: "scrape.fetch",
+                    resources: [input.url],
+                    sessionID: context.sessionID,
+                    agent: context.agent,
+                    source: { type: "tool", messageID: context.messageID, id: context.id },
+                  })
+                  const { UltimateScrape } = yield* Effect.promise(() => import("../../scrape/engine.js"))
+                  const scraped = yield* UltimateScrape.run(http, {
+                    url: input.url,
+                    mode: "stealth",
+                    format: input.format === "text" ? "text" : input.format === "html" ? "html" : "markdown",
+                  })
+                  if (!scraped.output.trim())
+                    return yield* Effect.fail(new Error(`${why}; the scraper returned no content (${scraped.warnings.join("; ")})`))
+                  const result = { url: input.url, contentType: "text/html", format: input.format, output: scraped.output }
+                  return {
+                    output: result,
+                    content: `[fetched with the ${scraped.engine} scraper because the direct fetch was ${why}]
+
+${result.output}`,
+                    metadata: { contentType: result.contentType, engine: scraped.engine },
+                  }
+                })
+
+              const fetched = yield* Effect.gen(function* () {
                 const response = yield* execute(http, input.url, input.format).pipe(
                   Effect.catchIf(isCloudflareChallenge, () => execute(http, input.url, input.format, "opencode")),
                 )
@@ -147,12 +190,31 @@ export const Plugin = {
                   duration: Duration.seconds(input.timeout ?? DEFAULT_TIMEOUT_SECONDS),
                   orElse: () => Effect.fail(new Error("Request timed out")),
                 }),
+                Effect.result,
               )
+              if (fetched._tag === "Failure") {
+                const status = blockedStatus(fetched.failure)
+                if (status === undefined) return yield* Effect.fail(fetched.failure)
+                return yield* viaScraper(`blocked with HTTP ${status}`).pipe(
+                  Effect.catch((error) =>
+                    Effect.fail(
+                      new Error(
+                        `HTTP ${status}: the site blocks plain fetches and the scraper fallback failed (${error instanceof Error ? error.message : String(error)}). Try scrape_fetch with mode "stealth", or another source.`,
+                      ),
+                    ),
+                  ),
+                )
+              }
+              const { body, contentType } = fetched.success
               const content = new TextDecoder().decode(body)
               const output = yield* Effect.try({
                 try: () => convert(content, contentType, input.format),
                 catch: (error) => error,
               })
+              if (isEmptyShell(content, contentType, output)) {
+                const escalated = yield* viaScraper("an empty page shell (content loads with JavaScript)").pipe(Effect.option)
+                if (escalated._tag === "Some") return escalated.value
+              }
               const result = {
                 url: input.url,
                 contentType,

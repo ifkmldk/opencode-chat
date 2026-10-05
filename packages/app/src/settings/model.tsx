@@ -101,6 +101,8 @@ const generalSchema = Persistence.struct({
   terminalPlacement: Schema.Literals(["side", "bottom"]),
   followUpBehavior: Schema.Literals(["queue", "steer"]),
   experimentalBrowser: Schema.Boolean,
+  // fork: reasoning ("thinking") is hidden in every view mode unless this is on.
+  showThinking: Schema.Boolean,
 })
 
 const appearanceSchema = Persistence.struct({
@@ -259,6 +261,7 @@ export const defaultSettings: Settings = {
     terminalPlacement: "side",
     followUpBehavior: "steer",
     experimentalBrowser: false,
+    showThinking: false,
   },
   sessionSummary: { projectExpanded: true, serverExpanded: true },
   appearance: { fontSize: 14, mono: "", sans: "", terminal: "", tabLayout: "horizontal", showProjectName: false },
@@ -380,6 +383,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         ),
         setExperimentalBrowser(value: boolean) {
           setStore("general", "experimentalBrowser", value)
+        },
+        showThinking: withFallback(() => store.general?.showThinking, defaultSettings.general.showThinking),
+        setShowThinking(value: boolean) {
+          setStore("general", "showThinking", value)
         },
       },
       sessionSummary: {

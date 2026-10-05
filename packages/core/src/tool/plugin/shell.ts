@@ -32,10 +32,29 @@ const OS =
       : process.platform === "linux"
         ? "Linux"
         : process.platform
+// fork: the model kept sending bash syntax to PowerShell ($([ -n "$X" ]), &&) and nesting `powershell -Command "..."`
+// inside PowerShell, where the outer shell expands `$_` first. Tell it which syntax this shell actually takes.
+export function syntaxHint(shell: string) {
+  if (shell === "powershell")
+    return [
+      "This is Windows PowerShell 5.1, not bash: chain with `;` (no `&&` or `||`), use `$env:NAME` for variables, `Get-ChildItem`/`Select-String` instead of ls/grep, and `$null` for nothing.",
+      "Never wrap a command in `powershell -Command \"...\"` from here (the outer shell expands `$_` and `$(...)` before the inner one runs); write the PowerShell directly, or put a multi-line script in a here-string.",
+      "Do not use bash tests like `[ -n \"$X\" ]` or `$(...)` substitutions with bash meanings.",
+    ].join(" ")
+  if (shell === "pwsh")
+    return "This is PowerShell 7, not bash: use `$env:NAME` for variables and cmdlets (`Get-ChildItem`, `Select-String`); `&&` and `||` work, but bash tests like `[ -n \"$X\" ]` do not. Do not nest `pwsh -Command \"...\"` (the outer shell expands `$_` first)."
+  if (shell === "cmd") return "This is cmd.exe: use `%NAME%` variables, `&` / `&&` to chain, and `dir` / `findstr`."
+  if (["bash", "sh", "zsh", "dash", "ksh"].includes(shell))
+    return process.platform === "win32"
+      ? "This is Git Bash on Windows: use forward slashes (`/c/Users/...`), POSIX syntax, and no PowerShell cmdlets."
+      : undefined
+  return undefined
+}
 const description = (shell?: string) =>
   [
     "Execute a shell command and return its output.",
     ...(shell ? [`Commands run on ${OS} using ${shell}.`] : []),
+    ...(shell && syntaxHint(shell) ? [syntaxHint(shell)!] : []),
     "Quote file paths containing spaces or special characters.",
     "Prefer dedicated tools over shell commands when possible.",
     "When output is large, the full result is saved to a file and a truncated preview is returned.",

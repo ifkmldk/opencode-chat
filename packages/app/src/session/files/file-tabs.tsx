@@ -258,6 +258,7 @@ export function SessionFileView(props: SessionFileViewProps) {
       sourcePath: filePath,
       text: annotation.text,
       html: annotation.html,
+      lines: annotation.lines,
       comment: annotation.comment,
     })
   }

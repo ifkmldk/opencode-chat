@@ -19,7 +19,14 @@ export function promptAnnotations(context: readonly ContextItem[]) {
       return text ? [{ kind: "quote", text, comment, role: item.role }] : []
     }
     if (item.type === "page-text-annotation")
-      return [{ kind: "page-text", text: item.text, comment, source: item.sourceURL ?? item.sourcePath }]
+      return [
+        {
+          kind: "page-text",
+          text: item.text,
+          comment,
+          source: (item.sourceURL ?? item.sourcePath) && `${item.sourceURL ?? item.sourcePath}${item.lines ? `:${item.lines}` : ""}`,
+        },
+      ]
     return [{ kind: "media", comment, source: item.surface === "browser" ? item.sourceURL : item.sourcePath }]
   })
 }

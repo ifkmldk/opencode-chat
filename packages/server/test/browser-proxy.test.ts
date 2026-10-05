@@ -8,7 +8,9 @@ import {
   isPrivateAddress,
   issueTicket,
   proxyPage,
+  readPreview,
   rewrite,
+  stagePreview,
   validateTarget,
 } from "../src/handlers/browser-proxy"
 import { ServerProcess } from "../src/process"
@@ -177,5 +179,44 @@ it.live("tickets need credentials and the app header, and only cover their own U
     const other = encodeURIComponent("https://93.184.215.14/other")
     const reused = yield* Effect.promise(() => fetch(new URL(`${PROXY}?url=${other}&ticket=${ticket}`, base)))
     expect(reused.status).toBe(403)
+  }),
+)
+
+// fork: staged HTML previews.
+test("staged previews expire and are capped", () => {
+  const id = stagePreview("<p>a</p>", 1_000)
+  expect(readPreview(id, 1_001)).toBe("<p>a</p>")
+  expect(readPreview(id, 1_000 + 10 * 60_000 + 1)).toBeUndefined()
+  const first = stagePreview("first", 2_000)
+  Array.from({ length: 45 }, (_, index) => stagePreview(`n${index}`, 2_001))
+  expect(readPreview(first, 2_002)).toBeUndefined()
+})
+
+it.live("previews: minting needs credentials and the app header; the page is framed by ticket with only a sandbox", () =>
+  Effect.gen(function* () {
+    const server = yield* start()
+    const base = HttpServer.formatAddress(server.address)
+    const mint = (headers: Record<string, string>) =>
+      Effect.promise(() =>
+        fetch(new URL(`${PROXY}/preview`, base), {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify({ html: "<h1>hi</h1><script>window.x=1</script>" }),
+        }),
+      )
+    expect((yield* mint({ "x-opencode-ticket": "1" })).status).toBe(401)
+    expect((yield* mint({ authorization })).status).toBe(403)
+    const minted = yield* mint({ authorization, "x-opencode-ticket": "1" })
+    expect(minted.status).toBe(200)
+    const { ticket } = (yield* Effect.promise(() => minted.json())) as { ticket: string }
+    // The iframe sends no credentials: the ticket alone opens the page.
+    const page = yield* Effect.promise(() => fetch(new URL(`${PROXY}/preview?ticket=${ticket}`, base)))
+    expect(page.status).toBe(200)
+    expect(yield* Effect.promise(() => page.text())).toContain("window.x=1")
+    expect(page.headers.get("content-security-policy")).toBe(
+      "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads",
+    )
+    expect((yield* Effect.promise(() => fetch(new URL(`${PROXY}/preview?ticket=bogus`, base)))).status).toBe(404)
+    expect((yield* Effect.promise(() => fetch(new URL(`${PROXY}/preview`, base)))).status).toBe(401)
   }),
 )

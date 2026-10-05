@@ -726,7 +726,10 @@ export function createSessionTimelineRowRenderer(input: {
               {/* fork: reasoning hidden (Chat/Classifier) — a generic indicator instead of the reasoning text */}
               <Show when={input.timelineDetail?.().thinking.placement === "hidden"}>
                 <div data-slot="session-turn-thinking-generic" class="text-13-regular text-v2-text-text-muted">
-                  <TextShimmer text={i18n.t("ui.sessionTurn.status.thinking")} active />
+                  {/* fork: no "Thinking" word; a quiet dots shimmer shows the turn is still running. */}
+                  <span role="status" aria-label={i18n.t("ui.sessionTurn.status.working")}>
+                    <TextShimmer text="•••" active />
+                  </span>
                 </div>
               </Show>
               <Show when={input.timelineDetail?.().thinking.placement !== "hidden" && content()}>

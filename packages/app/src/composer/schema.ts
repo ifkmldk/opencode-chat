@@ -163,6 +163,8 @@ export const PageTextAnnotationContextItem = Persistence.struct({
   sourcePath: Persistence.optional(Schema.String),
   text: Schema.String,
   html: Persistence.optional(Schema.String),
+  // fork: source lines ("12-14") of an HTML preview selection, so the model can edit the right code.
+  lines: Persistence.optional(Schema.String),
   comment: Persistence.optional(Schema.String),
 })
 export type PageTextAnnotationContextItem = typeof PageTextAnnotationContextItem.Type

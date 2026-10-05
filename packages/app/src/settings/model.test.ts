@@ -79,6 +79,7 @@ describe("settings schema", () => {
         terminalPlacement: "side",
         followUpBehavior: "steer",
         experimentalBrowser: false,
+        showThinking: false,
       },
       sessionSummary: { projectExpanded: true, serverExpanded: true },
       appearance: {
@@ -144,6 +145,9 @@ describe("settings schema", () => {
   })
 
   test("browser attachment is opt-in and preserves an explicit choice", () => {
+    // fork: reasoning is hidden everywhere by default.
+    expect(decode({}).general.showThinking).toBe(false)
+    expect(decode({ general: { showThinking: true } }).general.showThinking).toBe(true)
     expect(decode({}).general.experimentalBrowser).toBe(false)
     expect(decode({ general: { experimentalBrowser: true } }).general.experimentalBrowser).toBe(true)
     expect(decode({ general: { experimentalBrowser: false } }).general.experimentalBrowser).toBe(false)

@@ -1285,6 +1285,8 @@ export const dict = {
   "settings.general.section.display": "Display",
 
   "settings.timeline.title": "Timeline",
+  "settings.timeline.showThinking.title": "Show thinking",
+  "settings.timeline.showThinking.description": "Show the model's reasoning in the timeline. Off hides it in every mode (Chat, Code, Classifier).",
   "settings.timeline.detail": "Timeline detail",
   "settings.timeline.description": "Choose how much detail appears in the session timeline.",
   "settings.timeline.summary": "{{preset}}:",

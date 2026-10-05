@@ -67,11 +67,17 @@ export const groupNames = {
   "server.maps": "maps",
 } as const
 
-export const promiseOmitEndpoints = new Set(["pty.connect", "persistentPty.connect", "browserProxy.proxy"])
+export const promiseOmitEndpoints = new Set([
+  "pty.connect",
+  "persistentPty.connect",
+  "browserProxy.proxy",
+  "browserProxy.previewPage",
+])
 export const effectOmitEndpoints = new Set([
   "fs.read",
   "fs.write",
   "pty.connect",
   "persistentPty.connect",
   "browserProxy.proxy",
+  "browserProxy.previewPage",
 ])

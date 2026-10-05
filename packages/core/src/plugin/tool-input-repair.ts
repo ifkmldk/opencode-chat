@@ -69,8 +69,17 @@ function repair(value: unknown, schema: JsonSchema.JsonSchema, root: JsonSchema.
     if (Array.isArray(schema.anyOf) && Array.isArray(schema.oneOf)) return value
     const branches = Array.isArray(schema.anyOf) ? schema.anyOf : schema.oneOf
     if (!Array.isArray(branches) || value === null) return value
-    if (branches.some((branch) => !Predicate.isObject(branch) || branch.type === typeof value)) return value
-    const candidates = branches.filter((branch) => Predicate.isObject(branch) && branch.type !== "null")
+    // fork: a branch of the same type only accepts the value when it is not an enum/const that excludes it.
+    // `Schema.Number` serializes as anyOf[number, string enum ["NaN","Infinity","-Infinity"]], and the string
+    // branch used to claim every string, so "1000" was never turned into 1000.
+    const accepts = (branch: JsonSchema.JsonSchema) =>
+      branch.type === typeof value &&
+      (!Array.isArray(branch.enum) || branch.enum.includes(value)) &&
+      (branch.const === undefined || branch.const === value)
+    if (branches.some((branch) => !Predicate.isObject(branch) || accepts(branch))) return value
+    const candidates = branches.filter(
+      (branch) => Predicate.isObject(branch) && branch.type !== "null" && branch.type !== typeof value,
+    )
     return candidates.length === 1 ? repair(value, candidates[0], root, depth + 1) : value
   }
 
