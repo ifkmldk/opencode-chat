@@ -16,12 +16,12 @@ report.p("Demand is concentrated in Jakarta and Surabaya...")
 report.h2("Findings").bullets(["Addressable market of IDR 4.2 trillion", ["Entry cost: ", { text: "IDR 85 billion", bold: true }]])
 report.numbered(["Sign a distribution partner", "Hire a country lead"])
 report.callout("Entry is attractive only if freight stays under 9% of revenue.", "Risk")
-report.table({ header: ["Item", "Cost (IDR bn)", "Timing"], rows: [["Warehouse", "32", "Q1"]], widths: [4, 2, 2], align: ["left", "right", "left"] })
+report.table({ header: ["Item", "Cost (IDR bn)", "Timing"], rows: [["Warehouse", "32", "Q1"], ["Total", "32", ""]], widths: [4, 2, 2], align: ["left", "right", "left"], totalRow: true })
 report.quote("Speed matters less than getting the first ten customers right.", "Country lead, interview")
 await report.save("out/plan.docx")
 ```
 
-Helpers (all chainable): `cover, h1, h2, h3, p, lead, bullets (level 0-2), numbered (level 0-2), callout, table, quote, image(file,{width,caption}), pagebreak, save`. Text can be a string or an array of strings / `{ text, bold, italics, color }`.
+Helpers (all chainable): `cover, h1, h2, h3, p, lead, bullets (level 0-2), numbered (level 0-2), callout, table (totalRow: true bolds the last row), quote, image(file,{width,caption}), pagebreak, save`. Text can be a string or an array of strings / `{ text, bold, italics, color }`.
 
 Styles are real Word styles (Heading 1-3, list numbering, header with title, footer with page number), so the Navigation pane works and the user can restyle everything from Word.
 
@@ -29,7 +29,7 @@ Styles are real Word styles (Heading 1-3, list numbering, header with title, foo
 
 - **Report / proposal:** cover, summary (the answer in under a page), numbered sections, tables for figures, an appendix. Open with what the reader should decide.
 - **Letter / memo:** no cover; a short header block (to, from, date, subject), the point in the first two sentences, one ask at the end.
-- **CV:** one page, one column of content, name large, section labels in small caps, dates right-aligned. Use the `docx` library directly with a tab stop for the date column; no tables for layout, no photos unless asked, no skill bars.
+- **CV:** one page. Use `createCV` from `{{KIT}}/cv.mjs`: `header({ name, title, contacts[] })`, `section(label)`, `entry({ role, org, dates, bullets[] })`, `line(text)`, `save`. Lead bullets with a verb and a number; no photo, no skill bars, no tables for layout.
 - **Contract / policy:** numbered clauses (`numbered` levels 0-2 give 1., 1.1, 1.1.1 style), defined terms in bold at first use, page numbers.
 - **Brochure / flyer:** this is a layout job. Build HTML and print it to PDF (see the `pdf` skill) unless the user needs an editable .docx.
 

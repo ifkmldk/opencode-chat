@@ -1,5 +1,16 @@
 # Fork changelog
 
+## 2.0.22-fork.3 (2026-10-05)
+
+Polesan mesin dokumen setelah QA visual 6 jenis dokumen (`fork-docs/qa/`: pitch deck, proposal, laporan, workbook, CV, brosur).
+
+- **Workbook:** render Excel tidak lagi memuat strip tab sheet abu-abu di bawah halaman (halaman sheet Excel mengalihkan dirinya ke
+  frameset; skrip itu dibuang pada salinan yang dicetak).
+- **Deck:** slide `twoColumn` memakai teks 18pt, judul kolom serif, dan pemisah vertikal; `content` memakai catatan samping bergaya kutipan.
+- **Laporan Word:** `table({ totalRow: true })` menebalkan baris total dengan garis di atasnya.
+- **CV:** helper baru `createCV` (`cv.mjs`): satu halaman, satu kolom, tanggal rata kanan pada tab stop, tanpa tabel/foto/bar skill.
+- **Skill `pdf`:** menyertakan starter HTML/CSS untuk brosur dan satu-lembar (token desain, @page, bagian per halaman).
+
 ## 2.0.22-fork.2 (2026-10-05)
 
 - **Membuka .pptx tidak lagi mengosongkan panel samping.** zip.js membuat web worker dari blob, yang diblokir CSP aplikasi;
