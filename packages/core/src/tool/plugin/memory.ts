@@ -57,9 +57,9 @@ export const Plugin = {
             const entry = yield* memory.save({ scope: input.scope, kind: input.kind, title: input.title, body: input.body, ...(input.projectID ? { projectID: input.projectID } : {}), ...(input.sessionID ? { sessionID: input.sessionID } : {}) })
             // fork: the Obsidian vault is the shared copy; write the note there too (memory.json: { "write": false } turns it off).
             const target = vault()
-            const written = target.dir && target.write ? yield* Effect.try(() => MemoryVaultFiles.write(target.dir!, { id: entry.id, kind: entry.kind, scope: entry.scope, title: entry.title, body: entry.body, updated: Date.now(), source: entry.source })).pipe(Effect.option) : undefined
+            const written = target.dir && target.write ? yield* Effect.try(() => MemoryVaultFiles.write(target.dir!, { id: entry.id, kind: entry.kind, scope: entry.scope, title: entry.title, body: entry.body, updated: Date.now(), source: entry.source })).pipe(Effect.result) : undefined
             const output = { id: entry.id, scope: entry.scope, kind: entry.kind, title: entry.title, body: entry.body }
-            return { output, content: `Saved [${entry.kind}] ${entry.title}${written && written._tag === "Some" ? " (also written to the Obsidian vault)" : ""}`, metadata: { id: entry.id } }
+            return { output, content: `Saved [${entry.kind}] ${entry.title}${written ? (written._tag === "Success" ? " (also written to the Obsidian vault)" : ` (could not write the Obsidian note: ${(written.failure as Error)?.message ?? written.failure})`) : ""}`, metadata: { id: entry.id } }
           }),
       }),
     )
