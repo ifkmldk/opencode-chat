@@ -1,5 +1,18 @@
 # Fork changelog
 
+## 2.0.22-fork.7 (2026-10-05)
+
+Memory, Obsidian dan konteks yang benar-benar terhubung.
+
+- **Recall mengikuti pertanyaan.** Hook `context` (`plugin/memory-recall.ts`) menimbang pesan terakhir pengguna terhadap catatan tersimpan (database + vault Obsidian) dan menyisipkan paling banyak 5 catatan yang jelas cocok tepat sebelum pesan itu
+  (tidak disimpan di percakapan, prefiks cache utuh). Tidak ada yang cocok = tidak ada yang disisipkan. Sebelumnya recall otomatis tidak pernah jalan (dipanggil dengan query kosong).
+- **Ranking kata, bukan LIKE kalimat penuh** (`memory/rank.ts`): minimal dua kata berbeda cocok, preferensi/koreksi berbobot lebih, catatan sampah (hanya path) dibuang, duplikat digabung. Diuji pada vault asli: pertanyaan loker/hotel menemukan sesi terkait, resep nasi goreng tidak menarik apa pun.
+- **Obsidian terhubung:** vault dibaca (`entries/`) lewat `memory/vault.ts`; `memory_save` menulis catatan ke vault juga (matikan dengan `<config>/memory.json` `{ "write": false }`); `memory_forget` menghapus dari database dan vault dan jujur melaporkan bila tidak ada.
+  Folder: `OPENCODE_MEMORY_VAULT`, `memory.json` `vaultDir`, atau `~/Documents/Obsidian/opencode-memory` bila ada. (Kolom path di Settings → Memory masih hanya tersimpan di browser; belum dibaca core.)
+- **Filter "sudah dilamar/ditolak":** catatan berjudul "Sudah dilamar: ..." / "Ditolak: ..." (disimpan model saat Anda bilang sudah melamar) otomatis menyaring lowongan dengan tautan atau judul yang sama dari hasil `research_deep`; setiap lowongan wajib punya tautan lamar.
+- **Kompaksi menjaga batasan keras** (lokasi, gaji, tanggal, jumlah, bahasa, hal yang sudah dilakukan) dengan kata-kata pengguna dan tidak menjatuhkannya.
+- Pengukuran: pesan "Code Mode catalog changed" ada 25 kali di 9 sesi (1-6 per sesi), bukan tiap giliran; dibiarkan.
+
 ## 2.0.22-fork.6 (2026-10-05)
 
 Hardening setelah audit keamanan dan pen test lokal (`fork-docs/qa/pentest.md`, skrip `pentest.mjs`; sebelum/sesudah: 6/9 -> 9/9 lulus).

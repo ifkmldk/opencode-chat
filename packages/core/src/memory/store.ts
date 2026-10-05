@@ -106,6 +106,9 @@ const layer = Layer.effect(
         return rows.map(toEntry)
       }),
       forget: Effect.fn("Memory.forget")(function* (id: string) {
+        // fork: report whether a row existed (it used to answer true for any id).
+        const existing = yield* db.select().from(MemoryTable).where(eq(MemoryTable.id, id)).limit(1).all().pipe(Effect.orDie)
+        if (existing.length === 0) return false
         yield* db.delete(MemoryTable).where(eq(MemoryTable.id, id)).run().pipe(Effect.orDie)
         return true
       }),

@@ -103,6 +103,7 @@ import { CommandPlugin } from "./command.js"
 import { IdentityPlugin } from "./identity.js"
 import { PlanPlugin } from "./plan.js"
 import { UserHooksPlugin } from "./user-hooks.js"
+import { MemoryRecallPlugin } from "./memory-recall.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
 import { ProviderPlugins } from "./provider.js"
@@ -238,6 +239,7 @@ const pre = [
   AgentPlugin.Plugin,
   PlanPlugin.Plugin,
   UserHooksPlugin.Plugin,
+  MemoryRecallPlugin.Plugin,
   CommandPlugin.Plugin,
   SkillPlugin.Plugin,
   OfficePlugin.Plugin,

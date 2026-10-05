@@ -8,6 +8,17 @@ import { UltimateScrape } from "../scrape/engine.js"
 import { extractConstraints } from "./constraints.js"
 import { nearestStation, RANGKASBITUNG_STATIONS } from "./transit.js"
 
+/** True when a saved "already applied / rejected" note names this listing (same link, or the same title and company words). */
+export function isExcluded(row: { title: string; url: string }, notes: readonly string[]) {
+  const plain = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim()
+  const link = row.url.replace(/^https?:\/\/(www\.)?/i, "").replace(/[?#].*$/, "").replace(/\/$/, "").toLowerCase()
+  const title = plain(row.title)
+  return notes.some((note) => {
+    if (link.length > 8 && note.toLowerCase().includes(link)) return true
+    return title.length >= 12 && plain(note).includes(title)
+  })
+}
+
 /** Lower-case words of a place text that identify it (cities, areas); short words and generic terms are ignored. */
 export function locationTokens(text: string | undefined) {
   if (!text) return []
@@ -22,6 +33,8 @@ export function runDeep(deps: {
   searchPlaces: (input: { query: string; near?: string; limit: number }) => Effect.Effect<{ provider: string; places: MapsSearch.Place[] }, ToolFailure>
   searchJobs?: (input: { query: string; limit: number }) => Effect.Effect<{ results: { url: string; title?: string; content?: string }[]; error?: string }, ToolFailure>
   scrape: (url: string) => Effect.Effect<{ text: string; source: string }>
+  /** Listings the user already applied to or rejected (saved as memory notes): they never come back in results. */
+  excluded?: () => Effect.Effect<readonly string[]>
 }) {
   return (input: { query: string; category: "job" | "hotel" | "flight" | "product" | "youtube" | "place" | "event" | "course" | "service" | "other"; location?: string; anchor?: string; radiusKm?: number; must?: readonly string[]; transitLine?: string; maxResults?: number }) =>
     Effect.gen(function* () {
@@ -174,7 +187,8 @@ export function runDeep(deps: {
           if (tokens.some((token) => lower.includes(token))) row.location = "yes"
           else if (lower.includes("structured job postings") && page.text.length > 400) row.location = "no"
         }
-        const kept = rows.filter((row) => row.location !== "no")
+        const seenNotes = deps.excluded ? yield* deps.excluded() : []
+        const kept = rows.filter((row) => row.location !== "no" && !isExcluded(row, seenNotes))
         kept.sort((a, b) => Number(b.location === "yes") - Number(a.location === "yes"))
         const candidates = kept.slice(0, limit).map((row) => ({
           id: row.id,
