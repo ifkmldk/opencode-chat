@@ -1,4 +1,7 @@
-import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, type JSX } from "solid-js"
+import { Portal } from "solid-js/web"
+import { SelectionActionBar } from "@opencode/ui/selection-action-bar"
+import { CLEAR_MESSAGE, injectSelectionBridge, readSelectionMessage, sourceLines } from "@/fork/annotate/html-bridge"
 import { createStore } from "solid-js/store"
 import { Tabs } from "@opencode/ui/tabs"
 import { sanitizeMarkdown } from "@opencode/session-ui/markdown-cache"
@@ -26,6 +29,7 @@ import {
 } from "@/workspaces/files/artifact"
 import { extractPdfText } from "@/workspaces/files/pdf-text"
 import { PdfPages } from "@/fork/pdf/pdf-pages"
+import { useServerSDK } from "@/runtime/server/client"
 import { useArtifactOpener } from "@/session/files/open-artifact"
 import { showToast } from "@/shell/notifications/toast"
 import { captureRegion } from "@/fork/annotate/capture"
@@ -54,7 +58,7 @@ const previewableKinds = new Set<ArtifactKind>(["svg", "html", "markdown", "merm
  * previewable text kinds can switch to `source`, which the host supplies (its code view).
  */
 export type ArtifactAnnotation =
-  | { kind: "text"; text: string; html?: string; comment?: string }
+  | { kind: "text"; text: string; html?: string; lines?: string; comment?: string }
   | { kind: "media"; blob: Blob; mime: string; comment?: string }
 
 export function ArtifactView(props: { path: string; content: FileContent; cacheKey?: string; source: JSX.Element; onAnnotate?: (annotation: ArtifactAnnotation) => void }) {
@@ -159,7 +163,7 @@ export function ArtifactView(props: { path: string; content: FileContent; cacheK
             <PdfPages bytes={officeBytes(props.content)} title={getFilename(props.path)} />
           </Match>
           <Match when={kind() === "html"}>
-            <ArtifactFrame path={props.path} content={props.content} kind="html" />
+            <ArtifactFrame path={props.path} content={props.content} kind="html" onAnnotate={props.onAnnotate} />
           </Match>
           <Match when={kind() === "font"}>
             <ArtifactFont path={props.path} content={props.content} />
@@ -381,13 +385,85 @@ function ArtifactAudio(props: MediaProps) {
   )
 }
 
-function ArtifactFrame(props: { path: string; content: FileContent; kind: "pdf" | "html" }) {
-  const url = createBlobUrl(() => props.content)
+// Mirrors BROWSER_PROXY_TOKEN_HEADER in @opencode/protocol (the app depends on the client, not protocol).
+const PREVIEW_TOKEN_HEADER = "x-opencode-ticket"
+
+function ArtifactFrame(props: {
+  path: string
+  content: FileContent
+  kind: "pdf" | "html"
+  onAnnotate?: (annotation: ArtifactAnnotation) => void
+}) {
+  // fork: HTML previews are staged on the server and framed from there: the app's CSP blocks inline and CDN
+  // scripts in blob: frames, so a generated page with JavaScript did not run. They also get a selection bridge
+  // (fork/annotate/html-bridge.ts) so text can be quoted or noted, with the source lines it came from.
+  const sdk = useServerSDK()
+  const staged = () => props.kind === "html" && props.content.encoding !== "base64"
+  const [stagedSrc, setStagedSrc] = createSignal<string>()
+  createEffect(() => {
+    if (!staged()) return setStagedSrc(undefined)
+    const html = props.onAnnotate ? injectSelectionBridge(props.content.content) : props.content.content
+    const state = { cancelled: false }
+    setStagedSrc(undefined)
+    void sdk.api.browserProxy
+      .preview({ html, [PREVIEW_TOKEN_HEADER]: "1" })
+      .then((result) => {
+        if (state.cancelled) return
+        const page = new URL("/api/experimental/browser-proxy/preview", sdk.url)
+        page.searchParams.set("ticket", result.ticket)
+        setStagedSrc(page.toString())
+      })
+      .catch(() => undefined)
+    onCleanup(() => (state.cancelled = true))
+  })
+  // The blob URL is the fallback while staging is pending or when it fails (and for PDFs).
+  const blob = createMemo(() => {
+    const value = blobUrlFromContent(props.content)
+    onCleanup(() => URL.revokeObjectURL(value))
+    return value
+  })
+  const url = () => (staged() ? (stagedSrc() ?? blob()) : blob())
   // PDF Open Parameters: start with the thumbnail pane closed and the page fitted to the pane width.
   const src = () => (props.kind === "pdf" ? `${url()}#navpanes=0&view=FitH` : url())
+  let frame: HTMLIFrameElement | undefined
+  const [selection, setSelection] = createSignal<{ text: string; html?: string; rect: DOMRect }>()
+  const clear = () => {
+    setSelection(undefined)
+    frame?.contentWindow?.postMessage({ [CLEAR_MESSAGE]: true }, "*")
+  }
+  onMount(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!frame || event.source !== frame.contentWindow) return
+      const value = readSelectionMessage(event.data)
+      if (value === undefined) return
+      if (value === null) return setSelection(undefined)
+      const bounds = frame.getBoundingClientRect()
+      setSelection({
+        text: value.text,
+        html: value.html,
+        rect: new DOMRect(bounds.left + value.rect.x, bounds.top + value.rect.y, value.rect.width, value.rect.height),
+      })
+    }
+    window.addEventListener("message", onMessage)
+    onCleanup(() => window.removeEventListener("message", onMessage))
+  })
+  const submit = (comment?: string) => {
+    const current = selection()
+    if (!current || !props.onAnnotate) return
+    const range = sourceLines(props.content.content, current.text)
+    props.onAnnotate({
+      kind: "text",
+      text: current.text,
+      html: current.html,
+      lines: range ? (range.start === range.end ? String(range.start) : `${range.start}-${range.end}`) : undefined,
+      comment,
+    })
+    clear()
+  }
   return (
     <div class="flex min-h-0 flex-1 flex-col">
       <iframe
+        ref={frame}
         class="block h-full w-full flex-1 border-0 bg-white"
         title={getFilename(props.path)}
         src={src()}
@@ -396,6 +472,19 @@ function ArtifactFrame(props: { path: string; content: FileContent; kind: "pdf" 
         sandbox={props.kind === "html" ? "allow-scripts allow-popups allow-forms allow-modals" : undefined}
         referrerPolicy="no-referrer"
       />
+      <Show when={selection()}>
+        {(current) => (
+          <Portal>
+            <SelectionActionBar
+              rect={current().rect}
+              preview={current().text}
+              onQuote={() => submit()}
+              onNote={(text) => submit(text)}
+              onCancel={clear}
+            />
+          </Portal>
+        )}
+      </Show>
     </div>
   )
 }

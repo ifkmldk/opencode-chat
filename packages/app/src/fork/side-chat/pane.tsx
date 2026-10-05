@@ -119,7 +119,9 @@ export function SideChatPane(props: { mainSessionID: string; directory: string }
             <For each={messages()}>{(message) => <SideChatMessage message={message} sessionID={sideID()!} />}</For>
             <Show when={busy()}>
               <div class="text-13-regular text-v2-text-text-muted">
-                <TextShimmer text={language.t("session.sideChat.thinking")} active />
+                <span role="status" aria-label={language.t("session.sideChat.thinking")}>
+                  <TextShimmer text="•••" active />
+                </span>
               </div>
             </Show>
           </div>

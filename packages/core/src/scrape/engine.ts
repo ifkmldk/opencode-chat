@@ -213,7 +213,11 @@ const fetchCamofox = (input: ScrapeInput, started: number) =>
         return { ...python.success, warnings: [...errors, "camofox python backend (no VS Build Tools needed)"] }
       errors.push(`python: ${(python.failure as Error)?.message ?? String(python.failure)}`.slice(0, 200))
     }
-    throw new Error(`Camofox unavailable (${errors.join("; ") || "no backend tried"}). Set OPENCODE_CAMOFOX_BACKEND=server|python.`)
+    // fork: a failure, not a throw: a throw inside Effect.gen is a defect, which skipped the remaining scraper
+    // tiers (run() only catches failures) and crashed the caller.
+    return yield* Effect.fail(
+      new Error(`Camofox unavailable (${errors.join("; ") || "no backend tried"}). Set OPENCODE_CAMOFOX_BACKEND=server|python.`),
+    )
   })
 
 // fork: 9router is an OpenAI-compatible gateway (see opencode.json provider

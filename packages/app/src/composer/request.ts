@@ -100,7 +100,7 @@ export function buildPromptRequest(input: BuildPromptRequestInput): PromptReques
     }
     if (item.type === "page-text-annotation") {
       const source = item.sourceURL ?? item.sourcePath ?? "selected page"
-      annotationText.push(`Selected page text (${source}): ${item.text}`)
+      annotationText.push(`Selected page text (${source}${item.lines ? `, source lines ${item.lines}` : ""}): ${item.text}`)
       if (item.comment?.trim()) annotationText.push(`Note: ${item.comment.trim()}`)
       return []
     }

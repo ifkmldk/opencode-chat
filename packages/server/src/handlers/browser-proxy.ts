@@ -48,6 +48,37 @@ export const BrowserProxyHandler = HttpApiBuilder.group(Api, "server.browserProx
           return { ticket: issueTicket(ctx.payload.url), expiresIn: TICKET_TTL_MS / 1000 }
         }),
       )
+      .handle(
+        "browserProxy.preview",
+        Effect.fn("BrowserProxyHandler.preview")(function* (ctx) {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          if (
+            request.headers[BROWSER_PROXY_TOKEN_HEADER] !== BROWSER_PROXY_TOKEN_HEADER_VALUE ||
+            !isAllowedRequestOrigin(request.headers.origin, request.headers.host, cors)
+          )
+            return yield* new ForbiddenError({ message: "Invalid preview request" })
+          if (ctx.payload.html.length > MAX_PREVIEW_CHARS)
+            return yield* new InvalidRequestError({ message: "Preview is too large", kind: "html_preview_size" })
+          return { ticket: stagePreview(ctx.payload.html), expiresIn: PREVIEW_TTL_MS / 1000 }
+        }),
+      )
+      .handleRaw(
+        "browserProxy.previewPage",
+        Effect.fn("BrowserProxyHandler.previewPage")(function* (ctx) {
+          const ticket = new URL(ctx.request.url, "http://localhost").searchParams.get(BROWSER_PROXY_TICKET_QUERY)
+          const html = ticket ? readPreview(ticket) : undefined
+          if (html === undefined) return HttpServerResponse.empty({ status: 404 })
+          // The page runs scripts but as an opaque origin: never with this server's cookies, storage or API.
+          return HttpServerResponse.text(html, {
+            contentType: "text/html; charset=utf-8",
+            headers: {
+              "content-security-policy": PREVIEW_SANDBOX,
+              "cache-control": "no-store",
+              "referrer-policy": "no-referrer",
+            },
+          })
+        }),
+      )
       .handleRaw(
         "browserProxy.proxy",
         Effect.fn("BrowserProxyHandler.proxy")(function* (ctx) {
@@ -62,6 +93,31 @@ export const BrowserProxyHandler = HttpApiBuilder.group(Api, "server.browserProx
       )
   }),
 )
+
+// fork: staged HTML previews. Unguessable ids with a short life; the content is the user's own file.
+const PREVIEW_TTL_MS = 10 * 60_000
+const MAX_PREVIEW_CHARS = 12 * 1024 * 1024
+const MAX_PREVIEWS = 40
+const PREVIEW_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+const previews = new Map<string, { html: string; expires: number }>()
+
+export function stagePreview(html: string, now = Date.now()) {
+  previews.forEach((value, key) => value.expires < now && previews.delete(key))
+  // Oldest first (Map keeps insertion order) once the cap is reached.
+  while (previews.size >= MAX_PREVIEWS) previews.delete(previews.keys().next().value!)
+  const id = crypto.randomUUID()
+  previews.set(id, { html, expires: now + PREVIEW_TTL_MS })
+  return id
+}
+
+export function readPreview(id: string, now = Date.now()) {
+  const record = previews.get(id)
+  if (!record || record.expires < now) {
+    previews.delete(id)
+    return undefined
+  }
+  return record.html
+}
 
 export function issueTicket(url: string, now = Date.now()) {
   tickets.forEach((value, key) => value.expires < now && tickets.delete(key))

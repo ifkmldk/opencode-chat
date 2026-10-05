@@ -125,7 +125,8 @@ export function createTimelineController(input: { session: TimelineSessionSource
     return {
       shell: { ...detail.shell },
       edit: { ...detail.edit },
-      thinking: { ...detail.thinking },
+      // fork: Code mode hides reasoning too unless "Show thinking" is on, whatever detail preset is stored.
+      thinking: settings.general.showThinking() ? { ...detail.thinking } : { placement: "hidden" as const, details: "collapsed" as const },
       subagents: { ...detail.subagents },
       notices: { ...detail.notices },
       tools: { ...detail.tools },

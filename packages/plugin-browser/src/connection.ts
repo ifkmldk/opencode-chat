@@ -138,7 +138,7 @@ export const make = Effect.fn("BrowserConnection.make")(function* (
       if (!browser)
         return yield* new Tool.Error({
           message:
-            "[browser.disconnected] No desktop browser is connected to this session. Open this session in the desktop app, enable the experimental browser setting, and wait for it to connect. Then call browser.tabs.list({}). Repeating browser actions while disconnected will not help.",
+            "[browser.disconnected] No desktop browser is connected to this session. Open this session in the desktop app, enable the experimental browser setting, and wait for it to connect. Then call browser.tabs.list({}). Repeating browser actions while disconnected will not help. In the web UI there is no controllable browser at all: do not retry; read pages with webfetch (or scrape_fetch when a site blocks it) and show files with preview_file instead.",
         })
       const tab = "tabID" in action ? browser.state.tabs.find((tab) => tab.id === action.tabID) : undefined
       if ("tabID" in action && !tab)

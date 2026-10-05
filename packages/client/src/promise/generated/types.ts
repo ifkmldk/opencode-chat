@@ -2182,6 +2182,7 @@ export type ConfigEntry =
           portable_shell_scanner?: boolean
           subagent_depth?: number
           laya?: { enabled?: boolean; modelDir?: string; subfolder?: string; timeoutMs?: number }
+          classifier?: { enabled?: boolean; modelDir?: string; subfolder?: string; timeoutMs?: number }
           policies?: Array<{ action: "provider.use" | "permission"; resource: string; effect: "allow" | "deny" }>
         }
       }
@@ -6423,3 +6424,10 @@ export type BrowserProxyTicketInput = {
 }
 
 export type BrowserProxyTicketOutput = BrowserProxyTicket
+
+export type BrowserProxyPreviewInput = {
+  readonly "x-opencode-ticket"?: { readonly "x-opencode-ticket"?: string | undefined }["x-opencode-ticket"]
+  readonly html: { readonly html: string }["html"]
+}
+
+export type BrowserProxyPreviewOutput = BrowserProxyTicket

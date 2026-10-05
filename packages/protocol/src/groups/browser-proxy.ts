@@ -8,7 +8,8 @@ export const BROWSER_PROXY_TICKET_QUERY = "ticket"
 export const BROWSER_PROXY_TOKEN_HEADER = "x-opencode-ticket"
 export const BROWSER_PROXY_TOKEN_HEADER_VALUE = "1"
 
-const BROWSER_PROXY_PATH = /^\/api\/experimental\/browser-proxy$/
+// fork: also the HTML preview page route, which is framed with its own ticket the same way.
+const BROWSER_PROXY_PATH = /^\/api\/experimental\/browser-proxy(?:\/preview)?$/
 
 // Authorization middleware skips credential checks when this matches: an iframe cannot send
 // credentials, so the proxy handler consumes and validates the single-use ticket instead.
@@ -53,6 +54,41 @@ export const BrowserProxyGroup = HttpApiGroup.make("server.browserProxy")
           parameters: [
             ...(operation.parameters ?? []),
             ...["url", BROWSER_PROXY_TICKET_QUERY].map((name) => ({ in: "query", name, schema: { type: "string" } })),
+          ],
+        }),
+      }),
+    ),
+  )
+  .add(
+    // fork: HTML file previews. The app's CSP blocks inline and CDN scripts in blob: frames, so the preview HTML is
+    // parked here and framed from this route, which serves it with only a sandbox directive.
+    HttpApiEndpoint.post("browserProxy.preview", "/api/experimental/browser-proxy/preview", {
+      payload: Schema.Struct({ html: Schema.String }),
+      headers: Schema.Struct({ [BROWSER_PROXY_TOKEN_HEADER]: Schema.optional(Schema.String) }),
+      success: BrowserProxyTicket,
+      error: [ForbiddenError, InvalidRequestError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "browserProxy.preview",
+        summary: "Stage an HTML preview",
+        description: "Store one HTML document briefly and return a ticket that frames it at the preview route.",
+      }),
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get("browserProxy.previewPage", "/api/experimental/browser-proxy/preview", {
+      success: Schema.String.pipe(HttpApiSchema.asText({ contentType: "text/html" })),
+      error: [ForbiddenError, InvalidRequestError],
+    }).annotateMerge(
+      OpenApi.annotations({
+        identifier: "browserProxy.previewPage",
+        summary: "Serve a staged HTML preview",
+        description: "Serve a staged HTML document in an opaque-origin sandbox so its own scripts can run.",
+        transform: (operation) => ({
+          ...operation,
+          parameters: [
+            ...(operation.parameters ?? []),
+            { in: "query", name: BROWSER_PROXY_TICKET_QUERY, schema: { type: "string" } },
           ],
         }),
       }),

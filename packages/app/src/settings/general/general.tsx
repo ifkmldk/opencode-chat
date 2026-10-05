@@ -510,6 +510,14 @@ export const SettingsGeneral: Component = () => {
         <section class="settings-section" aria-label={language.t("settings.timeline.title")}>
           <h3 class="settings-section-title">{language.t("settings.timeline.title")}</h3>
           <SettingsList>
+            <SettingsRow
+              title={language.t("settings.timeline.showThinking.title")}
+              description={language.t("settings.timeline.showThinking.description")}
+            >
+              <div data-action="settings-show-thinking">
+                <Switch checked={settings.general.showThinking()} onChange={(checked) => settings.general.setShowThinking(checked)} />
+              </div>
+            </SettingsRow>
             <div class="py-5">
               <TimelineDetailControl
                 value={settings.general.timelineDetail()}

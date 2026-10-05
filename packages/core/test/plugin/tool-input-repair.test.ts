@@ -452,4 +452,32 @@ describe("tool input repair plugin", () => {
       expect((yield* run(input, { allOf: [object({ numeric: { type: "integer" } })] })).input).toBe(input)
     }),
   )
+
+  // fork: the JSON Schema of Schema.Number is anyOf[number, string enum NaN/Infinity], then nullable when optional.
+  // maps_poi received radius_m:"1000" and limit:"30" and rejected both.
+  it.effect("turns numeric strings into numbers for Schema.Number-shaped properties", () =>
+    Effect.gen(function* () {
+      const finiteOrSpecial = {
+        anyOf: [
+          { anyOf: [{ type: "number" }, { type: "string", enum: ["Infinity", "-Infinity", "NaN"] }] },
+          { type: "null" },
+        ],
+      }
+      const event = yield* run(
+        { radius_m: "1000", limit: "30", near: "BSD", mode: "NaN" },
+        object({ radius_m: finiteOrSpecial, limit: finiteOrSpecial, near: { type: "string" }, mode: finiteOrSpecial }),
+      )
+
+      // "NaN" is a legitimate member of the enum, so it is left alone; real numbers are converted.
+      expect(event.input).toEqual({ radius_m: 1000, limit: 30, near: "BSD", mode: "NaN" })
+    }),
+  )
+
+  it.effect("leaves a string alone when a plain string branch accepts it", () =>
+    Effect.gen(function* () {
+      const input = { value: "1000" }
+      const event = yield* run(input, object({ value: { anyOf: [{ type: "number" }, { type: "string" }] } }))
+      expect(event.input).toBe(input)
+    }),
+  )
 })

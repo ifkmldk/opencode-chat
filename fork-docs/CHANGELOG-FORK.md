@@ -1,5 +1,26 @@
 # Fork changelog
 
+## 2.0.15-fork.8 (2026-10-05)
+
+Fase 1 dari audit paritas agen: perbaikan cepat atas kegagalan nyata di sesi pemilik.
+
+- **Angka berbentuk string diperbaiki untuk semua tool.** `maps_poi` menolak `radius_m:"1000"` karena cabang enum
+  `"NaN"` dari `Schema.Number` dianggap menerima string apa pun. `repair()` di `core/src/plugin/tool-input-repair.ts`
+  sekarang mengabaikan cabang enum/const yang tidak memuat nilainya (berlaku juga untuk tool MCP dan plugin).
+- **Shell Windows:** deskripsi tool `shell` memuat aturan sintaks per shell (PowerShell 5.1 tanpa `&&`, jangan membungkus
+  `powershell -Command`, jangan sintaks bash).
+- **`webfetch` yang diblokir (403/429/5xx) atau halaman kosong berbasis JS** otomatis jatuh ke scraper stealth
+  (izin `scrape.fetch`), dengan pesan error yang menunjuk `scrape_fetch`. Scraper: kegagalan Camofox sekarang
+  gagal biasa, bukan defect yang menghentikan tier berikutnya.
+- **Tool `browser.*` di UI web** gagal dengan pesan yang mengarahkan ke `webfetch`/`scrape_fetch`/`preview_file`.
+- **Thinking disembunyikan di semua mode** (Chat, Code, Classifier) kecuali setting baru "Show thinking" dinyalakan.
+  Kata "Thinking" diganti indikator titik-titik.
+- **Composer:** Shift+Enter melanjutkan daftar bernomor/bullet, Tab / Shift+Tab mengatur indentasi, Backspace di
+  belakang marker menurunkan level lalu menghapus marker. Enter tetap mengirim.
+- **Preview HTML:** halaman disajikan dari server (rute `browser-proxy/preview` bertiket, header `sandbox`), jadi
+  JavaScript inline dan CDN jalan (CSP aplikasi sebelumnya memblokirnya di frame blob). Teks di preview bisa dikutip
+  atau diberi catatan, dengan nomor baris sumber (`source lines 12-14`) ikut ke model.
+
 ## 2.0.15-fork.7 (2026-10-04)
 
 `research_deep` selesai + kartu jujur + job koridor geocode (jawaban Sudirman/carport/KRL presisi):

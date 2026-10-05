@@ -2411,8 +2411,15 @@ export type BrowserProxyTicketOperation<E = never> = (
   input: BrowserProxyTicketInput,
 ) => Effect.Effect<BrowserProxyTicketOutput, E>
 
+export type BrowserProxyPreviewInput = { readonly "x-opencode-ticket"?: string | undefined; readonly html: string }
+export type BrowserProxyPreviewOutput = { readonly ticket: string; readonly expiresIn: number }
+export type BrowserProxyPreviewOperation<E = never> = (
+  input: BrowserProxyPreviewInput,
+) => Effect.Effect<BrowserProxyPreviewOutput, E>
+
 export interface BrowserProxyApi<E = never> {
   readonly ticket: BrowserProxyTicketOperation<E>
+  readonly preview: BrowserProxyPreviewOperation<E>
 }
 
 export interface AppApi<E = never> {

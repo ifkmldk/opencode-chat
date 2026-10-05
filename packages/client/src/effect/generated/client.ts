@@ -267,6 +267,8 @@ import type {
   ConfigUpdateOutput,
   BrowserProxyTicketInput,
   BrowserProxyTicketOutput,
+  BrowserProxyPreviewInput,
+  BrowserProxyPreviewOutput,
 } from "../api/api.js"
 import { ClientError } from "./client-error.js"
 
@@ -1571,7 +1573,18 @@ const EndpointBrowserProxyTicket = (raw: RawClient["server.browserProxy"]) => (i
     }).pipe(Effect.mapError(mapClientError)),
   )
 
-const adaptGroupBrowserProxy = (raw: RawClient["server.browserProxy"]) => ({ ticket: EndpointBrowserProxyTicket(raw) })
+const EndpointBrowserProxyPreview = (raw: RawClient["server.browserProxy"]) => (input: BrowserProxyPreviewInput) =>
+  preserveEffect<BrowserProxyPreviewOutput>()(
+    raw["browserProxy.preview"]({
+      headers: { "x-opencode-ticket": input["x-opencode-ticket"] },
+      payload: { html: input["html"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
+const adaptGroupBrowserProxy = (raw: RawClient["server.browserProxy"]) => ({
+  ticket: EndpointBrowserProxyTicket(raw),
+  preview: EndpointBrowserProxyPreview(raw),
+})
 
 const adaptClient = (raw: RawClient) => ({
   server: adaptGroupServer(raw["server.server"]),

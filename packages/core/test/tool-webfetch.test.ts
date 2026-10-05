@@ -629,21 +629,40 @@ describe("WebFetchTool registration", () => {
     }),
   )
 
-  it.effect("does not retry ordinary 403 responses", () =>
+  // fork: an ordinary 403 is not retried with another user agent, but it now escalates to the scraper's stealth
+  // tiers. Auto-setup is off here so the test never installs anything; with every tier failing the model gets an
+  // actionable message instead of a bare "Unable to fetch".
+  it.effect("does not retry ordinary 403 responses and explains the scraper fallback failed", () =>
     Effect.gen(function* () {
       reset()
+      process.env.OPENCODE_SCRAPER_NO_AUTOSETUP = "1"
+      process.env.OPENCODE_CAMOFOX_BACKEND = "server"
       respond = () => Effect.succeed(new Response("forbidden", { status: 403 }))
       const registry = yield* Tool.Service
       const url = "https://example.com/forbidden"
 
-      expect(yield* executeTool(registry, call({ url, format: "text" }))).toEqual({
-        status: "error",
-        error: { type: "unknown", message: `StatusCode: non 2xx status code (403 GET ${url})` },
-      })
-      expect(requests).toHaveLength(1)
+      const result = yield* executeTool(registry, call({ url, format: "text" }))
+      delete process.env.OPENCODE_SCRAPER_NO_AUTOSETUP
+      delete process.env.OPENCODE_CAMOFOX_BACKEND
+      expect(result.status).toBe("error")
+      expect(JSON.stringify(result)).toContain("HTTP 403")
+      expect(JSON.stringify(result)).toContain("scrape_fetch")
       expect(requests[0]?.headers["user-agent"]).toBe(webFetchUserAgent)
+      expect(requests.filter((request) => request.headers["user-agent"] === "opencode")).toHaveLength(0)
     }),
   )
+
+  test("blockedStatus and isEmptyShell", () => {
+    const status = (code: number) => ({ reason: { _tag: "StatusCodeError", response: { status: code } } })
+    expect(WebFetchTool.blockedStatus(status(403))).toBe(403)
+    expect(WebFetchTool.blockedStatus(status(503))).toBe(503)
+    expect(WebFetchTool.blockedStatus(status(404))).toBeUndefined()
+    expect(WebFetchTool.blockedStatus(new Error("timeout"))).toBeUndefined()
+    expect(WebFetchTool.isEmptyShell(`<div id=root></div>${'<script src=a.js></script>'.repeat(30)}`, "text/html", "")).toBe(true)
+    expect(WebFetchTool.isEmptyShell("<h1>Hello</h1><script>1</script>", "text/html", "# Hello")).toBe(false)
+    expect(WebFetchTool.isEmptyShell("<p>" + "x".repeat(200) + "</p>", "text/html", "x".repeat(200))).toBe(false)
+    expect(WebFetchTool.isEmptyShell("<script>1</script>", "application/json", "")).toBe(false)
+  })
 
   it.effect("times out stalled requests", () =>
     Effect.gen(function* () {

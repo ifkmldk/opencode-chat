@@ -437,6 +437,10 @@ when two projects start the canvas at once. A failed `listen` on 51230 left `ens
 `canvas_list` and `artifact_list` froze the turn. The loser now reuses the running canvas. The backup is
 `backups/2026-09-29/opencode-preview-canvas-server.ts.bak`.
 
+**Fase 1 audit selesai 2026-10-05 (`2.0.15-fork.8`, belum di-push):** lihat CHANGELOG-FORK. Berikutnya Fase 2: mesin
+dokumen (skill docx/pptx/xlsx/pdf + render-lalu-periksa lewat LibreOffice, template), lalu Fase 3 paritas agen
+(todo, mode izin, katalog tool, hook, sandbox). Rencana lengkap: C:/Users/fadhi/.claude/plans/reflective-floating-chipmunk.md.
+
 ### Progress snapshot 2026-09-30 09:21 (deployed `0.0.0-custom/main-202609300218`, WIP ref `refs/wip/v1-ux-maps`)
 
 **Done since the Maps plan (all uncommitted on `v1-ux-restore`):**
