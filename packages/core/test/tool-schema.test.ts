@@ -410,3 +410,30 @@ test("missing external input schemas fall back to an empty schema", () => {
     inputSchema: {},
   })
 })
+
+test("stringified scalars from the model are repaired before validation", async () => {
+  const tool: Info = {
+    name: "maps",
+    description: "Maps tool",
+    input: Schema.Struct({
+      query: Schema.String,
+      limit: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 10 }))),
+      radius_m: Schema.optional(Schema.Number),
+      exact: Schema.optional(Schema.Boolean),
+      points: Schema.optional(Schema.Array(Schema.Struct({ latitude: Schema.Number }))),
+    }),
+    execute: (input) => Effect.succeed({ content: JSON.stringify(input) }),
+  }
+  const run = (input: unknown) => Effect.runPromise(execute(tool, input, context)).then((result) => result.content)
+  expect(await run({ query: "q", limit: 20 })).toEqual([{ type: "text", text: '{"query":"q","limit":10}' }])
+  expect(await run({ query: "5", limit: "5", radius_m: "null", exact: "true", points: [{ latitude: "-6.3" }] })).toEqual([
+    { type: "text", text: '{"query":"5","limit":5,"exact":true,"points":[{"latitude":-6.3}]}' },
+  ])
+  // Text that is not a number still fails with the original arguments in the message.
+  expect(await Effect.runPromise(Effect.flip(execute(tool, { query: "x", limit: "many" }, context)))).toEqual(
+    new Tool.Error({
+      message:
+        'Invalid arguments for tool "maps":\n- limit: Expected number | undefined\n\nArguments provided:\n{\n  "query": "x",\n  "limit": "many"\n}\n\nUpdate the arguments and call the tool again.',
+    }),
+  )
+})

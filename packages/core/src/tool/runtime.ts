@@ -62,10 +62,99 @@ export const execute = (tool: Tool.Info<any, any>, input: unknown, context: Tool
 const decodeInput = (tool: Tool.Info<any, any>, value: unknown) =>
   Effect.gen(function* () {
     const result = yield* validateInput(tool.input, value)
-    if (result.issues)
-      return yield* new Tool.Error({ message: formatInputIssues(effectiveName(tool), result.issues, value) })
-    return result.value
+    if (!result.issues) return result.value
+    // fork: some models send scalars as strings ("limit": "5", "distance_m": "null"). Retry once with those repaired against
+    // the advertised JSON Schema before failing the call, so the model does not burn a step on a visible error.
+    const repaired = coerceInput(inputJsonSchema(tool.input), value)
+    const retry = repaired === value ? result : yield* validateInput(tool.input, repaired)
+    if (!retry.issues) return retry.value
+    // "limit": 20 against a maximum of 10 asks for "as many as allowed". Effect's JSON Schema drops range checks, so the
+    // bound is read from the validation issue; only upper bounds are applied (below a minimum is more likely a mistake).
+    const capped = capToMaximum(repaired, retry.issues)
+    if (capped !== repaired) {
+      const last = yield* validateInput(tool.input, capped)
+      if (!last.issues) return last.value
+    }
+    return yield* new Tool.Error({ message: formatInputIssues(effectiveName(tool), result.issues, value) })
   })
+
+const capToMaximum = (value: unknown, issues: ReadonlyArray<StandardSchemaV1.Issue>) =>
+  issues.reduce<unknown>((current, issue) => {
+    const maximum = Number(issue.message.match(/between \S+ and (\S+)$|less than or equal to (\S+)$/)?.slice(1).find(Boolean))
+    const path = (issue.path ?? []).map((segment) => (typeof segment === "object" ? segment.key : segment))
+    if (!Number.isFinite(maximum) || path.length === 0) return current
+    const target = path.slice(0, -1).reduce<unknown>((node, key) => (isRecord(node) || Array.isArray(node) ? (node as never)[key] : undefined), current)
+    const key = path.at(-1)!
+    if (!(isRecord(target) || Array.isArray(target)) || typeof (target as never)[key] !== "number") return current
+    if ((target as never)[key] <= maximum) return current
+    const copy = structuredClone(current)
+    const parent = path.slice(0, -1).reduce<unknown>((node, segment) => (node as never)[segment], copy)
+    ;(parent as Record<PropertyKey, unknown>)[key] = maximum
+    return copy
+  }, value)
+
+/** Returns `value` itself when nothing needed repair, otherwise a repaired copy. */
+export const coerceInput = (schema: unknown, value: unknown): unknown => {
+  if (!isRecord(schema)) return value
+  const types = schemaTypes(schema)
+  if (typeof value === "string") {
+    const text = value.trim()
+    if ((types.has("number") || types.has("integer")) && text !== "" && Number.isFinite(Number(text))) {
+      const number = Number(text)
+      if (!types.has("integer") || types.has("number") || Number.isInteger(number)) return number
+    }
+    if (types.has("boolean") && (text === "true" || text === "false")) return text === "true"
+    if ((types.has("object") || types.has("array")) && /^[[{]/.test(text)) {
+      const parsed = (() => {
+        try {
+          return JSON.parse(text)
+        } catch {
+          return undefined
+        }
+      })()
+      if (parsed !== undefined) return coerceInput(schema, parsed)
+    }
+    return value
+  }
+  if (Array.isArray(value)) {
+    const itemSchema = variants(schema).find((variant) => isRecord(variant.items))?.items
+    if (!isRecord(itemSchema)) return value
+    const items = value.map((item) => coerceInput(itemSchema, item))
+    return items.some((item, index) => item !== value[index]) ? items : value
+  }
+  const objectSchema = variants(schema).find((variant) => isRecord(variant.properties))
+  if (!isRecord(value) || !objectSchema || !isRecord(objectSchema.properties)) return value
+  const properties = objectSchema.properties
+  const required = new Set(Array.isArray(objectSchema.required) ? objectSchema.required : [])
+  const entries = Object.entries(value).flatMap(([key, item]): Array<[string, unknown]> => {
+    const property = properties[key]
+    if (!isRecord(property)) return [[key, item]]
+    // An optional non-text key sent as null / "null" / "" means "not given".
+    const empty = item === null || item === "null" || item === "undefined" || item === ""
+    if (empty && !required.has(key) && !schemaTypes(property).has("string")) return []
+    return [[key, coerceInput(property, item)]]
+  })
+  const changed = entries.length !== Object.keys(value).length || entries.some(([key, item]) => item !== value[key])
+  return changed ? Object.fromEntries(entries) : value
+}
+
+/** The schema and every nested anyOf/oneOf/allOf branch, flattened. */
+const variants = (schema: Record<string, unknown>): Array<Record<string, unknown>> => [
+  schema,
+  ...[schema.anyOf, schema.oneOf, schema.allOf]
+    .flatMap((list) => (Array.isArray(list) ? list : []))
+    .filter(isRecord)
+    .flatMap(variants),
+]
+
+// A string branch limited to an enum/const (Effect's "NaN" | "Infinity" for numbers) does not make free text valid.
+const schemaTypes = (schema: Record<string, unknown>) =>
+  new Set(
+    variants(schema)
+      .filter((variant) => !("enum" in variant) && !("const" in variant))
+      .flatMap((variant) => (Array.isArray(variant.type) ? variant.type : [variant.type]))
+      .filter((type): type is string => typeof type === "string"),
+  )
 
 const validateInput = (
   schema: Tool.ValueSchema<any>,

@@ -1,5 +1,13 @@
 # Fork changelog
 
+## 2.0.22-fork.13 (2026-10-06)
+
+- Tool yang gagal tidak lagi tampil sebagai baris merah di jawaban. Di semua mode (Chat, Code, Classifier, semua preset detail) panggilan gagal masuk ke grup tool yang terlipat ("Used N …"); klik untuk melihat panggilan dan errornya.
+- Argumen tool dari model diperbaiki otomatis sebelum ditolak: angka/boolean yang dikirim sebagai teks (`"limit": "5"`, `"exact": "true"`), kunci opsional berisi `null`/`"null"`/`""`, objek/array berupa teks JSON, dan angka di atas batas maksimum (dipotong ke batas). Dari riwayat: 19 dari 19 panggilan `maps_search`/`maps_poi`/`jobs_search`/`geo_compute` yang dulu gagal sekarang lolos.
+- Plugin lokal `opencode-websearch` (di `~/.config/opencode/plugins`, di luar repo): hasil tanpa tanggal mengirim `published: undefined` yang ditolak skema server, jadi setiap web search berakhir "Unable to search the web". Kolom kosong kini dibuang.
+- QA: cek secrets di pentest bekerja di PowerShell maupun Git Bash.
+
+
 ## 2.0.22-fork.12 (2026-10-06)
 
 - Aplikasi desktop (Electron, `packages/desktop`) dengan **browser asli di panel**: Google, login aplikasi (H5) dan cookie bekerja seperti browser biasa. Desktop memakai server launcher (`OPENCODE_DESKTOP_SERVER_URL` + password `service.json`) dan tidak menyalakan server kedua. Browser native aktif secara default. Launcher membuka desktop secara default; `-Web` untuk Brave.

@@ -681,23 +681,19 @@ function toolGroupType(
   hasContextGroup: boolean,
   detail?: TimelineDetail,
 ) {
+  // fork: a failed call (search outage, bad arguments the model then retried) is noise in the answer. Every view folds it
+  // into the collapsed tool group; expanding the group still shows the call and its error.
+  if (currentToolFailed(content)) return "context"
   if (detail) {
-    if (content.name === "question" && !currentToolFailed(content)) return undefined
+    if (content.name === "question") return undefined
     // fork: result cards render on their own row instead of inside a collapsed tool group.
     if (timelineCardTool(content)) return undefined
     const category = timelineCategory(content)!
     if (detail[category].placement === "grouped") return "context"
-    if (currentToolFailed(content)) return undefined
     if (content.name === "patch" || content.name === "edit" || content.name === "write") return "file"
     return undefined
   }
   if (content.name === "question" || currentToolHasLoadedFiles(content)) return undefined
-  if (content.state.status === "error") {
-    if ((content.name === "shell" || content.name === "execute") && shellExpanded) return undefined
-    if ((content.name === "edit" || content.name === "write" || content.name === "patch") && editExpanded)
-      return undefined
-    return "context"
-  }
   if (
     !hasContextGroup &&
     (content.state.status !== "completed" ||
