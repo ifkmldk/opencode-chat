@@ -55,3 +55,20 @@ test("unreadable boards are listed with their reason, never guessed", () => {
   const boards = Boards.manualSearch({ role: "data analyst", cities: ["bandung"] }).map((item) => item.board)
   expect(boards).toEqual(["glassdoor", "jobs.id", "topkarir"])
 })
+
+test("Kalibrr: the office street from google_location and the salary period (live response shape, 2026-10-06)", () => {
+  const rows = Boards.kalibrr({
+    jobs: [
+      { id: 1, name: "Data Analyst", slug: "data-analyst", company: { name: "Astro Technologies Indonesia", code: "astro" }, google_location: { address_components: { address_line_1: "27, Jalan Tomang Raya, Tomang Kel., Grogol Petamburan", city: "West Jakarta", country: "Indonesia", region: "DKI Jakarta" } }, salary_shown: true, base_salary: 9000000, maximum_salary: 12000000, salary_interval: "month", activation_date: "2026-10-01T00:00:00" },
+      { id: 2, name: "Data Engineer", company: { name: "PT Metrodata Electronics, Tbk", code: "metrodata" }, google_location: { address_components: { city: "Central Jakarta", region: "DKI Jakarta" } }, salary_shown: false, maximum_salary: 10000000 },
+    ],
+  })
+  expect(rows[0]).toMatchObject({ location: "West Jakarta, DKI Jakarta", address: "Jalan Tomang Raya 27, Tomang, Grogol Petamburan, Jakarta Barat, DKI Jakarta", salary: "Rp 9.000.000 – 12.000.000 per month" })
+  expect(rows[1]?.address).toBeUndefined()
+  expect(rows[1]?.salary).toBeUndefined()
+})
+
+test("Kalibrr addresses are rewritten the way geocoders read them", () => {
+  expect(Boards.kalibrrAddress("RT09/RW05, Podomoro City, Tanjung Duren Selatan Kel., Grogol Petamburan", "West Jakarta", "DKI Jakarta")).toBe("Podomoro City, Tanjung Duren Selatan, Grogol Petamburan, Jakarta Barat, DKI Jakarta")
+  expect(Boards.kalibrrAddress("Jl. Palmerah Selatan No. 22-28. Jakarta, Indonesia", "Purwakarta Regency", "West Java (Jawa Barat)")).toBe("Jl. Palmerah Selatan No. 22-28. Jakarta, Indonesia")
+})

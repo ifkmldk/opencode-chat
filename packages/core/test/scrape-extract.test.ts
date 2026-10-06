@@ -30,7 +30,21 @@ describe("ScrapeExtract", () => {
     expect(jobs).toEqual([
       { title: "BI Analyst", company: "PT Maju", location: "Tangerang, Banten", posted: "2026-10-01", expires: "2026-11-01", salary: "IDR 11000000 - 15000000 / MONTH", url: "https://x.test/job/1" },
     ])
-    expect(ScrapeExtract.jobPostingsMarkdown(jobs)).toContain("**BI Analyst** · PT Maju · Tangerang, Banten")
+    expect(ScrapeExtract.jobPostingsMarkdown(jobs)).toContain("**BI Analyst** · company: PT Maju · location: Tangerang, Banten")
+  })
+
+  test("keeps the office street address and geo of the job location, and reads them back from page text", () => {
+    const html = `<script type="application/ld+json">{"@type":"JobPosting","title":"Data Analyst","hiringOrganization":{"name":"PT Astra International Tbk"},"jobLocation":[{"@type":"Place","address":{"streetAddress":"Menara Astra, Jl. Jend. Sudirman Kav. 5-6","addressLocality":"Jakarta Pusat","addressRegion":"DKI Jakarta","postalCode":10220},"geo":{"latitude":"-6.2108","longitude":106.8196}}],"url":"https://x.test/job/2"}</script>`
+    const jobs = ScrapeExtract.jobPostings(html)
+    expect(jobs[0]).toMatchObject({
+      company: "PT Astra International Tbk",
+      address: "Menara Astra, Jl. Jend. Sudirman Kav. 5-6, Jakarta Pusat, DKI Jakarta, 10220",
+      latitude: -6.2108,
+      longitude: 106.8196,
+    })
+    const text = `Some page text\n\n${ScrapeExtract.jobPostingsMarkdown(jobs)}`
+    expect(ScrapeExtract.postingsFromText(text)).toEqual([{ ...jobs[0]! }])
+    expect(ScrapeExtract.postingsFromText("no postings here")).toEqual([])
   })
 
   test("recognises empty shells, menu stubs and bot walls as not useful", () => {

@@ -12,8 +12,9 @@ const MatchInput = Schema.Struct({ title: Schema.String.check(Schema.isMinLength
 const Job = Schema.Struct({ id: Schema.String, title: Schema.String, company: Schema.optional(Schema.String), location: Schema.optional(Schema.String), url: Schema.String, description: Schema.optional(Schema.String), postedAt: Schema.optional(Schema.String) })
 const Output = Schema.Struct({ provider: Schema.String, jobs: Schema.Array(Job) })
 const MatchOutput = Schema.Struct({ score: Schema.Number, matches: Schema.Array(Schema.String), missing: Schema.Array(Schema.String), recommendation: Schema.String })
-const stop = new Set("a an and are as at be by for from has have in is it of on or that the to with your you will this role job skills experience ability".split(" "))
-const words = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9+#.-]{2,}/g)?.filter((word) => !stop.has(word)) ?? [])
+// fork: Indonesian filler words too, and no trailing dots or dashes ("excel." is "excel", "node.js" stays).
+const stop = new Set("a an and are as at be by for from has have in is it of on or that the to with your you will this role job skills experience ability dan yang di ke dari untuk dengan atau pada dalam ini itu sebagai akan dapat bisa memiliki mampu min minimal maks serta juga kami anda kamu".split(" "))
+const words = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9+#]+(?:[.-][a-z0-9+#]+)*/g)?.filter((word) => word.length >= 2 && !stop.has(word)) ?? [])
 const endpoint = () => { const value = process.env.OPENCODE_JOBS_API_URL; if (!value) return; const url = new URL(value); if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("OPENCODE_JOBS_API_URL must use http or https"); if (url.username || url.password) throw new Error("OPENCODE_JOBS_API_URL must not contain credentials"); return url }
 const request = (url: URL) => Effect.tryPromise({ try: () => fetch(url, { headers: { accept: "application/json", "user-agent": "OpenCode-Chat/2" }, signal: AbortSignal.timeout(20_000) }).then(async (response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return await response.json() as unknown }), catch: (error) => error }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Jobs provider request failed: ${error instanceof Error ? error.message : String(error)}. Do not invent listings: use websearch for the same query or tell the user the provider is unavailable.`, error })))
 
@@ -62,4 +63,4 @@ export const Plugin = {
     ).pipe(Effect.orDie)
   }),
 }
-export const __test = { SearchInput, MatchInput }
+export const __test = { SearchInput, MatchInput, words }

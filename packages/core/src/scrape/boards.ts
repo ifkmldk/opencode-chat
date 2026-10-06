@@ -39,31 +39,52 @@ const parse = (text: string | undefined) => {
   }
 }
 
-/** Kalibrr: the board's own search endpoint, which honours text and location. */
+/** Kalibrr: the board's own search endpoint, which honours text and location. Jobs carry the office street address. */
 export async function fetchKalibrr(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
   const rows = await Promise.all(
-    input.cities
-      .slice(0, 3)
-      .map((city) =>
-        getJson(
-          `https://www.kalibrr.com/kjs/job_board/search?limit=60&offset=0&text=${encodeURIComponent(input.role)}&location=${encodeURIComponent(city)}`,
-        ).catch(() => ({ jobs: [] })),
-      ),
+    input.cities.map(async (city) => {
+      // Up to three pages of 60. A short page is the last one, and so is a page mostly from other cities (Kalibrr
+      // ignores a location it does not know and returns the whole country).
+      const pages: Listing[][] = []
+      const places = JobBoards.placesIn(city)
+      for (const offset of [0, 60, 120]) {
+        const data = await getJson(
+          `https://www.kalibrr.com/kjs/job_board/search?limit=60&offset=${offset}&text=${encodeURIComponent(input.role)}&location=${encodeURIComponent(city)}`,
+        ).catch(() => ({ jobs: [] }))
+        const page = kalibrr(data)
+        pages.push(page)
+        if (page.length < 60 || page.filter((row) => JobBoards.inCities(row, places)).length < 30) break
+      }
+      return pages.flat()
+    }),
   )
-  return rows.flatMap((data) =>
-    ((data.jobs ?? []) as any[]).map((job) => ({
+  return rows.flat()
+}
+
+/** Kalibrr search JSON to listings. google_location holds no coordinates, but often the street ("address_line_1"). */
+export function kalibrr(data: unknown): Listing[] {
+  return (((data as { jobs?: unknown[] } | undefined)?.jobs ?? []) as any[]).map((job) => {
+    const place = job.google_location?.address_components ?? {}
+    const street = typeof place.address_line_1 === "string" ? place.address_line_1.trim() : ""
+    return {
       id: `kalibrr-${job.id}`,
       title: String(job.name ?? ""),
       company: job.company?.name ?? job.company_name,
-      location:
-        [job.google_location?.address_components?.city, job.google_location?.address_components?.region].filter(Boolean).join(", ") ||
-        undefined,
-      salary: job.salary_shown === false ? undefined : rupiah(job.base_salary, job.maximum_salary),
+      location: [place.city, place.region].filter(Boolean).join(", ") || undefined,
+      ...(street ? { address: kalibrrAddress(street, place.city, place.region) } : {}),
+      ...(typeof job.company_info?.url === "string" && /^https?:\/\//i.test(job.company_info.url) ? { website: job.company_info.url.trim() } : {}),
+      salary:
+        job.salary_shown === false
+          ? undefined
+          : (() => {
+              const range = rupiah(job.base_salary, job.maximum_salary)
+              return range && job.salary_interval ? `${range} per ${job.salary_interval}` : range
+            })(),
       posted: job.activation_date ? String(job.activation_date).slice(0, 10) : undefined,
       url: `https://www.kalibrr.com/c/${job.company?.code ?? "company"}/jobs/${job.id}/${job.slug ?? slug(String(job.name ?? "job"))}`,
       board: "kalibrr",
-    })),
-  )
+    }
+  })
 }
 
 /** Dealls: the public API its explore page calls. It has no city filter, so the city on each job decides later. */
@@ -116,17 +137,23 @@ export function glints(html: string): Listing[] {
 export async function fetchGlints(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
   if (!ScrapeChromium.available()) return []
   const out: Listing[] = []
-  for (const city of input.cities.slice(0, 3)) {
+  for (const city of input.cities) {
     const base = `https://glints.com/id/opportunities/jobs/explore?keyword=${encodeURIComponent(input.role)}&country=ID&locationName=${encodeURIComponent(city)}`
     const first = await ScrapeChromium.script(base, async () => {}, { timeoutMs: 45_000, waitMs: 3000 }).catch(() => undefined)
+    // The lookup lists cities ("Jakarta Selatan") with their provinces ("DKI Jakarta") as parents; "jakarta" is the province.
     const id = (first?.json ?? [])
       .filter((item) => item.url.includes("searchHierarchicalLocations"))
       .flatMap((item) => {
         const data = parse(item.body)?.data?.searchHierarchicalLocations
-        return (Array.isArray(data) ? data : (data?.list ?? [])) as Array<{ id: string; name: string; level: number }>
+        return flatten((Array.isArray(data) ? data : (data?.list ?? [])) as GlintsPlace[])
       })
-      .find((place) => place.name?.toLowerCase() === city.toLowerCase() && place.level === 3)?.id
-    if (!id) continue
+      .filter((place) => placeName(place.name) === placeName(city))
+      .toSorted((a, b) => Math.abs(3 - a.level) - Math.abs(3 - b.level))[0]?.id
+    // Without a location id the explore page still lists jobs for the keyword; the city on each card decides later.
+    if (!id) {
+      out.push(...(first ? glints(first.html) : []))
+      continue
+    }
     for (const page of [1, 2]) {
       const rendered = await ScrapeChromium.render(`${base}&locationId=${id}${page > 1 ? `&page=${page}` : ""}`, { timeoutMs: 45_000, waitMs: 2500 }).catch(
         () => undefined,
@@ -158,8 +185,8 @@ export function indeed(html: string): Listing[] {
 export async function fetchIndeed(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
   if (!ScrapeChromium.available()) return []
   const out: Listing[] = []
-  for (const city of input.cities.slice(0, 3)) {
-    for (const start of [0, 10, 20]) {
+  for (const city of input.cities) {
+    for (const start of [0, 10]) {
       const rendered = await ScrapeChromium.render(
         `https://id.indeed.com/jobs?q=${encodeURIComponent(input.role)}&l=${encodeURIComponent(city)}${start ? `&start=${start}` : ""}`,
         { timeoutMs: 45_000, waitMs: 2500 },
@@ -202,7 +229,7 @@ export function kitalulus(html: string): Listing[] {
 export async function fetchKitaLulus(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
   if (!ScrapeChromium.available()) return []
   const out: Listing[] = []
-  for (const page of input.cities.slice(0, 3).flatMap((city) => [`in-kota-${slug(city)}`, `in-kabupaten-${slug(city)}`])) {
+  for (const page of input.cities.flatMap((city) => [`in-kota-${slug(city)}`, `in-kabupaten-${slug(city)}`])) {
     const rendered = await ScrapeChromium.render(`https://www.kitalulus.com/lowongan/${page}?keyword=${encodeURIComponent(input.role)}`, {
       timeoutMs: 40_000,
       waitMs: 2500,
@@ -267,7 +294,7 @@ function jsonArrayAt(text: string, marker: string) {
 export async function fetchKarir(input: { role: string; cities: readonly string[] }): Promise<Listing[]> {
   if (!ScrapeChromium.available()) return []
   const out: Listing[] = []
-  for (const city of input.cities.slice(0, 3)) {
+  for (const city of input.cities) {
     const search = `https://karir.com/search-lowongan?keyword=${encodeURIComponent(input.role)}&location=${encodeURIComponent(city)}`
     const page = await ScrapeChromium.script(search, async () => {}, { timeoutMs: 45_000, waitMs: 3000 }).catch(() => undefined)
     if (!page) continue
@@ -323,37 +350,173 @@ export const manualSearch = (input: { role: string; cities: readonly string[] })
   },
 ]
 
-export type Report = { board: string; count: number; error?: string }
+export type Report = {
+  board: string
+  /** Listings read (before dedupe). */
+  count: number
+  error?: string
+  /** Searches (role phrase × city) run, and those left out because the time budget ran out. */
+  searches?: number
+  skipped?: number
+}
 
-/** Every board, three at a time, each with its own time limit, so one slow or broken board never loses the rest. */
-export async function fetchAll(input: { role: string; cities: readonly string[] }): Promise<{ listings: Listing[]; reports: Report[] }> {
-  const queue: Array<[string, () => Promise<Listing[]>]> = [
-    ["jobstreet", () => JobBoards.fetchJobstreet({ ...input, pages: 3 })],
-    ["linkedin", () => JobBoards.fetchLinkedIn({ ...input, pages: 2 })],
-    ["glints", () => fetchGlints(input)],
-    ["kalibrr", () => fetchKalibrr(input)],
-    ["dealls", () => fetchDealls(input)],
-    ["indeed", () => fetchIndeed(input)],
-    ["kitalulus", () => fetchKitaLulus(input)],
-    ["lokerid", () => fetchLokerId(input)],
-    ["karir", () => fetchKarir(input)],
+export type Search = { board: string; phrase: string; city?: string }
+
+type Board = { board: string; perCity: boolean; browser: boolean; run: (role: string, city?: string) => Promise<Listing[]> }
+
+const BOARDS: readonly Board[] = [
+  { board: "kalibrr", perCity: true, browser: false, run: (role, city) => fetchKalibrr({ role, cities: [city!] }) },
+  { board: "dealls", perCity: false, browser: false, run: (role) => fetchDealls({ role }) },
+  { board: "jobstreet", perCity: true, browser: true, run: (role, city) => JobBoards.fetchJobstreet({ role, cities: [city!], pages: 2 }) },
+  { board: "linkedin", perCity: true, browser: true, run: (role, city) => JobBoards.fetchLinkedIn({ role, cities: [city!], pages: 2 }) },
+  { board: "glints", perCity: true, browser: true, run: (role, city) => fetchGlints({ role, cities: [city!] }) },
+  { board: "indeed", perCity: true, browser: true, run: (role, city) => fetchIndeed({ role, cities: [city!] }) },
+  { board: "kitalulus", perCity: true, browser: true, run: (role, city) => fetchKitaLulus({ role, cities: [city!] }) },
+  { board: "lokerid", perCity: false, browser: true, run: (role) => fetchLokerId({ role }) },
+  { board: "karir", perCity: true, browser: true, run: (role, city) => fetchKarir({ role, cities: [city!] }) },
+]
+
+// Board answers for the same search are reused for an hour, so a second research call in one session is quick.
+const CACHE_TTL = 60 * 60 * 1000
+const cache = new Map<string, { at: number; rows: Listing[] }>()
+
+/**
+ * Every board, for every role phrase and every city: one search per board × phrase × city (boards without a city filter
+ * once per phrase). Browser boards run a few at a time, JSON boards alongside; each search has its own time limit, and
+ * searches not started within the budget are reported (never silently dropped). The main phrase goes first in every
+ * city, then the other phrases.
+ */
+export async function fetchAll(input: {
+  phrases: readonly string[]
+  cities: readonly string[]
+  budgetMs?: number
+  concurrency?: number
+  /** "quick": only the boards with a JSON API; "browser": only those read with the browser; omitted: all. */
+  kind?: "quick" | "browser"
+  onProgress?: (line: string) => void
+  /** Each search's listings as soon as it finishes. */
+  onListings?: (listings: readonly Listing[]) => void
+}): Promise<{ listings: Listing[]; reports: Report[]; skipped: Search[] }> {
+  const chosen = BOARDS.filter((board) => input.kind === undefined || board.browser === (input.kind === "browser"))
+  const cityBoards = chosen.filter((board) => board.perCity)
+  const wide = input.phrases.flatMap((phrase) =>
+    chosen.filter((board) => !board.perCity).map((board) => ({ board, phrase, city: undefined as string | undefined })),
+  )
+  // The main phrase in every city first, then the other phrases city by city, busiest city first.
+  const main = input.phrases.slice(0, 1)
+  const others = input.phrases.slice(1)
+  const searches = [
+    ...main.flatMap((phrase) => input.cities.flatMap((city) => cityBoards.map((board) => ({ board, phrase, city: city as string | undefined })))),
+    ...wide,
+    ...input.cities.flatMap((city) => others.flatMap((phrase) => cityBoards.map((board) => ({ board, phrase, city: city as string | undefined })))),
   ]
-  const reports: Report[] = []
-  const listings: Listing[] = []
-  const worker = async () => {
+  const deadline = Date.now() + (input.budgetMs ?? Number(process.env.OPENCODE_BOARDS_BUDGET_MS ?? 240_000))
+  const results: { search: (typeof searches)[number]; rows: Listing[]; error?: string; skipped?: boolean }[] = []
+  const pool = async (queue: typeof searches) => {
     for (let next = queue.shift(); next; next = queue.shift()) {
-      const [board, run] = next
-      const result = await Promise.race([
-        run(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("took longer than 150 s")), 150_000)),
-      ]).then(
-        (rows) => ({ rows, error: undefined as string | undefined }),
-        (error: unknown) => ({ rows: [] as Listing[], error: error instanceof Error ? error.message : String(error) }),
+      const search = next
+      if (Date.now() > deadline) {
+        results.push({ search, rows: [], skipped: true })
+        continue
+      }
+      const key = `${search.board.board}|${search.phrase}|${search.city ?? ""}`
+      const hit = cache.get(key)
+      const result =
+        hit && Date.now() - hit.at < CACHE_TTL
+          ? { rows: hit.rows, error: undefined as string | undefined }
+          : await Promise.race([
+              search.board.run(search.phrase, search.city),
+              // A search started near the end of the budget gets at most 30 s past it.
+              new Promise<never>((_, reject) => {
+                const limit = Math.max(30_000, Math.min(120_000, deadline - Date.now() + 30_000))
+                setTimeout(() => reject(new Error(`took longer than ${Math.round(limit / 1000)} s`)), limit)
+              }),
+            ]).then(
+              (rows) => {
+                cache.set(key, { at: Date.now(), rows })
+                return { rows, error: undefined as string | undefined }
+              },
+              (error: unknown) => ({ rows: [] as Listing[], error: error instanceof Error ? error.message : String(error) }),
+            )
+      const rows = result.rows.map((row) => ({ ...row, phrase: row.phrase ?? search.phrase }))
+      results.push({ search, rows, ...(result.error ? { error: result.error } : {}) })
+      if (rows.length) input.onListings?.(rows)
+      input.onProgress?.(
+        `${search.board.board} "${search.phrase}"${search.city ? ` ${search.city}` : ""}: ${rows.length} (${results.length}/${searches.length})`,
       )
-      listings.push(...result.rows)
-      reports.push({ board, count: result.rows.length, ...(result.error ? { error: result.error } : {}) })
     }
   }
-  await Promise.all([worker(), worker(), worker()])
-  return { listings: JobBoards.dedupe(listings), reports }
+  const browser = searches.filter((search) => search.board.browser)
+  const plain = searches.filter((search) => !search.board.browser)
+  const workers = Math.max(1, input.concurrency ?? Number(process.env.OPENCODE_BOARDS_CONCURRENCY ?? 4))
+  await Promise.all([
+    ...Array.from({ length: workers }, () => pool(browser)),
+    ...Array.from({ length: 3 }, () => pool(plain)),
+  ])
+  const order = new Map(searches.map((search, index) => [search, index]))
+  const ordered = results.toSorted((a, b) => order.get(a.search)! - order.get(b.search)!)
+  const reports = BOARDS.flatMap((board) => {
+    const mine = ordered.filter((result) => result.search.board === board)
+    if (!mine.length) return []
+    const error = mine.find((result) => result.error)?.error
+    const skipped = mine.filter((result) => result.skipped).length
+    return [
+      {
+        board: board.board,
+        count: mine.reduce((sum, result) => sum + result.rows.length, 0),
+        searches: mine.length - skipped,
+        ...(skipped ? { skipped } : {}),
+        ...(error ? { error } : {}),
+      },
+    ]
+  })
+  return {
+    listings: JobBoards.dedupe(ordered.flatMap((result) => result.rows)),
+    reports,
+    skipped: ordered
+      .filter((result) => result.skipped)
+      .map((result) => ({ board: result.search.board.board, phrase: result.search.phrase, ...(result.search.city ? { city: result.search.city } : {}) })),
+  }
+}
+
+/**
+ * Kalibrr's Google address in the form geocoders find: "27, Jalan Tomang Raya, Tomang Kel., Grogol Petamburan" + "West
+ * Jakarta" → "Jalan Tomang Raya 27, Tomang, Grogol Petamburan, Jakarta Barat". RT/RW numbers and "Kel." confuse
+ * Nominatim, which also knows the cities by their Indonesian names.
+ */
+export function kalibrrAddress(street: string, city?: string, region?: string) {
+  const parts = street
+    .replace(/\bRT\s*\.?\s*\d+\s*\/\s*RW\s*\.?\s*\d+\b/gi, "")
+    .replace(/\s+Kel\.?(?=,|$)/gi, "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+  // A leading house number belongs after the street name.
+  const ordered = parts.length > 1 && /^\d+[a-z]?$/i.test(parts[0]!) ? [`${parts[1]} ${parts[0]}`, ...parts.slice(2)] : parts
+  const local = (value: string | undefined) =>
+    value
+      ?.replace(/^(South|Central|West|East|North) Jakarta$/i, (_, side: string) => `Jakarta ${SIDE[side.toLowerCase()]}`)
+      .replace(/^South Tangerang$/i, "Tangerang Selatan")
+      .replace(/^(.+) Regency$/i, "Kabupaten $1")
+      .replace(/\s*\(.*\)$/, "")
+  // A street that already names its city keeps it: Kalibrr's city field is sometimes wrong (Kompas Gramedia in "Purwakarta").
+  const named = JobBoards.placesIn(street).length > 0
+  return [...ordered, ...(named ? [] : [local(city), local(region)])].filter((part): part is string => !!part).join(", ")
+}
+
+const SIDE: Record<string, string> = { south: "Selatan", central: "Pusat", west: "Barat", east: "Timur", north: "Utara" }
+
+type GlintsPlace = { id: string; name: string; level: number; parents?: GlintsPlace[] }
+
+function flatten(places: readonly GlintsPlace[]): GlintsPlace[] {
+  return places.flatMap((place) => [place, ...flatten(place.parents ?? [])])
+}
+
+/** "DKI Jakarta", "Kota Jakarta Selatan", "Kab. Tangerang" → comparable names. */
+function placeName(name: string | undefined) {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/\b(dki|kota|kabupaten|kab\.?|city|regency|daerah khusus ibukota)\b/g, " ")
+    .replace(/[^a-z]+/g, " ")
+    .trim()
 }

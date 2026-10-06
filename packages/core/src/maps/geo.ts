@@ -38,6 +38,38 @@ export function within<T extends Point>(center: Point, meters: number, items: re
   return nearest(center, items).filter((entry) => entry.meters <= meters)
 }
 
+/**
+ * The centre nearest to a point. A planar estimate shortlists three centres and only those get the exact geodesic,
+ * so thousands of points against a hundred centres stay fast while the distance reported is still exact.
+ */
+export function nearestCentre<C extends Point>(point: Point, centres: readonly C[]) {
+  const scale = Math.cos(radians(point.latitude))
+  return centres
+    .map((centre) => ({
+      centre,
+      estimate: (centre.latitude - point.latitude) ** 2 + (wrap(centre.longitude - point.longitude) * scale) ** 2,
+    }))
+    .toSorted((a, b) => a.estimate - b.estimate)
+    .slice(0, 3)
+    .map((entry) => ({ centre: entry.centre, meters: inverse(point, entry.centre).meters }))
+    .toSorted((a, b) => a.meters - b.meters)[0]
+}
+
+/** Every point with its nearest centre; with a radius, `within` says whether that centre is close enough. */
+export function nearAny<T extends Point, C extends Point>(
+  points: readonly T[],
+  centres: readonly C[],
+  meters?: number,
+) {
+  return points.flatMap((item) => {
+    const found = nearestCentre(item, centres)
+    if (!found) return []
+    return [
+      { item, centre: found.centre, meters: found.meters, within: meters === undefined || found.meters <= meters },
+    ]
+  })
+}
+
 /** A geodesic circle: every vertex lies exactly `meters` from the centre on the ellipsoid. */
 export function circle(center: Point, meters: number, vertices = 64) {
   return Array.from({ length: vertices }, (_, index) => destination(center, (360 / vertices) * index, meters))
@@ -237,6 +269,10 @@ function openRing(ring: readonly Point[]) {
   if (first && last && ring.length > 1 && first.latitude === last.latitude && first.longitude === last.longitude)
     return ring.slice(0, -1)
   return ring
+}
+
+function wrap(degrees: number) {
+  return ((((degrees + 180) % 360) + 360) % 360) - 180
 }
 
 function azimuth(value: number) {

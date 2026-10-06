@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { extractConstraints } from "../src/research/constraints.js"
 import { nearestStation, RANGKASBITUNG_STATIONS } from "../src/research/transit.js"
+import { Stations } from "../src/maps/stations.js"
 import { runDeep } from "../src/research/orchestrate.js"
 import { ResearchTool } from "../src/tool/plugin/research.js"
 import { Effect } from "effect"
@@ -21,10 +22,12 @@ describe("research constraints", () => {
 
 describe("transit corridor", () => {
   test("nearest station resolves along the line", () => {
-    const near = nearestStation({ latitude: -6.3211, longitude: 106.6697 })
-    expect(near.station.name).toBe("Stasiun Serpong")
-    expect(near.meters).toBeLessThan(50)
-    expect(RANGKASBITUNG_STATIONS.length).toBeGreaterThan(15)
+    const serpong = RANGKASBITUNG_STATIONS.find((station) => station.name === "Serpong")!
+    const near = nearestStation(serpong, { lines: ["rangkasbitung"] })
+    expect(near.station.name).toBe("Serpong")
+    expect(near.meters).toBeLessThan(1)
+    expect(RANGKASBITUNG_STATIONS.map((station) => station.name)).toContain("Jatake")
+    expect(nearestStation(serpong, RANGKASBITUNG_STATIONS).station.name).toBe("Serpong")
   })
 })
 
@@ -65,48 +68,64 @@ describe("research_deep live probes (network, no quota)", () => {
 })
 
 describe("research_deep orchestration", () => {
-  test("corridor drops far places, hard must drops unverified", async () => {
+  test("corridor drops far places; a must-have is read on the place's own website, never on the OSM page", async () => {
+    const scraped: string[] = []
     const deep = runDeep({
       searchPlaces: () =>
         Effect.succeed({
           provider: "openstreetmap",
           places: [
-            { id: "near", name: "Kost Dekat Serpong", address: "Serpong", latitude: -6.3211, longitude: 106.6697, url: "https://osm.org/near", source: "openstreetmap" as const },
+            { id: "near", name: "Kost Dekat Serpong", address: "Serpong", latitude: -6.3211, longitude: 106.6697, url: "https://www.openstreetmap.org/node/1", website: "https://kost-near.test", source: "openstreetmap" as const },
+            { id: "nocarport", name: "Kost Tanpa Carport", address: "Serpong", latitude: -6.3215, longitude: 106.6699, url: "https://www.openstreetmap.org/node/2", website: "https://kost-plain.test", source: "openstreetmap" as const },
+            { id: "unknown", name: "Kost Tanpa Website", address: "Serpong", latitude: -6.3213, longitude: 106.6695, url: "https://www.openstreetmap.org/node/3", source: "openstreetmap" as const },
             // fake-far: koordinat tengah laut (0,0) → >1000km dari semua stasiun → wajib dibuang
-            { id: "far", name: "Kost Jauh Sekali", address: "Nowhere", latitude: 0, longitude: 0, url: "https://osm.org/far", source: "openstreetmap" as const },
+            { id: "far", name: "Kost Jauh Sekali", address: "Nowhere", latitude: 0, longitude: 0, url: "https://www.openstreetmap.org/node/4", source: "openstreetmap" as const },
           ],
         }),
-      scrape: (url: string) => Effect.succeed({ text: url.includes("near") ? "fasilitas lengkap ada carport luas" : "kos biasa", source: "webfetch" }),
+      scrape: (url: string) => {
+        scraped.push(url)
+        return Effect.succeed({ text: url.includes("near") ? "fasilitas lengkap ada carport luas" : "kos biasa, tidak ada carport", source: "webfetch" })
+      },
     })
     const out = await Effect.runPromise(deep({ query: "kontrakan carport", category: "place", transitLine: "KRL Rangkasbitung", must: ["carport"] }))
-    expect(out.candidates.map((c) => c.id)).toEqual(["near"])
-    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
+    expect(out.candidates.map((c) => c.id)).toEqual(["near", "unknown"])
+    expect(out.candidates[0]!.station).toBe("Serpong")
     expect(out.candidates[0]!.verified).toMatchObject({ carport: "yes" })
-    expect(out.limitations.join(" ")).toContain("Must-have keras: carport")
+    expect(out.candidates[1]!.verified).toMatchObject({ carport: "unknown" })
+    expect(scraped.some((url) => url.includes("openstreetmap.org"))).toBe(false)
+    expect(out.limitations.join(" ")).toContain("Must-haves (carport)")
   })
 
-  test("job corridor keeps only candidates within 1km of a station", async () => {
+  test("a station named in a job post is not a distance: the row stays unlocated instead of getting 0 m", async () => {
+    const serpong = Stations.find("Stasiun Serpong")!
     const deep = runDeep({
-      searchPlaces: ({ query }: { query: string; limit: number }) =>
+      searchPlaces: () => Effect.succeed({ provider: "openstreetmap", places: [] }),
+      searchJobs: (request) =>
         Effect.succeed({
-          provider: "openstreetmap",
-          places: query.includes("Serpong")
-            ? [{ id: "geo-serpong", name: "Serpong", address: "Serpong", latitude: -6.3211, longitude: 106.6697, url: "https://osm.org/serpong", source: "openstreetmap" as const }]
-            : [],
-        }),
-      searchJobs: () =>
-        Effect.succeed({
-          results: [
-            { url: "https://jobs.test/a", title: "Data Analyst — Serpong", content: "Lowongan data analyst dekat Stasiun Serpong" },
-            { url: "https://jobs.test/b", title: "Data Analyst — Medan", content: "Lowongan data analyst di Medan, jauh dari koridor" },
-          ],
+          results: request.exact
+            ? []
+            : [
+                { url: "https://jobs.test/a", title: "Data Analyst — Serpong", content: "Lowongan data analyst dekat Stasiun Serpong" },
+                { url: "https://jobs.test/b", title: "Data Analyst - PT Dekat Serpong", content: "Lowongan data analyst" },
+              ],
         }),
       scrape: () => Effect.succeed({ text: "", source: "none" }),
+      locateCompany: (request) =>
+        Effect.succeed(
+          request.name === "PT Dekat Serpong"
+            ? { located: { name: "PT Dekat Serpong", latitude: serpong.latitude + 0.003, longitude: serpong.longitude, source: "osm-office" as const, confidence: "high" as const } }
+            : { reason: "not found" },
+        ),
+      walking: (pairs) => Effect.succeed(pairs.map(() => undefined)),
     })
     const out = await Effect.runPromise(deep({ query: "data analyst", category: "job", transitLine: "KRL Rangkasbitung" }))
-    expect(out.candidates.map((c) => c.id)).toEqual(["https://jobs.test/a"])
-    expect((out.candidates[0] as unknown as { station?: string }).station).toBe("Stasiun Serpong")
-    expect((out.candidates[0] as unknown as { distanceM?: number }).distanceM).toBe(0)
-    expect(out.limitations.join(" ")).toContain("Koridor KRL Rangkasbitung")
+    expect(out.candidates.some((c) => c.distanceM === 0)).toBe(false)
+    const located = out.candidates.find((c) => c.company === "PT Dekat Serpong")!
+    expect(located.station).toBe("Serpong")
+    expect(located.distanceM).toBeGreaterThan(300)
+    expect(located.distanceM).toBeLessThan(400)
+    expect(out.unlocatedTable).toContain("Data Analyst — Serpong")
+    expect(out.unlocatedTable).toContain("postingan tanpa nama perusahaan")
+    expect(out.limitations.join(" ")).toContain("Stations: KRL Rangkasbitung")
   })
 })

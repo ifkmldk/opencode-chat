@@ -1,5 +1,15 @@
 # Fork changelog
 
+## 2.0.22-fork.14 (2026-10-07)
+
+- Data stasiun dari OSM untuk semua jalur KRL (Bogor+Nambo, Cikarang, Rangkasbitung+Jatake, Tangerang, Tanjung Priok), MRT, LRT (`maps/stations.ts`).
+- Tool baru `maps_near_transit`: semua fitur (kantor, hotel, wisata, RS, …) dalam N m dari stasiun, dengan jarak lurus dan jalan kaki (OSRM foot).
+- Lokasi kantor perusahaan: OSM nama/kantor, Photon, alamat di lowongan, lalu halaman Google Maps di Chromium headless (berhenti bila consent/captcha). Website perusahaan dicari dari OSM, profil papan, lalu web search; cek halaman karir semua perusahaan dalam radius (dengan NetGuard).
+- research_deep lowongan: semua frasa role × semua kota yang dilalui jalur, batas gaji hanya membuang gaji tercantum di bawah batas, tabel utama dengan kantor/stasiun/jarak + tabel di luar radius + lokasi belum ketemu + perusahaan dalam radius; tidak ada pemotongan diam-diam; "BELUM SELESAI, panggil lagi" dengan cache.
+- Pencarian kategori (hotel, wisata, RS, klinik, kantor, mal, …) memakai tag OSM di sekitar titik; Nominatim dibatasi Indonesia; "Stasiun X" lewat indeks stasiun. geo_compute `distance` memakai origin; operasi `near_any`.
+- Instruksi agen dan kontrak jawaban: tabel lengkap, gaji tidak dicantumkan tetap tampil, lokasi wajib, tidak ada jarak karangan.
+
+
 ## 2.0.22-fork.13 (2026-10-06)
 
 - Tool yang gagal tidak lagi tampil sebagai baris merah di jawaban. Di semua mode (Chat, Code, Classifier, semua preset detail) panggilan gagal masuk ke grup tool yang terlipat ("Used N …"); klik untuk melihat panggilan dan errornya.

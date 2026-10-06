@@ -28,3 +28,13 @@ describe("NetGuard", () => {
     await expect(NetGuard.assertPublicUrl("http://localhost:3001/", { OPENCODE_FETCH_ALLOW_HOSTS: "localhost:3000" })).rejects.toThrow()
   })
 })
+
+describe("NetGuard on research URLs", () => {
+  test("career and website URLs pointing at the owner's machine or the metadata address are refused", async () => {
+    const env = {}
+    await expect(NetGuard.assertPublicUrl("http://127.0.0.1:20128/karir", env)).rejects.toThrow("Refusing to fetch")
+    await expect(NetGuard.assertPublicUrl("http://169.254.169.254/latest/meta-data", env)).rejects.toThrow("private")
+    await expect(NetGuard.assertPublicUrl("http://zebracorp.localhost/", env)).rejects.toThrow("local network name")
+    await expect(NetGuard.assertPublicUrl("http://[::ffff:7f00:1]/", env)).rejects.toThrow("Refusing to fetch")
+  })
+})
