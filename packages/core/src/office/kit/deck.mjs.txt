@@ -438,6 +438,27 @@ export function createDeck(options = {}) {
       return slide
     },
 
+    // One step of a user guide: step number, title, a screenshot (whole, never cropped) and what to do.
+    // `image` is a PNG path from web_browser; `actions` are short imperatives; `tip` is an optional note.
+    step({ number, title: heading, image, actions = [], tip }) {
+      const slide = next()
+      slide.addShape(pptx.ShapeType.ellipse, { x: M, y: 0.62, w: 0.62, h: 0.62, fill: { color: hex(p.accent) }, line: { color: hex(p.accent) } })
+      slide.addText(String(number), { x: M, y: 0.62, w: 0.62, h: 0.62, align: "center", valign: "middle", fontFace: f.head, fontSize: 18, bold: true, color: hex(p.surface), margin: 0 })
+      slide.addText(heading, { x: M + 0.85, y: 0.55, w: W - 2 * M - 0.85, h: 0.8, fontFace: f.head, fontSize: scale.h2 ?? 26, bold: true, color: hex(p.ink), margin: 0, valign: "middle", fit: "shrink" })
+      const picture = typeof image === "string" ? { path: image } : image
+      slide.addShape(pptx.ShapeType.rect, { x: M, y: 1.6, w: cw(8.3), h: 5.1, fill: { color: hex(p.surface) }, line: { color: hex(p.rule), width: 1 } })
+      if (picture) slide.addImage({ ...picture, x: M + 0.08, y: 1.68, w: cw(8.3) - 0.16, h: 4.94, sizing: { type: "contain", w: cw(8.3) - 0.16, h: 4.94 } })
+      const sideX = cx(8.75)
+      const sideW = W - M - sideX
+      const numbered = actions.map((item, index) => ({ text: item, options: { bullet: { type: "number", indent: 18 }, breakLine: index < actions.length - 1, paraSpaceAfter: 12, fontSize: scale.lead - 2, color: hex(p.ink) } }))
+      slide.addText(numbered, { x: sideX, y: 1.6, w: sideW, h: tip ? 3.7 : 5.1, fontFace: f.body, margin: 0, valign: "top", fit: "shrink" })
+      if (tip) {
+        slide.addShape(pptx.ShapeType.rect, { x: sideX, y: 5.6, w: sideW, h: 1.1, fill: { color: hex(p.surface) }, line: { color: hex(p.accent), width: 1.25 } })
+        slide.addText(tip, { x: sideX + 0.15, y: 5.65, w: sideW - 0.3, h: 1.0, fontFace: f.body, fontSize: scale.small ?? 12, color: hex(p.ink), margin: 0, valign: "middle", fit: "shrink" })
+      }
+      return slide
+    },
+
     // rows: array of arrays of strings; the first row is the header.
     table({ title: heading, rows, widths, note }) {
       const slide = next()

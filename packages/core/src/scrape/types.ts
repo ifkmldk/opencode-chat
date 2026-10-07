@@ -10,6 +10,7 @@ export type ScrapeInput = {
   readonly waitMs?: number
   readonly proxy?: string
   readonly screenshot?: boolean
+  readonly prompt?: string
 }
 
 export type ScrapeOutput = {

@@ -78,7 +78,7 @@ describe("settings schema", () => {
         mobileDiffWrap: true,
         terminalPlacement: "side",
         followUpBehavior: "steer",
-        experimentalBrowser: false,
+        experimentalBrowser: true,
         showThinking: false,
       },
       sessionSummary: { projectExpanded: true, serverExpanded: true },
@@ -148,7 +148,7 @@ describe("settings schema", () => {
     // fork: reasoning is hidden everywhere by default.
     expect(decode({}).general.showThinking).toBe(false)
     expect(decode({ general: { showThinking: true } }).general.showThinking).toBe(true)
-    expect(decode({}).general.experimentalBrowser).toBe(false)
+    expect(decode({}).general.experimentalBrowser).toBe(true)
     expect(decode({ general: { experimentalBrowser: true } }).general.experimentalBrowser).toBe(true)
     expect(decode({ general: { experimentalBrowser: false } }).general.experimentalBrowser).toBe(false)
   })

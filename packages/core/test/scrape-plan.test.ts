@@ -22,12 +22,12 @@ import {
 
 describe("ultimate scraper plan", () => {
   test("routes modes to engine chains: auto escalates to a rendering browser, stealth leads with it", () => {
-    expect(planFor({})).toEqual(["webfetch", "chromium"])
+    expect(planFor({})).toEqual(["webfetch", "chromium", "scrapegraph"])
     expect(planFor({ mode: "fast" })).toEqual(["webfetch"])
-    expect(planFor({ mode: "stealth" })).toEqual(["chromium", "camofox", "scrapling", "webfetch"])
+    expect(planFor({ mode: "stealth" })).toEqual(["chromium", "camofox", "scrapling", "webfetch", "scrapegraph"])
     expect(planFor({ mode: "ai" })).toEqual(["scrapegraph", "webfetch"])
     expect(planFor({ mode: "channels" })).toEqual(["agent-reach", "webfetch"])
-    expect(planFor({ mode: "auto" })).toEqual(["webfetch", "chromium"])
+    expect(planFor({ mode: "auto" })).toEqual(["webfetch", "chromium", "scrapegraph"])
   })
 
   test("stage 1 stub is honest about the fast tier", () => {

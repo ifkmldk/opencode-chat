@@ -1,5 +1,72 @@
 # Fork changelog
 
+## 2.0.22-fork.15 (2026-10-07)
+
+- Relevansi lowongan: Tepat (data analyst inti) / Mirip (reporting, business, merchandise, BI, data intelligence, insight, product/marketing/pricing analyst, MIS, data management, data scientist/engineer; judul samar hanya bila JD punya ≥2 sinyal data) / dibuang (sales, akuntansi, admin, HR, cyber security, data entry, network engineer, data center), jumlah dibuang per alasan di ringkasan.
+- Jarak jalan kaki dihitung dari pintu masuk / gedung stasiun OSM (bukan node di rel); aturan "bisa jalan kaki tanpa keluar uang".
+- Mode akses opsional "1x naik transum langsung dari stasiun" (rute bus/TransJakarta/Mikrotrans/angkot OSM): kolom Akses berisi rute, halte naik/turun dan jalan di kedua ujung.
+- Lowongan yang sama di beberapa papan / ejaan perusahaan (PT … Tbk) digabung jadi satu baris.
+
+
+## 2.0.22-fork.14 (2026-10-07)
+
+- Data stasiun dari OSM untuk semua jalur KRL (Bogor+Nambo, Cikarang, Rangkasbitung+Jatake, Tangerang, Tanjung Priok), MRT, LRT (`maps/stations.ts`).
+- Tool baru `maps_near_transit`: semua fitur (kantor, hotel, wisata, RS, …) dalam N m dari stasiun, dengan jarak lurus dan jalan kaki (OSRM foot).
+- Lokasi kantor perusahaan: OSM nama/kantor, Photon, alamat di lowongan, lalu halaman Google Maps di Chromium headless (berhenti bila consent/captcha). Website perusahaan dicari dari OSM, profil papan, lalu web search; cek halaman karir semua perusahaan dalam radius (dengan NetGuard).
+- research_deep lowongan: semua frasa role × semua kota yang dilalui jalur, batas gaji hanya membuang gaji tercantum di bawah batas, tabel utama dengan kantor/stasiun/jarak + tabel di luar radius + lokasi belum ketemu + perusahaan dalam radius; tidak ada pemotongan diam-diam; "BELUM SELESAI, panggil lagi" dengan cache.
+- Pencarian kategori (hotel, wisata, RS, klinik, kantor, mal, …) memakai tag OSM di sekitar titik; Nominatim dibatasi Indonesia; "Stasiun X" lewat indeks stasiun. geo_compute `distance` memakai origin; operasi `near_any`.
+- Instruksi agen dan kontrak jawaban: tabel lengkap, gaji tidak dicantumkan tetap tampil, lokasi wajib, tidak ada jarak karangan.
+
+
+## 2.0.22-fork.13 (2026-10-06)
+
+- Tool yang gagal tidak lagi tampil sebagai baris merah di jawaban. Di semua mode (Chat, Code, Classifier, semua preset detail) panggilan gagal masuk ke grup tool yang terlipat ("Used N …"); klik untuk melihat panggilan dan errornya.
+- Argumen tool dari model diperbaiki otomatis sebelum ditolak: angka/boolean yang dikirim sebagai teks (`"limit": "5"`, `"exact": "true"`), kunci opsional berisi `null`/`"null"`/`""`, objek/array berupa teks JSON, dan angka di atas batas maksimum (dipotong ke batas). Dari riwayat: 19 dari 19 panggilan `maps_search`/`maps_poi`/`jobs_search`/`geo_compute` yang dulu gagal sekarang lolos.
+- Plugin lokal `opencode-websearch` (di `~/.config/opencode/plugins`, di luar repo): hasil tanpa tanggal mengirim `published: undefined` yang ditolak skema server, jadi setiap web search berakhir "Unable to search the web". Kolom kosong kini dibuang.
+- QA: cek secrets di pentest bekerja di PowerShell maupun Git Bash.
+
+
+## 2.0.22-fork.12 (2026-10-06)
+
+- Aplikasi desktop (Electron, `packages/desktop`) dengan **browser asli di panel**: Google, login aplikasi (H5) dan cookie bekerja seperti browser biasa. Desktop memakai server launcher (`OPENCODE_DESKTOP_SERVER_URL` + password `service.json`) dan tidak menyalakan server kedua. Browser native aktif secara default. Launcher membuka desktop secara default; `-Web` untuk Brave.
+- UI web (cadangan): Google dimuat langsung (mode embed `igu=1`), tidak lagi dialihkan ke Bing; link yang biasanya membuka jendela baru tetap di panel.
+- ScrapeGraphAI otomatis sebagai tier terakhir di mode auto/stealth.
+- Portal tambahan: Loker.id (data route situs), Karir.com (kartu; link ke hasil pencarian karena kartu tidak punya alamat sendiri). Jobs.id (sertifikat HTTPS situs rusak), TopKarir (timeout) dan Glassdoor (cek "Humans only") dilaporkan dengan alasan.
+- `web_browser` aksi `login`: membuka profil agen di jendela terlihat supaya pengguna login sendiri; agen tidak pernah mengetik password.
+- Satu konteks besar: sesi Claude Code (+ sub-agent), memory Claude, dan sesi OpenCode (5 database, v1 dan v2) disalin ke vault Obsidian (`sessions/` ringkasan untuk recall, `transcripts/` transkrip penuh untuk `memory_search`), rahasia disensor. Dua arah: hook Claude Code `UserPromptSubmit` (recall dari vault) dan `SessionEnd` (sinkron); launcher menyinkron saat dibuka.
+- QA: pen test `secrets` memakai `cmd /c set` (shell uji bisa PowerShell).
+
+
+## 2.0.22-fork.11 (2026-10-05)
+
+- Riset lowongan membaca 7 papan sekaligus: Jobstreet, LinkedIn, Glints (data halaman + id lokasi), Kalibrr dan Dealls (API publik yang dipakai situsnya), Indeed (data kartu), KitaLulus (data server halaman). Kota disaring dari kartu, duplikat digabung, ejaan "analis/analyst" disamakan, sampai 50 baris. Glassdoor menolak akses otomatis ("Humans only"): tidak dibobol, pengguna diberi link pencariannya.
+- Tool baru `web_browser`: agen memakai browser seperti orang (buka, isi, klik, gulir, sorot, screenshot), profil tetap, tidak pernah mengetik password, berhenti di login/cek manusia (`needsUser`), alamat privat ditolak. (Nama `browser_*` dipakai plugin desktop upstream.)
+- ScrapeGraphAI terpasang dan jalan lewat 9router (kunci dibaca dari opencode.json, dikirim via stdin); diberi HTML hasil render browser; dipakai untuk halaman karir perusahaan yang tidak terbaca parser. Perbaikan: `OPENAI_API_KEY` tidak lagi dipasangkan dengan alamat 9router; `model_tokens` diisi.
+- User guide dari web → PPTX: skill `userguide`, tipe slide `step` (screenshot utuh, nomor, langkah, tip). Sorotan lama dibersihkan tiap panggilan.
+- Batas gambar per permintaan: hanya hasil tool bergambar terakhir yang dikirim ulang; `office_render` 4 halaman per panggilan; screenshot ke model dalam JPEG. Sebelumnya user guide gagal dengan 413 (payload 9router ~4,5 MB).
+- Panel Browser: pencarian Google dialihkan ke Bing dengan kata yang sama (Google menampilkan cek bot untuk proxy server).
+
+
+## 2.0.22-fork.10 (2026-10-05)
+
+- Panel Browser bisa dipakai lagi untuk mencari: CSP milik situs (nonce `script-src`, `base-uri`) memblokir skrip jembatan dan `<base>` proxy, jadi Google dan Bing kosong atau rusak. CSP situs (header dan meta) sekarang dibuang; sandbox proxy tetap membuat halaman beropini origin buram. Mesin pencari bawaan alamat bar: Bing (DuckDuckGo html memblokir fetch server). Google sendiri tetap menampilkan halaman cek bot untuk fetch server-side.
+- LinkedIn (halaman publik) ditambahkan ke riset lowongan di samping Jobstreet; duplikat antar papan digabung.
+- Halaman karir resmi perusahaan dibuka oleh program (`careerTable`), bukan oleh model.
+- Tidak dimasukkan: Glints dan Kalibrr (parameter kata kunci dan kota diabaikan, hasilnya acak), Indeed (hanya 3 kartu terbaca, satu id terlihat seperti umpan).
+
+
+## 2.0.22-fork.9 (2026-10-05)
+
+Dari sesi "Loker Bandung" milik pemilik (jawaban berulang, lokasi dan link salah, hasil sedikit, banyak sampah di tampilan).
+
+- Riset lowongan membaca daftar Jobstreet dan LinkedIn langsung (kartu: judul, perusahaan, kota, gaji, link listing), disaring dengan kota di kartu, bukan cuplikan web search. Batas hasil 30 (maks 50), tabel siap tempel (`table`).
+- Halaman karir resmi perusahaan dari hasil dibuka oleh program (`careerTable`), bukan tergantung model; halaman kosong atau gagal dilaporkan apa adanya.
+- `jobs_search` dan `research_deep`: kata "lowongan" tidak ganda, kueri cadangan, error penyedia ditampilkan (sebelumnya disembunyikan).
+- Pembuka kalimat yang sama tiga kali dalam satu giliran memicu arahan sementara agar model berhenti menarasi.
+- Chat dan Classifier hanya menampilkan jawaban: narasi di samping tool call dan kartu proses (maps, scrape, search, fetch) disembunyikan; checklist, `office_render`, aksi tetap.
+- Belum: Glints/Kalibrr (daftar tidak menghormati kata kunci), interaksi "muat lebih banyak", sesi lama tidak diperbaiki isinya.
+
+
 ## 2.0.22-fork.8 (2026-10-05)
 
 Perbaikan dari UAT dengan model asli (laporan: `fork-docs/qa/REPORT.md`).

@@ -5,14 +5,16 @@ import { ToolFailure } from "@opencode/ai"
 import { Effect, Schema } from "effect"
 import { Permission } from "../../permission.js"
 import { WebSearch } from "../../websearch.js"
+import { JobWeb } from "./job-web.js"
 
 const SearchInput = Schema.Struct({ query: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300)), location: Schema.optional(Schema.String.check(Schema.isMaxLength(200))), limit: Schema.optional(Schema.Number.check(Schema.isBetween({ minimum: 1, maximum: 50 }))) })
 const MatchInput = Schema.Struct({ title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)), description: Schema.optional(Schema.String.check(Schema.isMaxLength(20_000))), cvText: Schema.String.check(Schema.isMinLength(20), Schema.isMaxLength(100_000)) })
 const Job = Schema.Struct({ id: Schema.String, title: Schema.String, company: Schema.optional(Schema.String), location: Schema.optional(Schema.String), url: Schema.String, description: Schema.optional(Schema.String), postedAt: Schema.optional(Schema.String) })
 const Output = Schema.Struct({ provider: Schema.String, jobs: Schema.Array(Job) })
 const MatchOutput = Schema.Struct({ score: Schema.Number, matches: Schema.Array(Schema.String), missing: Schema.Array(Schema.String), recommendation: Schema.String })
-const stop = new Set("a an and are as at be by for from has have in is it of on or that the to with your you will this role job skills experience ability".split(" "))
-const words = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9+#.-]{2,}/g)?.filter((word) => !stop.has(word)) ?? [])
+// fork: Indonesian filler words too, and no trailing dots or dashes ("excel." is "excel", "node.js" stays).
+const stop = new Set("a an and are as at be by for from has have in is it of on or that the to with your you will this role job skills experience ability dan yang di ke dari untuk dengan atau pada dalam ini itu sebagai akan dapat bisa memiliki mampu min minimal maks serta juga kami anda kamu".split(" "))
+const words = (value: string) => new Set(value.toLowerCase().match(/[a-z0-9+#]+(?:[.-][a-z0-9+#]+)*/g)?.filter((word) => word.length >= 2 && !stop.has(word)) ?? [])
 const endpoint = () => { const value = process.env.OPENCODE_JOBS_API_URL; if (!value) return; const url = new URL(value); if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("OPENCODE_JOBS_API_URL must use http or https"); if (url.username || url.password) throw new Error("OPENCODE_JOBS_API_URL must not contain credentials"); return url }
 const request = (url: URL) => Effect.tryPromise({ try: () => fetch(url, { headers: { accept: "application/json", "user-agent": "OpenCode-Chat/2" }, signal: AbortSignal.timeout(20_000) }).then(async (response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return await response.json() as unknown }), catch: (error) => error }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Jobs provider request failed: ${error instanceof Error ? error.message : String(error)}. Do not invent listings: use websearch for the same query or tell the user the provider is unavailable.`, error })))
 
@@ -26,7 +28,8 @@ export const Plugin = {
       const base = yield* Effect.try({ try: endpoint, catch: (error) => new ToolFailure({ message: error instanceof Error ? error.message : String(error) }) }); if (!base) {
         // fork: location-aware web fallback — tanpa provider pun lokasi tidak dibuang.
         const q = [input.query, input.location].filter(Boolean).join(" ")
-        const web = yield* websearch.query({ query: `lowongan ${q}` }, { sessionID: context.sessionID }).pipe(Effect.orElseSucceed(() => ({ results: [] as WebSearch.Result[] })))
+        const web = yield* JobWeb.search((text) => websearch.query({ query: text }, { sessionID: context.sessionID }), q)
+        if (web.results.length === 0 && web.error) return yield* new ToolFailure({ message: `Web search failed: ${web.error.slice(0, 300)}. Tell the user the job search is unavailable; do not list jobs from memory.` })
         const jobs = web.results.slice(0, input.limit ?? 20).map((r) => ({ id: r.url, title: r.title ?? r.url, company: undefined, location: input.location, url: r.url, description: r.content?.slice(0, 2000) }))
         const output = { provider: "web-search", jobs }
         return { output, content: JSON.stringify(output), metadata: { provider: output.provider, count: jobs.length, fallback: true } }
@@ -60,4 +63,4 @@ export const Plugin = {
     ).pipe(Effect.orDie)
   }),
 }
-export const __test = { SearchInput, MatchInput }
+export const __test = { SearchInput, MatchInput, words }

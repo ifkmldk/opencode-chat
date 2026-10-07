@@ -21,9 +21,11 @@ const STOP = new Set(
   ).split(" "),
 )
 
-const KIND_WEIGHT: Record<string, number> = { preference: 1.5, correction: 1.5, fact: 1.1, person: 1.1, "project-brief": 1, decision: 0.7 }
+const KIND_WEIGHT: Record<string, number> = { preference: 1.5, correction: 1.5, fact: 1.1, person: 1.1, "project-brief": 1, decision: 0.7, session: 0.8 }
 
-export const tokens = (text: string) => [...new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((word) => word.length >= 3 && !STOP.has(word)))]
+// Two-character words count only when they carry a digit ("h5", "q4"): app and quarter names, not filler.
+export const tokens = (text: string) =>
+  [...new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((word) => (word.length >= 3 || (word.length === 2 && /\d/.test(word))) && !STOP.has(word)))]
 
 /** Machine-made notes that only repeat a file path or a few words are noise, not memory. */
 export const isNoise = (entry: Rankable) =>

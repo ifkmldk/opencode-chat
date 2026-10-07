@@ -169,24 +169,19 @@ export async function rewrite(response: Response, url: string) {
   ;["content-encoding", "content-length", "transfer-encoding", "x-frame-options", "set-cookie"].forEach((name) =>
     headers.delete(name),
   )
-  ;["content-security-policy", "content-security-policy-report-only"].forEach((name) => {
-    const value = headers.get(name)
-    if (!value) return
-    // Only the framing directive goes; the site's own script and style policy still protects it.
-    const kept = value
-      .split(";")
-      .map((directive) => directive.trim())
-      .filter((directive) => directive && !/^frame-ancestors\b/i.test(directive))
-      .join("; ")
-    if (kept) headers.set(name, kept)
-    else headers.delete(name)
-  })
+  // The site's own CSP goes entirely: its nonce-based script-src blocks the bridge, and base-uri blocks <base>, which
+  // left Google and Bing unusable. The sandbox CSP added by proxyPage still gives the page an opaque origin.
+  ;["content-security-policy", "content-security-policy-report-only"].forEach((name) => headers.delete(name))
   const type = headers.get("content-type") ?? ""
   if (!type.startsWith("text/html")) return new Response(capped(response.body), { status: response.status, headers })
   const bytes = await new Response(capped(response.body)).arrayBuffer()
   // The page is re-encoded as UTF-8 after injection, so decode it with the charset it was sent in.
   headers.set("content-type", "text/html; charset=utf-8")
-  return new Response(injectBridge(decode(bytes, type), url), { status: response.status, headers })
+  return new Response(injectBridge(stripMetaCsp(decode(bytes, type)), url), { status: response.status, headers })
+}
+
+function stripMetaCsp(html: string) {
+  return html.replace(/<meta[^>]+http-equiv=["']?content-security-policy(?:-report-only)?["']?[^>]*>/gi, "")
 }
 
 function decode(bytes: ArrayBuffer, type: string) {

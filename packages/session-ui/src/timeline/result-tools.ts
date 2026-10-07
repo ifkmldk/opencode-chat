@@ -27,6 +27,14 @@ export function timelineCardTool(content: Content) {
   return content.type === "tool" && CARD_TOOLS.has(content.name)
 }
 
+// fork: answer cards that stay visible in Chat and Classifier views. Everything else tools return while working
+// (place cards, scraped pages, searches, fetches) is process: hidden there, collapsed in Code view.
+const ANSWER_TOOLS = new Set(["action", "office_render", "todo_write"])
+
+export function timelineAnswerTool(content: Content) {
+  return content.type === "tool" && ANSWER_TOOLS.has(content.name)
+}
+
 export function timelineResultTool(content: Content) {
   return content.type === "tool" && (CARD_TOOLS.has(content.name) || SOURCE_TOOLS.has(content.name))
 }

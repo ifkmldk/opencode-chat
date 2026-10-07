@@ -625,7 +625,7 @@ describe("current session timeline rows", () => {
     ])
   })
 
-  test("groups adjacent successful patches and leaves failed patches separate", () => {
+  test("groups adjacent successful patches and folds failed patches into a collapsed group", () => {
     const source = [
       { id: "msg_user", type: "user", text: "edit", time: { created: 1 } },
       {
@@ -716,9 +716,9 @@ describe("current session timeline rows", () => {
         ],
       },
       {
-        type: "part",
-        key: "part:msg_assistant:tool_patch_failed",
-        ref: { messageID: "msg_assistant", partID: "tool_patch_failed" },
+        type: "context",
+        key: "context:msg_assistant:tool_patch_failed",
+        refs: [{ messageID: "msg_assistant", partID: "tool_patch_failed" }],
       },
       {
         type: "file",
@@ -1013,7 +1013,7 @@ describe("current session timeline rows", () => {
       Timeline.constructSessionMessageRows(source, false, { type: "idle" }, undefined, true).rows.flatMap((row) =>
         row._tag === "AssistantPart" ? [row.group.type] : [],
       ),
-    ).toEqual(["context", "part"])
+    ).toEqual(["context"])
   })
 
   test("places a divider after interrupted output unless the turn compacts", () => {

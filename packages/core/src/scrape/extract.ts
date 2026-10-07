@@ -33,7 +33,19 @@ export function mainContent(html: string) {
   return kept >= 80 || (kept > 0 && kept >= full) ? stripped : html
 }
 
-export type JobPosting = { title: string; company?: string; location?: string; posted?: string; expires?: string; salary?: string; url?: string }
+export type JobPosting = {
+  title: string
+  company?: string
+  location?: string
+  /** Street address of the first jobLocation that has one (street, locality, region, postal code). */
+  address?: string
+  latitude?: number
+  longitude?: number
+  posted?: string
+  expires?: string
+  salary?: string
+  url?: string
+}
 
 const asString = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined)
 
@@ -46,6 +58,24 @@ function place(value: unknown): string | undefined {
     return [record.streetAddress, record.addressLocality, record.addressRegion, record.addressCountry].map(asString).filter(Boolean).join(", ") || undefined
   }
   return asString(address)
+}
+
+/** The office street address and geo coordinates of the first jobLocation, when the posting gives them. */
+function office(value: unknown): { address?: string; latitude?: number; longitude?: number } {
+  const first = Array.isArray(value) ? value[0] : value
+  if (!first || typeof first !== "object") return {}
+  const record = first as Record<string, unknown>
+  const address = record.address && typeof record.address === "object" ? (record.address as Record<string, unknown>) : undefined
+  const street = address ? asString(address.streetAddress) : undefined
+  const geo = record.geo && typeof record.geo === "object" ? (record.geo as Record<string, unknown>) : undefined
+  const latitude = Number(geo?.latitude)
+  const longitude = Number(geo?.longitude)
+  const located = !!geo && Number.isFinite(latitude) && Number.isFinite(longitude) && (latitude !== 0 || longitude !== 0)
+  const parts = address ? [street, address.addressLocality, address.addressRegion, address.postalCode] : []
+  return {
+    ...(street ? { address: parts.map((item) => asString(typeof item === "number" ? String(item) : item)).filter(Boolean).join(", ") } : {}),
+    ...(located ? { latitude, longitude } : {}),
+  }
 }
 
 function salary(value: unknown): string | undefined {
@@ -72,6 +102,7 @@ export function jobPostings(html: string): JobPosting[] {
           title,
           company: org && typeof org === "object" ? asString((org as Record<string, unknown>).name) : asString(org),
           location: place(record.jobLocation),
+          ...office(record.jobLocation),
           posted: asString(record.datePosted),
           expires: asString(record.validThrough),
           salary: salary(record.baseSalary),
@@ -90,15 +121,74 @@ export function jobPostings(html: string): JobPosting[] {
   return found
 }
 
+const HEADER = "## Structured job postings (JSON-LD)"
+
+/** One labelled line per posting: "- **Data Analyst** · company: PT A · address: … · geo: -6.2,106.8 · url: …". */
 export function jobPostingsMarkdown(postings: readonly JobPosting[]) {
   if (postings.length === 0) return ""
   return [
-    "## Structured job postings (JSON-LD)",
+    HEADER,
     ...postings.map((job) =>
-      `- **${job.title}**${job.company ? ` · ${job.company}` : ""}${job.location ? ` · ${job.location}` : ""}${job.salary ? ` · ${job.salary}` : ""}${job.posted ? ` · posted ${job.posted}` : ""}${job.expires ? ` · until ${job.expires}` : ""}${job.url ? ` · ${job.url}` : ""}`,
+      [
+        `- **${job.title.replace(/\*\*|·/g, " ").trim()}**`,
+        ...LABELS.flatMap((label) => {
+          const value = label.read(job)
+          return value ? [`${label.name}: ${value.replace(/·/g, ",")}`] : []
+        }),
+      ].join(" · "),
     ),
   ].join("\n")
 }
+
+/** The postings jobPostingsMarkdown wrote, read back from scraped page text (the scrape tiers return text, not HTML). */
+export function postingsFromText(text: string): JobPosting[] {
+  const at = text.indexOf(HEADER)
+  if (at < 0) return []
+  return text
+    .slice(at + HEADER.length)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- **"))
+    .flatMap((line) => {
+      const parts = line.slice(2).split(" · ")
+      const title = parts[0]?.match(/^\*\*(.+)\*\*$/)?.[1]?.trim()
+      if (!title) return []
+      const fields = new Map(
+        parts.slice(1).flatMap((part) => {
+          const index = part.indexOf(": ")
+          return index > 0 ? [[part.slice(0, index), part.slice(index + 2).trim()] as const] : []
+        }),
+      )
+      const geo = (fields.get("geo") ?? "").split(",").map(Number)
+      const posting: JobPosting = {
+        title,
+        ...Object.fromEntries(
+          LABELS.filter((label) => label.key !== "geo" && fields.get(label.name)).map((label) => [label.key, fields.get(label.name)]),
+        ),
+        ...(geo.length === 2 && geo.every(Number.isFinite) ? { latitude: geo[0]!, longitude: geo[1]! } : {}),
+      }
+      return [posting]
+    })
+}
+
+const LABELS: readonly {
+  name: string
+  key: Exclude<keyof JobPosting, "title" | "latitude" | "longitude"> | "geo"
+  read: (job: JobPosting) => string | undefined
+}[] = [
+  { name: "company", key: "company", read: (job) => job.company },
+  { name: "location", key: "location", read: (job) => job.location },
+  { name: "address", key: "address", read: (job) => job.address },
+  {
+    name: "geo",
+    key: "geo",
+    read: (job) => (job.latitude !== undefined && job.longitude !== undefined ? `${job.latitude},${job.longitude}` : undefined),
+  },
+  { name: "salary", key: "salary", read: (job) => job.salary },
+  { name: "posted", key: "posted", read: (job) => job.posted },
+  { name: "until", key: "expires", read: (job) => job.expires },
+  { name: "url", key: "url", read: (job) => job.url },
+]
 
 const CHALLENGE = /just a moment|attention required|enable javascript|access denied|verify you are (a )?human|captcha|checking your browser|unusual traffic|are you a robot|your connection is not private|err_cert|this site can.t be reached|err_name_not_resolved/i
 

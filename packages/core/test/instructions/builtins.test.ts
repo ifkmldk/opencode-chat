@@ -47,6 +47,10 @@ describe("InstructionBuiltIns", () => {
       expect(geo).toContain("[Name](place:<id>)")
       expect(geo).toContain("map_show")
       expect(geo).toContain("WGS84")
+      expect(geo).toContain("maps_near_transit")
+      expect(geo).toContain("geo_compute near_any")
+      expect(geo).toContain("geo_compute distance with origin")
+      expect(geo).not.toContain("maps_ask (KRL")
       const contract = blocks.find((block) => block.startsWith("# Response contract (fork)"))
       expect(contract).toContain("Summary")
       expect(contract).toContain("Verify")
@@ -56,6 +60,11 @@ describe("InstructionBuiltIns", () => {
       expect(todo).toContain("todo_write")
       const plan = blocks.find((block) => block.startsWith("For a request to find, compare or recommend"))
       expect(plan).toContain("hard constraints")
+      expect(plan).toContain("transitLine")
+      expect(plan).toContain('marked "tidak dicantumkan"')
+      expect(plan).toContain("an unknown value is not a failure")
+      expect(plan).not.toContain("drop results that break one")
+      expect(plan).not.toContain("Lokasi, Gaji")
 
       expect(blocks.filter((block) => ![geo, contract, office, todo, plan].includes(block)).join("\n\n")).toBe(
         [

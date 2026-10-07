@@ -33,6 +33,7 @@ Run: `node build-deck.mjs`. The imports are absolute, so the script can live in 
 | `stats` | 2-4 numbers side by side | `title, items[{value,label}]` |
 | `twoColumn` | compare / before-after | `title, left{heading,bullets,text}, right{...}` |
 | `imageText` | photo + argument | `title, text, bullets, image (path), side` |
+| `step` | one step of a user guide (screenshot shown whole) | `number, title, image (path), actions[], tip` |
 | `table` | exact figures (max ~7 rows) | `title, rows[][] (first row = header), widths[], note` |
 | `chart` | trend, comparison, share | `title, type bar/line/pie/doughnut/area, data, takeaway` |
 | `quote` | one voice | `text, by` |
