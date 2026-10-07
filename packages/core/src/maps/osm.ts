@@ -463,7 +463,7 @@ export async function overpass(
   const key = `${endpoint.overpassMirrors().join(" ")}\n${query}`
   const cached = await cache.get<{ elements: Element[]; total?: number }>("overpass", key, OVERPASS_TTL)
   if (cached?.fresh) return cached.value
-  const answer = await overpassFetch(query, options.timeoutMs ?? 35_000).catch((error: unknown) => {
+  const answer = await overpassFetch(query, options.timeoutMs ?? 35_000).then(parseElements, (error: unknown) => {
     if (cached) return undefined
     throw error
   })
@@ -472,7 +472,34 @@ export async function overpass(
   return answer
 }
 
-async function overpassFetch(query: string, timeoutMs: number) {
+/**
+ * fork: an Overpass query whose raw elements are needed (relation members, way geometry), cached like `overpass`
+ * (ttlMs, default a day), with the older answer used when every mirror fails.
+ */
+export async function overpassRaw(
+  query: string,
+  options: { timeoutMs?: number; ttlMs?: number } = {},
+): Promise<{ elements: Record<string, unknown>[]; stale?: boolean }> {
+  const key = `${endpoint.overpassMirrors().join(" ")}\n${query}`
+  const cached = await cache.get<{ elements: Record<string, unknown>[] }>(
+    "overpass-raw",
+    key,
+    options.ttlMs ?? OVERPASS_TTL,
+  )
+  if (cached?.fresh) return cached.value
+  const answer = await overpassFetch(query, options.timeoutMs ?? 35_000).then(
+    (body) => ({ elements: (Array.isArray(body.elements) ? body.elements : []).map(record) }),
+    (error: unknown) => {
+      if (cached) return undefined
+      throw error
+    },
+  )
+  if (!answer) return { ...cached!.value, stale: true }
+  cache.set("overpass-raw", key, answer)
+  return answer
+}
+
+async function overpassFetch(query: string, timeoutMs: number): Promise<Record<string, unknown>> {
   const mirrors = endpoint.overpassMirrors()
   const ranked = [
     ...mirrors.filter((url) => url === mirrorState.preferred),
@@ -511,7 +538,7 @@ async function overpassFetch(query: string, timeoutMs: number) {
     }
     mirrorState.preferred = url
     mirrorState.down.delete(url)
-    return parseElements(outcome.body)
+    return outcome.body
   }
   throw new MapsError({
     service: "overpass",

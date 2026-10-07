@@ -353,9 +353,16 @@ export async function fetchLinkedIn(input: { role: string; cities: readonly stri
 export function dedupe(listings: readonly Listing[]) {
   const seen = new Set<string>()
   return listings.filter((listing) => {
-    const company = (listing.company ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "")
+    // fork: "PT Metrodata Electronics Tbk" and "Metrodata Electronics" are one employer, and a board saying "Jakarta
+    // Metropolitan Area" names no city, so it collapses with the same job's city row instead of becoming a duplicate.
+    const company = (listing.company ?? "")
+      .toLowerCase()
+      .replace(/\b(pt|tbk|persero|cv|ltd|inc|corp|indonesia)\b/g, "")
+      .replace(/[^a-z0-9]+/g, "")
     const title = listing.title.toLowerCase().replace(/[^a-z0-9]+/g, "")
-    const city = placesIn(listing.location)[0] ?? (listing.location ?? "").toLowerCase().replace(/[^a-z]+/g, "")
+    const city = /metropolitan|raya|area|indonesia$/i.test(listing.location ?? "")
+      ? "any"
+      : (placesIn(listing.location)[0] ?? (listing.location ?? "").toLowerCase().replace(/[^a-z]+/g, ""))
     // Karir.com cards all link the search page, so the link says nothing there.
     const sharedLink = listing.board === "karir" || /[?&](q|keyword|keywords)=/.test(listing.url)
     const keys = [
@@ -363,6 +370,7 @@ export function dedupe(listings: readonly Listing[]) {
       ...(sharedLink ? [] : [`url|${listing.url.replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "")}`]),
       ...(company ? [`job|${company}|${title}|${city}`] : []),
     ]
+    if (company && city === "any" && [...seen].some((key) => key.startsWith(`job|${company}|${title}|`))) return false
     if (keys.some((key) => seen.has(key))) return false
     keys.forEach((key) => seen.add(key))
     return true

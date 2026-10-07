@@ -151,7 +151,8 @@ describe("research_deep jobs near KRL stations", () => {
     expect(out.table).toContain("Mirip")
     expect(out.table).not.toContain("PT B")
     expect(out.table).not.toContain("PT C")
-    expect(out.summary).toContain("1 posisi lain, 1 kota lain")
+    expect(out.summary).toContain("1 tidak relevan (cyber security 1)")
+    expect(out.summary).toContain("1 kota lain")
   })
 
   test("web posts go through the same pipeline: a company named in the post is located", async () => {

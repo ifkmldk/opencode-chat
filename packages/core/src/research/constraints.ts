@@ -8,6 +8,9 @@ import { Salary } from "../scrape/salary.js"
 
 export type TravelMode = "driving" | "walking" | "transit"
 
+/** How an office may be reached from a station: on foot only, or also by one direct bus/angkot ride. */
+export type AccessMode = "walk" | "walk_or_one_transit"
+
 export interface Constraints {
   /** The place the question is around: "Pranaya Boutique Hotel BSD", "Stasiun Serpong", "bsd tangerang". */
   anchor?: string
@@ -29,6 +32,8 @@ export interface Constraints {
   minSalary?: number
   /** Place category asked for ("rumah sakit" → hospital). */
   kind?: MapsCategory.Kind
+  /** Set when the text allows one direct public-transport ride from the station ("atau 1x naik transum dari stasiun"). */
+  accessMode?: AccessMode
 }
 
 const DEFAULT_RADIUS_KM = 3
@@ -76,6 +81,7 @@ export function extractConstraints(query: string, location?: string): Constraint
     travelMode: walking || transit ? "walking" : "driving",
     ...(minSalary !== undefined ? { minSalary } : {}),
     ...(kind ? { kind } : {}),
+    ...(transit && ONE_RIDE.test(query) ? { accessMode: "walk_or_one_transit" as const } : {}),
   }
 }
 
@@ -192,6 +198,9 @@ const RAIL = /(?<![\p{L}\p{N}])(krl|commuter\s*line|commuterline|commuter|kereta
 const RAIL_ONLY = /^(?:(?:krl|commuter|commuterline|line|jalur|lin|kereta|stasiun|station|st\.?|mrt|lrt|tsb|tersebut|itu|ini|terdekat|manapun|mana\s*saja|lain|lainnya|yang|yg)\b\s*)+(?:(?:rangkas\s*bitung|rangkasbitung|bogor|cikarang|bekasi|tangerang|tanjung\s*priok|priok|serpong|nambo|loop)\b\s*)*$/i
 const ALL_LINES =
   /\b(line|jalur|lin|rute)\s+(lain|lainnya|mana\s*(saja|aja)|apa\s*(saja|aja)|apapun|manapun)\b|\b(semua|seluruh|all|any|every)\s+(jalur|line|lines|rute)\b|^\s*(krl|commuter|commuter\s*line|semua|all)\s*$/i
+// "atau 1x naik transum langsung dari stasiun", "sekali naik bus/TransJakarta/angkot/mikrotrans", "one bus ride".
+const ONE_RIDE =
+  /(?<![\p{L}\p{N}])(?:(?:1\s*x|1\s+kali|sekali|satu\s+kali)\s+(?:naik\s+|nyambung\s+)?(?:transum|transportasi\s+umum|angkutan\s+umum|kendaraan\s+umum|angkot|bus|bis|busway|transjakarta|tj|mikrotrans|jak\s*lingko|feeder)|naik\s+(?:transum|transportasi\s+umum|angkutan\s+umum|angkot|bus|busway|transjakarta|tj|mikrotrans|jak\s*lingko|feeder)\s+(?:langsung\s+)?dari\s+stasiun|one\s+(?:direct\s+)?(?:bus|transit|public\s+transport)\s+ride)(?![\p{L}\p{N}])/iu
 const WALKING = /jalan\s+kaki|bisa\s+jalan|jalan\s+dari\s+stasiun|walk(?:ing|able)?\b/i
 const STATION_NAME =
   /(?<![\p{L}\p{N}])(?:stasiun|stasion|st\.|stn)\s+((?:[\p{L}][\p{L}'-]*\s*){1,4})|((?:[\p{L}][\p{L}'-]*\s+){1,3})station\b/giu

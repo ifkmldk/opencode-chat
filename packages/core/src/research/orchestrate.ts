@@ -10,12 +10,15 @@ import type { MapsSearch } from "../maps/search.js"
 import { Stations } from "../maps/stations.js"
 import { MapsOsm } from "../maps/osm.js"
 import { MapsTransit } from "../maps/transit-buffer.js"
+import type { MapsAccess } from "../maps/station-access.js"
+import { MapsRide } from "../maps/transit-ride.js"
 import { NetGuard } from "../net-guard.js"
 import type { Boards } from "../scrape/boards.js"
 import { ScrapeExtract } from "../scrape/extract.js"
 import { JobBoards } from "../scrape/jobboards.js"
 import { Salary } from "../scrape/salary.js"
-import { extractConstraints, linesOf, mustNegated, mustPattern, type Constraints, type TravelMode } from "./constraints.js"
+import { extractConstraints, linesOf, mustNegated, mustPattern, type AccessMode, type Constraints, type TravelMode } from "./constraints.js"
+import { JobRelevance } from "./relevance.js"
 
 // fork: one research run per question. Jobs: every board for every role phrase and city, web and social posts on top,
 // a salary floor that only drops disclosed salaries below it, and the OFFICE of every employer located on the map, its
@@ -40,6 +43,8 @@ export type DeepInput = {
   minSalary?: number
   budget?: number
   travelMode?: TravelMode
+  /** "walk" (default): on foot from the station; "walk_or_one_transit" also counts one direct bus/angkot ride from it. */
+  accessMode?: AccessMode
 }
 
 export type Candidate = {
@@ -148,6 +153,16 @@ export type Deps = {
   nearTransit?: (input: MapsTransit.Input) => Effect.Effect<Transit, MapsError | ToolFailure>
   /** Walking meters and seconds per pair (OSRM foot); undefined where no route was found. */
   walking?: (pairs: readonly { from: Geo.Point; to: Geo.Point }[]) => Effect.Effect<readonly (MapsTransit.Walk | undefined)[]>
+  /** Walks from stations that start at the station's entrances or outline (MapsAccess.fromStations); else `walking` from the node. */
+  stationWalking?: (
+    pairs: readonly { station: Stations.Station; to: Geo.Point }[],
+  ) => Effect.Effect<readonly (MapsAccess.StationWalk | undefined)[]>
+  /** Bus, TransJakarta, Mikrotrans and angkot route relations near the stations (MapsRide.routesNear). */
+  transitRoutes?: (stations: readonly Stations.Station[]) => Effect.Effect<{
+    routes: readonly MapsRide.Route[]
+    failed: readonly string[]
+    errors: readonly string[]
+  }>
   /** One short status line for the user while a long run is going. */
   progress?: (text: string) => Effect.Effect<void>
 }
@@ -197,6 +212,7 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     const maxResults = clamp(Math.round(input.maxResults ?? 150), 1, 300)
     const radius = Math.round((input.radiusKm ?? c.radiusKm) * 1000)
     const minSalary = input.minSalary ?? c.minSalary
+    const rideScope = (input.accessMode ?? c.accessMode) === "walk_or_one_transit" && scope !== undefined
     const named = JobBoards.cities(input.query, input.location)
     const lines = scope ? (scope.stations.length ? [...new Set(scope.stations.flatMap((station) => station.lines))] : scope.lines) : []
     const fromAnchor = c.anchor ? JobBoards.cities(c.anchor) : []
@@ -214,17 +230,13 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
 
     const notes = deps.excluded ? yield* deps.excluded() : []
     const judge = (listing: JobBoards.Listing, web: boolean): Verdict => {
-      if (isExcluded(listing, notes)) return "excluded"
-      const level = web
-        ? JobBoards.fits(`${listing.title} ${listing.summary ?? ""}`, phrases)
-          ? ("tepat" as const)
-          : undefined
-        : JobBoards.matchLevel(listing.title, phrases)
-      if (!level) return "role"
+      if (isExcluded(listing, notes)) return { drop: "excluded" }
+      const decision = JobRelevance.classify(listing, phrases, web)
+      if ("drop" in decision) return decision
       const known = JobBoards.placesIn(listing.location).length > 0
-      if ((known && !JobBoards.inCities(listing, cities)) || JobBoards.basedElsewhere(listing.title, cities)) return "city"
-      if (minSalary !== undefined && Salary.meets(listing.salary, minSalary) === "no") return "salary"
-      return { ...listing, level }
+      if ((known && !JobBoards.inCities(listing, cities)) || JobBoards.basedElsewhere(listing.title, cities)) return { drop: "city" }
+      if (minSalary !== undefined && Salary.meets(listing.salary, minSalary) === "no") return { drop: "salary" }
+      return { ...listing, level: decision.level }
     }
     const done = { count: 0 }
     // One time budget per call (default 8 min). Office lookups and the career pages of the employers near the stations run
@@ -318,7 +330,7 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
         }
         const rows = batch.flatMap((listing) => {
           const verdict = judge(listing, false)
-          return typeof verdict === "string" ? [] : [verdict]
+          return "drop" in verdict ? [] : [verdict]
         })
         const located = yield* locateAll(rows, holder.features, known)
         located.forEach((entry) => {
@@ -400,7 +412,7 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
             Effect.flatMap((answer) => employerCareers(holder.features).pipe(Effect.map((careers) => ({ answer, careers })))),
           )
         : Effect.succeed(undefined)
-    const [browser, quick, early, web, bufferRun, anchorPlace] = yield* Effect.all(
+    const [browser, quick, early, web, bufferRun, anchorPlace, routeRun] = yield* Effect.all(
       [
         boards("browser"),
         boards("quick"),
@@ -415,6 +427,8 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
                 Effect.orElseSucceed(() => undefined),
               )
           : Effect.succeed(undefined),
+        // One-ride access: the bus/angkot routes near the stations load while the boards are read.
+        rideScope && deps.transitRoutes ? deps.transitRoutes(stationsOf(scope!)).pipe(Effect.map((found) => found as typeof found | undefined)) : Effect.succeed(undefined),
       ],
       { concurrency: "unbounded" },
     )
@@ -458,8 +472,17 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     const all = JobBoards.dedupe([...boardResult.listings, ...webListings])
     learn(boardResult.listings)
     const judged = all.map((listing) => ({ listing, verdict: judge(listing, webIds.has(listing.id)) }))
-    const rows = judged.flatMap((entry) => (typeof entry.verdict === "string" ? [] : [entry.verdict]))
-    const dropped = (reason: Verdict) => judged.filter((entry) => entry.verdict === reason).length
+    const rows = judged.flatMap((entry) => ("drop" in entry.verdict ? [] : [entry.verdict]))
+    const dropped = (reason: string) => judged.filter((entry) => "drop" in entry.verdict && entry.verdict.drop === reason).length
+    // "network engineer 3, accounting 2": unrelated titles by the rule that dropped them, most first.
+    const unrelatedLabels = Object.entries(
+      Object.groupBy(
+        judged.flatMap((entry) => ("drop" in entry.verdict && entry.verdict.drop === "unrelated" ? [entry.verdict.label ?? "lain"] : [])),
+        (label) => label,
+      ),
+    )
+      .map(([label, list]) => [label, list?.length ?? 0] as const)
+      .toSorted((a, b) => b[1] - a[1])
     const companies = new Set(rows.flatMap((row) => (row.company ? [companyKey(row.company)] : [])))
 
     const employers = scope ? employersIn(features) : []
@@ -470,10 +493,11 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     const [rest, employerWalks] = yield* Effect.all(
       [
         locateAll(rows, features, new Set(early.map((entry) => entry[0]))),
-        deps.walking && employers.length && scopeStations
-          ? deps.walking(
+        scopeStations
+          ? stationWalks(
+              deps,
               employers.map((feature) => ({
-                from: scopeStations.find((station) => station.id === feature.nearest.stationId) ?? scopeStations[0]!,
+                station: scopeStations.find((station) => station.id === feature.nearest.stationId) ?? scopeStations[0]!,
                 to: feature,
               })),
             )
@@ -502,26 +526,44 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     })
     // Walks are measured where they can matter: up to 1.5× the radius in a straight line.
     const walkable = spatial ? offices.filter((office) => office.straight !== undefined && office.straight <= radius * 1.5) : []
-    const walks = deps.walking && walkable.length
-      ? yield* deps.walking(
-          walkable.map((office) => ({
-            from: spatial === "anchor" ? anchorPoint! : office.station!.centre,
-            to: office.point,
-          })),
-        )
-      : []
+    // From stations the walk starts at the station's best access point (entrance, building outline, platform end).
+    const walks: readonly (Walked | undefined)[] =
+      spatial === "station"
+        ? yield* stationWalks(deps, walkable.map((office) => ({ station: office.station!.centre, to: office.point })))
+        : deps.walking && walkable.length
+          ? yield* deps.walking(walkable.map((office) => ({ from: anchorPoint!, to: office.point })))
+          : []
     const walkOf = new Map(walkable.map((office, index) => [office.key, walks[index]]))
+    // Reachable on foot without paying: a usable walk within the radius, or, when OSRM still routes oddly, a straight
+    // line within 0.7 × the radius ("perkiraan").
+    const onFoot = offices.map((office) => {
+      const walk = walkOf.get(office.key)
+      const reliable = walk && !noteOf(office.straight ?? 0, walk) ? walk : undefined
+      const inside =
+        !spatial || office.straight === undefined
+          ? spatial === undefined
+          : reliable
+            ? reliable.meters <= radius
+            : office.straight <= radius * APPROXIMATE_SHARE
+      return { ...office, walk, reliable, inside, approximate: inside && spatial !== undefined && !reliable }
+    })
+    // One direct bus/angkot ride from a station, for offices not reachable on foot (bus distance up to 15 km).
+    const rides =
+      rideScope && routeRun && scopeStations && deps.walking
+        ? yield* MapsRide.oneRide({
+            stations: scopeStations,
+            routes: routeRun.routes,
+            targets: onFoot
+              .filter((office) => !office.inside && office.straight !== undefined && office.straight <= RIDE_REACH)
+              .map((office) => ({ key: office.key, point: office.point })),
+            stationWalk: (pairs) => stationWalks(deps, pairs),
+            walking: deps.walking,
+          }).pipe(Effect.tap((found) => say(`Akses 1x naik transum: ${found.size} kantor terhubung satu rute dari stasiun…`)))
+        : new Map<string, MapsRide.Ride>()
     const measured = new Map(
-      offices.map((office) => {
-        const walk = walkOf.get(office.key)
-        const reliable = walk && !MapsTransit.walkingNote(office.straight ?? 0, walk) ? walk : undefined
-        const inside =
-          !spatial || office.straight === undefined
-            ? spatial === undefined
-            : reliable
-              ? reliable.meters <= radius
-              : office.straight <= radius
-        return [office.key, { ...office, walk, reliable, inside }] as const
+      onFoot.map((office) => {
+        const ride = office.inside ? undefined : rides.get(office.key)
+        return [office.key, { ...office, ...(ride ? { ride } : {}), inside: office.inside || ride !== undefined }] as const
       }),
     )
     const placed = rows.map((row) => {
@@ -539,7 +581,12 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     const distance = (entry: (typeof placed)[number]) => entry.office?.reliable?.meters ?? entry.office?.straight ?? Number.MAX_SAFE_INTEGER
     const main = placed
       .filter((entry) => entry.office?.inside)
-      .toSorted((a, b) => Number(b.row.level === "tepat") - Number(a.row.level === "tepat") || distance(a) - distance(b))
+      .toSorted(
+        (a, b) =>
+          Number(b.row.level === "tepat") - Number(a.row.level === "tepat") ||
+          Number(a.office?.ride !== undefined) - Number(b.office?.ride !== undefined) ||
+          distance(a) - distance(b),
+      )
     const unlocated = placed.filter((entry) => !entry.office)
     const outside = placed.filter((entry) => entry.office && !entry.office.inside).toSorted((a, b) => distance(a) - distance(b))
 
@@ -560,11 +607,11 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
     const shown = main.slice(0, maxResults)
     const table = shown.length
       ? [
-          "| # | Posisi | Perusahaan | Kantor (alamat) | Stasiun terdekat | Jarak lurus / jalan kaki | Gaji | Diposting | Kecocokan | Sumber | Link lamar |",
-          "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| # | Posisi | Perusahaan | Kantor (alamat) | Stasiun terdekat | Jarak lurus / jalan kaki | Akses | Gaji | Diposting | Kecocokan | Sumber | Link lamar |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
           ...shown.map(
             (entry, index) =>
-              `| ${index + 1} | ${cell(entry.row.title, 90)} | ${cell(entry.row.company, 50)} | ${officeText(entry.office!.located)} | ${cell(stationText(entry.office!.station?.centre), 40)} | ${distanceText(entry.office!, spatial === "anchor" ? anchorPoint?.name : undefined)} | ${cell(salaryCell(entry.row.salary), 60)} | ${cell(entry.row.posted, 25)} | ${entry.row.level === "tepat" ? "Tepat" : "Mirip"} | ${cell(entry.row.board, 20)} | [Lamar](${entry.row.url}) |`,
+              `| ${index + 1} | ${cell(entry.row.title, 90)} | ${cell(entry.row.company, 50)} | ${officeText(entry.office!.located)} | ${cell(stationText(entry.office!.station?.centre), 40)} | ${distanceText(entry.office!, spatial === "anchor" ? anchorPoint?.name : undefined)} | ${accessText(entry.office!)} | ${cell(salaryCell(entry.row.salary), 60)} | ${cell(entry.row.posted, 25)} | ${entry.row.level === "tepat" ? "Tepat" : "Mirip"} | ${cell(entry.row.board, 20)} | [Lamar](${entry.row.url}) |`,
           ),
         ].join("\n")
       : undefined
@@ -636,10 +683,10 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
           ]
         : []),
       `Dibaca: ${boardResult.reports.map((report) => `${report.board} ${report.count}`).join(", ") || "tidak ada papan"}; web/media sosial ${web.hits.length} hasil${web.searchPages ? ` (${web.searchPages} halaman pencarian papan dilewati)` : ""}. Total ${read + web.hits.length} listing, ${all.length} unik.`,
-      `Cocok dengan posisi ${phrases.map((phrase) => `"${phrase}"`).join(", ")}: ${rows.length} (Tepat ${rows.filter((row) => row.level === "tepat").length}, Mirip ${rows.filter((row) => row.level === "mirip").length}). Dibuang: ${dropped("role")} posisi lain, ${dropped("city")} kota lain${minSalary !== undefined ? `, ${dropped("salary")} gaji tercantum di bawah ${Salary.short(minSalary)}` : ""}${dropped("excluded") ? `, ${dropped("excluded")} sudah dilamar/ditolak` : ""}.`,
+      `Cocok dengan posisi ${phrases.map((phrase) => `"${phrase}"`).join(", ")}: ${rows.length} (Tepat ${rows.filter((row) => row.level === "tepat").length}, Mirip ${rows.filter((row) => row.level === "mirip").length}). Dibuang: ${dropped("role")} posisi lain, ${dropped("unrelated")} tidak relevan${unrelatedLabels.length ? ` (${unrelatedLabels.map(([label, count]) => `${label} ${count}`).join(", ")})` : ""}, ${dropped("borderline")} judul ambigu tanpa JD data, ${dropped("city")} kota lain${minSalary !== undefined ? `, ${dropped("salary")} gaji tercantum di bawah ${Salary.short(minSalary)}` : ""}${dropped("excluded") ? `, ${dropped("excluded")} sudah dilamar/ditolak` : ""}.`,
       `Lokasi kantor: ${located} lowongan ketemu (${companiesLocated} dari ${companies.size} perusahaan), ${unlocated.length} belum ketemu (tabel unlocatedTable).`,
       spatial === "station"
-        ? `Dalam ${radius} m dari ${scope!.label}: ${main.length} lowongan (tabel utama)${main.length > shown.length ? `, ${shown.length} ditampilkan` : ""}; di luar radius: ${outside.length} (outsideTable).`
+        ? `Bisa jalan kaki ≤${radius} m dari ${scope!.label}: ${main.filter((entry) => !entry.office?.ride).length} lowongan (${main.filter((entry) => entry.office?.approximate).length} perkiraan)${rideScope ? `; 1x naik transum langsung dari stasiun: ${main.filter((entry) => entry.office?.ride).length}${routeRun ? ` (${routeRun.routes.length} rute bus/angkot OSM${routeRun.failed.length ? `, ${routeRun.failed.length} stasiun gagal dimuat` : ""})` : " (data rute tidak tersedia)"}` : ""}; tabel utama ${main.length}${main.length > shown.length ? `, ${shown.length} ditampilkan` : ""}; di luar: ${outside.length} (outsideTable).`
         : spatial === "anchor"
           ? `Dalam ${radius} m dari ${anchorPoint!.name}: ${main.length} lowongan; di luar: ${outside.length}.`
           : `Tabel utama: ${main.length} lowongan dengan kantor terlokasi${main.length > shown.length ? ` (${shown.length} ditampilkan)` : ""}.`,
@@ -664,7 +711,11 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
         url: entry.row.url,
         summary: [entry.row.location, entry.row.salary ?? "gaji tidak dicantumkan", entry.row.posted].filter(Boolean).join(" · "),
         ...(entry.office?.straight !== undefined ? { distanceM: entry.office.straight } : {}),
-        ...(entry.office?.walk ? { walkingM: entry.office.walk.meters, travelMode: "walking" as const, travelMinutes: Math.round(entry.office.walk.seconds / 60) } : {}),
+        ...(entry.office?.ride
+          ? { travelMode: "transit" as const, priceNote: accessText(entry.office) }
+          : entry.office?.walk
+            ? { walkingM: entry.office.walk.meters, travelMode: "walking" as const, travelMinutes: Math.round(entry.office.walk.seconds / 60) }
+            : {}),
         ...(entry.office?.station ? { station: entry.office.station.centre.name } : {}),
         ...(spatial === "anchor" && anchorPoint ? { anchor: anchorPoint.name } : {}),
         ...(entry.row.salary ? { salary: entry.row.salary } : {}),
@@ -719,7 +770,7 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
         `Checked ${new Date(checkedAt).toISOString().slice(0, 10)}: job boards, web search and social posts (site: searches), office locations from OpenStreetMap.`,
         "Paste the tables in full in your answer (table, then unlocatedTable, outsideTable and companyTable when present), every row and link unchanged, with the summary counts above them; label each row with its own source board. Never shorten them to a top few, never invent a distance or address the tables do not show.",
         spatial === "station"
-          ? `Distances: straight line from the station node (it sits on the tracks) to the office on the map, and walking over OSM paths (OSRM foot). A listing is in the main table when the walk is at most ${radius} m, or, when OSRM's route is unusable (flagged ⚠ in the table), when the straight line is at most ${radius} m; offices just beyond are in outsideTable. Stations: ${scope!.label}.`
+          ? `Distances: straight line from the station node to the office on the map, and walking over OSM paths (OSRM foot) from the station's best access point (OSM entrance, station building outline or platform end; the table says which). Rule: the office is reachable on foot without paying — the walk from the best access point is at most ${radius} m; when OSRM's route is still unusable (⚠) only a straight line of at most ${Math.round(radius * APPROXIMATE_SHARE)} m counts, marked "perkiraan" in Akses. ${rideScope ? `One-ride access was asked: an office farther away is also in the table when ONE direct bus/TransJakarta/Mikrotrans/angkot route (OSM route relation, stop order not checked) stops within ${MapsRide.BOARD_METERS} m walk of a station access point and within ${MapsRide.ALIGHT_METERS} m walk of the office; Akses shows "1x <route>" with the boarding and alighting stops and both walks. Fares are not free; say so. ` : ""}Offices beyond are in outsideTable. Stations: ${scope!.label}.`
           : spatial === "anchor"
             ? `Distances are measured from ${anchorPoint!.name} (${anchorPoint!.latitude.toFixed(5)}, ${anchorPoint!.longitude.toFixed(5)}); radius ${radius} m.`
             : near
@@ -737,6 +788,9 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
           ? [`Not readable automatically (they block automated visits); give the user these search links: ${boardResult.manual.map((item) => `${item.board} ${item.url}`).join("; ")}.`]
           : []),
         ...(failures.length ? [`Web search failed for ${failures.map((run) => run.label).join(", ")} (${failures[0]!.error!.slice(0, 160)}); say so.`] : []),
+        ...(rideScope && routeRun?.failed.length
+          ? [`Bus/angkot routes could not be loaded near ${routeRun.failed.length} stations (${routeRun.errors.join("; ").slice(0, 160)}); one-ride access there is missing, call again (answers are cached).`]
+          : []),
         ...(transitError ? [`The station buffer (offices near the stations) failed: ${transitError}. Distances still come from the bundled station list.`] : []),
         ...(transit?.notice ? [transit.notice] : []),
         ...(placed.some((entry) => entry.reason === reasonText(NOT_LOOKED_UP))
@@ -750,7 +804,9 @@ function jobs(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | undef
   })
 }
 
-type Verdict = "excluded" | "role" | "city" | "salary" | (JobBoards.Listing & { level: "tepat" | "mirip" })
+type Verdict =
+  | { drop: "excluded" | "role" | "unrelated" | "borderline" | "city" | "salary"; label?: string }
+  | (JobBoards.Listing & { level: "tepat" | "mirip" })
 
 /** The lookup's reasons in short Indonesian for the table: which step failed. */
 function reasonText(reason: string | undefined) {
@@ -1022,9 +1078,11 @@ function places(deps: Deps, input: DeepInput, c: Constraints, scope: Scope | und
       .toSorted((a, b) => Object.values(b.verified).filter((value) => value === "yes").length - Object.values(a.verified).filter((value) => value === "yes").length)
     const origin = (row: PlaceRow) => row.stationPoint ?? (center ? { latitude: center.latitude, longitude: center.longitude } : undefined)
     const walkable = travelMode === "walking" && deps.walking ? kept.filter((row) => origin(row) && row.latitude !== undefined && row.longitude !== undefined) : []
-    const walks = walkable.length
-      ? yield* deps.walking!(walkable.map((row) => ({ from: origin(row)!, to: { latitude: row.latitude!, longitude: row.longitude! } })))
-      : []
+    const walks: readonly (Walked | undefined)[] = !walkable.length
+      ? []
+      : walkable.every((row) => row.stationPoint)
+        ? yield* stationWalks(deps, walkable.map((row) => ({ station: row.stationPoint!, to: { latitude: row.latitude!, longitude: row.longitude! } })))
+        : yield* deps.walking!(walkable.map((row) => ({ from: origin(row)!, to: { latitude: row.latitude!, longitude: row.longitude! } })))
     const walkOf = new Map(walkable.map((row, index) => [row.id, walks[index]]))
     const checkedAt = Date.now()
     const provider = viaTransit ? "openstreetmap (Overpass, around stations)" : found?.provider === "scraped" ? "scraped" : "openstreetmap"
@@ -1166,17 +1224,45 @@ function officeText(located: MapsCompany.Located) {
   return `${cell(place, 80)} [${mark}]`
 }
 
-function distanceText(office: { straight?: number; walk?: MapsTransit.Walk; reliable?: MapsTransit.Walk }, from: string | undefined) {
+function distanceText(office: { straight?: number; walk?: Walked }, from: string | undefined) {
   if (office.straight === undefined) return "-"
   return `${walkText(office.straight, office.walk)}${from ? ` dari ${cell(from, 30)}` : ""}`
 }
 
-function walkText(straight: number, walk: MapsTransit.Walk | undefined, show = true) {
+function walkText(straight: number, walk: Walked | undefined, show = true) {
   if (!show) return `${straight} m`
   if (!walk) return `${straight} m / -`
-  const odd = MapsTransit.walkingNote(straight, walk) ? " ⚠ rute OSRM melenceng" : ""
-  return `${straight} m / ${walk.meters} m (${Math.max(1, Math.round(walk.seconds / 60))} mnt)${odd}`
+  const odd = noteOf(straight, walk) ? " ⚠ rute OSRM melenceng" : ""
+  const start = walk.from && walk.from !== "node" ? ` dari ${START[walk.from]}` : ""
+  return `${straight} m / ${walk.meters} m${start} (${Math.max(1, Math.round(walk.seconds / 60))} mnt)${odd}`
 }
+
+/** "jalan kaki", "jalan kaki (perkiraan)" or "1x Transjakarta 1B (naik …, turun …; jalan … m + … m)". */
+function accessText(office: { approximate?: boolean; ride?: MapsRide.Ride }) {
+  if (office.ride) return cell(MapsRide.rideText(office.ride), 160)
+  return office.approximate ? "jalan kaki (perkiraan, rute OSRM tidak usable)" : "jalan kaki"
+}
+
+/** A walk from a station access point carries its own note; other walks are judged against the straight line. */
+function noteOf(straight: number, walk: Walked) {
+  return walk.from ? walk.note : MapsTransit.walkingNote(straight, walk)
+}
+
+/** Walks from the station's access points; without that dependency, plain walks from the station node. */
+function stationWalks(deps: Deps, pairs: readonly { station: Stations.Station; to: Geo.Point }[]): Effect.Effect<readonly (Walked | undefined)[]> {
+  if (!pairs.length) return Effect.succeed([])
+  if (deps.stationWalking) return deps.stationWalking(pairs)
+  if (deps.walking) return deps.walking(pairs.map((pair) => ({ from: pair.station, to: pair.to })))
+  return Effect.succeed(pairs.map(() => undefined))
+}
+
+type Walked = MapsTransit.Walk & { from?: MapsAccess.Kind; note?: string; straight?: number }
+
+const START: Record<Exclude<MapsAccess.Kind, "node">, string> = { entrance: "pintu masuk", building: "gedung stasiun", platform: "ujung peron" }
+// Without a usable walking route, an office counts on foot only within this share of the radius in a straight line.
+const APPROXIMATE_SHARE = 0.7
+// Offices farther than this from every station are not checked for a one-ride connection.
+const RIDE_REACH = 15_000
 
 function summarizeSkipped(skipped: readonly Boards.Search[]) {
   const counts = Object.entries(Object.groupBy(skipped, (search) => search.board)).map(([board, list]) => `${board} ${list?.length ?? 0}`)

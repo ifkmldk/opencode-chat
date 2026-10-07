@@ -14,6 +14,8 @@ import { MapsOsm } from "../../maps/osm.js"
 import { MapsSearch } from "../../maps/search.js"
 import { Stations } from "../../maps/stations.js"
 import { MapsTransit } from "../../maps/transit-buffer.js"
+import { MapsAccess } from "../../maps/station-access.js"
+import { MapsRide } from "../../maps/transit-ride.js"
 import { Permission } from "../../permission.js"
 
 // fork: OSM-only (Google/Gemini removed per user decision — no key, never billed).
@@ -197,7 +199,11 @@ const TransitInput = Schema.Struct({
   }),
   walking: Schema.optional(Schema.Boolean).annotate({
     description:
-      "Walking meters and minutes from the station for every returned feature (OSRM foot). Default: on when at most 200 are returned",
+      "Walking meters and minutes from the station for every returned feature (OSRM foot, from the station's best entrance/outline point). Default: on when at most 200 are returned",
+  }),
+  access: Schema.optional(Schema.Literals(["walk", "one_transit"] as const)).annotate({
+    description:
+      'walk (default): within radius_m of the stations. one_transit also lists features reachable by ONE direct bus/TransJakarta/Mikrotrans/angkot ride from a station (OSM route relations: stop within 400 m walk of a station entrance and within 500 m walk of the feature), in rideFeatures with route, stops and walks.',
   }),
   limit: Schema.optional(Range(1, 2000)).annotate({
     description:
@@ -573,7 +579,7 @@ export const Plugin = {
         description: [
           "Everything of one kind within a radius of KRL/MRT/LRT stations, in one call: offices/companies, hotels, attractions, hospitals, clinics, malls... near every station of the chosen lines.",
           `Covers all ${Stations.list().length} KRL stations on every line (bogor, cikarang, rangkasbitung, tangerang, tanjung-priok) by default; lines or stations narrow it, and mrt-jakarta, lrt-jabodebek, lrt-jakarta add MRT/LRT.`,
-          "Each feature: name, OSM category, address, website, nearest station with its lines, straight-line meters from the station node, and walking meters/minutes (OSRM foot; a note flags walks that snapped far away).",
+          "Each feature: name, OSM category, address, website, nearest station with its lines, straight-line meters from the station node, and walking meters/minutes (OSRM foot from the station's best entrance, building outline or platform end; a note flags walks that still snapped far away). access one_transit adds rideFeatures reachable by one direct bus/angkot ride.",
           "Limits: radius_m 50-5000 (default 1000), limit 1-2000 (default 150, named features first; perLine/perStation and total count every match, raise limit for the full list); walking routes at most the first 300 rows within 60 s. Data is OpenStreetMap via Overpass, cached for a day; stations are a bundled OSM list.",
           'kind office also lists government, NGO and RW offices; for employers only pass tags ["office=company|it|financial|insurance|consulting|telecommunication|advertising_agency|newspaper|logistics", "building=company"]. Use name to find one company near the stations. Never geocode stations one by one with maps_search.',
         ].join(" "),
@@ -606,13 +612,43 @@ export const Plugin = {
             const walk = input.walking ?? shown.length <= 200
             // fork: OSRM is a shared free server; routing is capped so one call cannot queue dozens of slow tables.
             const walks = walk
-              ? yield* MapsTransit.walking(
-                  shown.slice(0, 300).map((item) => ({ from: byId.get(item.nearest.stationId)!, to: item })),
+              ? yield* MapsAccess.fromStations(
+                  shown.slice(0, 300).map((item) => ({ station: byId.get(item.nearest.stationId)!, to: item })),
                 )
               : []
             const unrouted = walk ? shown.length - walks.filter((item) => item).length : 0
             const features = shown.map((item, index) => transitRow(item, walk ? walks[index] : undefined, walk))
             MapsSearch.remember(features)
+            const ride =
+              input.access === "one_transit"
+                ? yield* MapsRide.featuresByRide({
+                    stations: found.stations,
+                    selectors: input.tags?.length ? input.tags : MapsCategory.tags(input.kind ?? "office"),
+                    ...(input.name ? { name: input.name } : {}),
+                    exclude: new Set(found.features.map((item) => item.id)),
+                    radiusMeters,
+                    limit: Math.min(input.limit ?? 150, 300),
+                    stationWalk: (pairs) => MapsAccess.fromStations(pairs),
+                    walking: (pairs) => MapsTransit.walking(pairs),
+                  })
+                : undefined
+            const rideFeatures = (ride?.rows ?? []).map((row) => ({
+              id: row.element.id,
+              name: row.element.name,
+              category: MapsOsm.categoryOf(row.element.tags, input.tags?.length ? input.tags : MapsCategory.tags(input.kind ?? "office")),
+              address: MapsOsm.addressOf(row.element.tags),
+              website: MapsTransit.websiteOf(row.element.tags),
+              latitude: row.element.latitude,
+              longitude: row.element.longitude,
+              access: MapsRide.rideText(row.ride),
+              station: row.ride.station.name,
+              route: row.ride.route,
+              board: row.ride.board,
+              alight: row.ride.alight,
+              boardWalkMeters: row.ride.boardWalk.meters,
+              alightWalkMeters: row.ride.alightWalk.meters,
+              approximate: row.ride.boardWalk.approximate || row.ride.alightWalk.approximate,
+            }))
             const output = {
               provider: "openstreetmap",
               what,
@@ -640,6 +676,12 @@ export const Plugin = {
                   }
                 : {}),
               features,
+              ...(ride
+                ? {
+                    oneTransit: `${rideFeatures.length} more features reachable by one direct bus/angkot ride (${ride.routes} OSM routes, ${ride.stops} stops searched)${ride.notice ? `; ${ride.notice}` : ""}`,
+                    rideFeatures,
+                  }
+                : {}),
               attribution: "© OpenStreetMap contributors, routing by FOSSGIS OSRM",
             }
             return {
@@ -939,7 +981,7 @@ function usefulTags(tags: Record<string, string>) {
 const USEFUL =
   /^(office|building|amenity|tourism|healthcare|leisure|shop|brand|operator|network|company|official_name|alt_name|level|building:levels|stars|healthcare:speciality|emergency)$/
 
-function transitRow(item: MapsTransit.Feature, walk: MapsTransit.Walk | undefined, walked: boolean) {
+function transitRow(item: MapsTransit.Feature, walk: MapsAccess.StationWalk | MapsTransit.Walk | undefined, walked: boolean) {
   return {
     id: item.id,
     name: item.name,
@@ -956,7 +998,9 @@ function transitRow(item: MapsTransit.Feature, walk: MapsTransit.Walk | undefine
       ? {
           walkingMeters: walk?.meters,
           walkingMinutes: walk ? Math.max(1, Math.round(walk.seconds / 60)) : undefined,
-          walkingNote: MapsTransit.walkingNote(item.nearest.meters, walk),
+          ...(walk && "from" in walk ? { walkingFrom: walk.from } : {}),
+          // A walk from a station access point was judged against its own start; a plain walk against the node.
+          walkingNote: walk && "from" in walk ? walk.note : MapsTransit.walkingNote(item.nearest.meters, walk),
         }
       : {}),
     osm: usefulTags(item.tags),
@@ -976,6 +1020,8 @@ function transitTable(output: {
   perLine: Record<string, number>
   notice?: string
   features: readonly ReturnType<typeof transitRow>[]
+  oneTransit?: string
+  rideFeatures?: readonly { id: string; name?: string; category: string; access: string }[]
 }) {
   const cell = (value: string | undefined, max: number) => (value ?? "-").replace(/[|\n\r]+/g, " ").slice(0, max) || "-"
   const site = (url: string | undefined) => url?.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "")
@@ -1005,6 +1051,15 @@ function transitTable(output: {
         row.id,
       ].join(" | "),
     ),
+    ...(output.oneTransit
+      ? [
+          `One transit ride: ${output.oneTransit}. Fares apply.`,
+          "# | Name | Category | Akses (1x naik) | Id",
+          ...(output.rideFeatures ?? []).map((row, index) =>
+            [index + 1, cell(row.name, 70), cell(row.category, 30), cell(row.access, 160), row.id].join(" | "),
+          ),
+        ]
+      : []),
   ].join("\n")
 }
 

@@ -11,6 +11,8 @@ import { Permission } from "../../permission.js"
 import { MapsCompany } from "../../maps/company.js"
 import { MapsSearch } from "../../maps/search.js"
 import { MapsTransit } from "../../maps/transit-buffer.js"
+import { MapsAccess } from "../../maps/station-access.js"
+import { MapsRide } from "../../maps/transit-ride.js"
 import { Stations } from "../../maps/stations.js"
 import { runDeep, type DeepResult, type Deps } from "../../research/orchestrate.js"
 import { ScrapeChromium } from "../../scrape/chromium.js"
@@ -60,6 +62,10 @@ const DeepInput = Schema.Struct({
   }),
   lines: Schema.optional(Schema.Array(Schema.String)).annotate({
     description: `Line ids instead of transitLine: ${Stations.LINES.map((line) => line.id).join(", ")}.`,
+  }),
+  accessMode: Schema.optional(Schema.Literals(["walk", "walk_or_one_transit"] as const)).annotate({
+    description:
+      'How offices may be reached from the stations. walk (default): on foot from the best station entrance, without paying. walk_or_one_transit: also ONE direct bus/TransJakarta/Mikrotrans/angkot ride from a station ("atau 1x naik transum langsung dari stasiun"); read from the query when omitted.',
   }),
 })
 const DeepCandidate = Schema.Struct({
@@ -123,7 +129,9 @@ export const Plugin = {
         options: { codemode: false, permission: "research.deep" },
         description: [
           "Deep research in one call. Jobs: reads Jobstreet, LinkedIn, Glints, Kalibrr, Dealls, Indeed, KitaLulus, Loker.id and Karir for every role phrase in every relevant city, plus web search and LinkedIn/Instagram/Facebook/X posts;",
-          "locates every employer's office on OpenStreetMap, measures the straight and walking distance to the nearest requested KRL/MRT/LRT station (or anchor), applies the salary floor (undisclosed salaries kept),",
+          "locates every employer's office on OpenStreetMap, measures the straight and walking distance to the nearest requested KRL/MRT/LRT station (walks start at the station's best entrance; or the anchor), applies the salary floor (undisclosed salaries kept),",
+          "keeps data-analyst look-alikes only when related (Mirip = BI, reporting, business/product/pricing analyst, data engineer…; network, admin, accounting, data entry, sales titles are dropped and counted),",
+          "and with accessMode walk_or_one_transit also accepts offices one direct bus/angkot ride from a station (Akses column: 1x <route>, stops and walks).",
           "and near stations also lists every named company within the radius with its career page checked. Returns tables: table (matches), unlocatedTable (office not found, with reason), outsideTable (outside the radius), companyTable, careerTable.",
           "Places (hotel, wisata, rumah sakit, …): OSM tag search around the anchor or around the stations, must-haves read on each place's own website. Runs take minutes for station-wide job searches.",
         ].join(" "),
@@ -246,6 +254,8 @@ export const Plugin = {
               locateCompany: (request) => MapsCompany.lookup(request),
               nearTransit: (request) => MapsTransit.nearStations(request),
               walking: (pairs) => MapsTransit.walking(pairs),
+              stationWalking: (pairs) => MapsAccess.fromStations(pairs),
+              transitRoutes: (stations) => Effect.promise(() => MapsRide.routesNear(stations)),
               progress: status,
             } satisfies Deps)
             const output = yield* deep({
@@ -261,6 +271,7 @@ export const Plugin = {
               ...(input.minSalary !== undefined ? { minSalary: input.minSalary } : {}),
               ...(input.budget !== undefined ? { budget: input.budget } : {}),
               ...(input.travelMode ? { travelMode: input.travelMode } : {}),
+              ...(input.accessMode ? { accessMode: input.accessMode } : {}),
             })
             return { output, content: content(output), metadata: { count: output.candidates.length } }
           }),

@@ -1,5 +1,13 @@
 # Fork changelog
 
+## 2.0.22-fork.15 (2026-10-07)
+
+- Relevansi lowongan: Tepat (data analyst inti) / Mirip (reporting, business, merchandise, BI, data intelligence, insight, product/marketing/pricing analyst, MIS, data management, data scientist/engineer; judul samar hanya bila JD punya ≥2 sinyal data) / dibuang (sales, akuntansi, admin, HR, cyber security, data entry, network engineer, data center), jumlah dibuang per alasan di ringkasan.
+- Jarak jalan kaki dihitung dari pintu masuk / gedung stasiun OSM (bukan node di rel); aturan "bisa jalan kaki tanpa keluar uang".
+- Mode akses opsional "1x naik transum langsung dari stasiun" (rute bus/TransJakarta/Mikrotrans/angkot OSM): kolom Akses berisi rute, halte naik/turun dan jalan di kedua ujung.
+- Lowongan yang sama di beberapa papan / ejaan perusahaan (PT … Tbk) digabung jadi satu baris.
+
+
 ## 2.0.22-fork.14 (2026-10-07)
 
 - Data stasiun dari OSM untuk semua jalur KRL (Bogor+Nambo, Cikarang, Rangkasbitung+Jatake, Tangerang, Tanjung Priok), MRT, LRT (`maps/stations.ts`).
