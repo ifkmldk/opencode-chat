@@ -41,6 +41,12 @@ export type Settings = {
   buffer?: number
   /** Tokens of recent conversation kept verbatim beside the summary. */
   keep: number
+  /**
+   * fork-aggressive: preemptive fraction of ceiling that triggers auto compaction.
+   * 1.0 = legacy (only at ceiling); 0.8 compacts at 80% so 9router/1M-window
+   * tasks checkpoint before the payload itself causes ECONNRESET/timeout.
+   */
+  preemptiveThreshold?: number
 }
 
 export type Editor = {
@@ -191,7 +197,7 @@ export const layer = Layer.effect(
 
     const state = State.create<Settings, Editor>({
       name: "session-compaction",
-      initial: () => ({ auto: true, keep: 15_000 }),
+      initial: () => ({ auto: true, keep: 15_000, preemptiveThreshold: 0.8 }),
       editor: (settings) => ({
         configure: (update) => {
           Object.assign(settings, update)
@@ -206,7 +212,8 @@ export const layer = Layer.effect(
       // Only the user compacts when automatic compaction is off, overflow included.
       if (trigger.reason !== "manual" && !settings.auto) return { status: "skipped" }
       const ceiling = calculateCeiling(context.model.limit, settings.buffer)
-      if (trigger.reason === "auto" && !due(context, ceiling)) return { status: "skipped" }
+      if (trigger.reason === "auto" && !due(context, ceiling, settings.preemptiveThreshold ?? 1.0))
+        return { status: "skipped" }
       // An unknown window never triggers auto compaction, but the compaction request still needs a size to aim for.
       const cap = Number.isFinite(ceiling)
         ? ceiling
@@ -227,7 +234,7 @@ export const layer = Layer.effect(
       )
     })
 
-    const due = (context: SessionContext.Loaded, ceiling: number) => {
+    const due = (context: SessionContext.Loaded, ceiling: number, preemptiveThreshold = 1.0) => {
       const messages = context.messages
       // A compaction just completed; let the runner rebuild the request from it first.
       const last = messages.at(-1)
@@ -235,7 +242,9 @@ export const layer = Layer.effect(
       // An encrypted native window estimates as nothing, so wait for a response to measure it.
       const measured = messages.findLastIndex((message) => hasMeasuredPrompt(message, context.model.ref))
       if (measured < messages.findLastIndex(SessionProviderContext.isCheckpoint)) return false
-      return estimateContext(context) >= ceiling
+      // fork-aggressive: preemptive threshold (default 1.0 = legacy). 0.8 triggers at 80% ceiling.
+      const threshold = Number.isFinite(ceiling) ? ceiling * preemptiveThreshold : ceiling
+      return estimateContext(context) >= threshold
     }
 
     /**

@@ -600,8 +600,8 @@ const scenario = (
     }),
   )
 
-// Nominal retry gaps: exponential from 2s capped at 10s, for 10 retries.
-const RETRY_GAPS = [2_000, 4_000, 8_000, ...Array<number>(7).fill(10_000)]
+// Nominal retry gaps: exponential from 2s capped at 10s, for 25 retries (fork-aggressive: 10 -> 25).
+const RETRY_GAPS = [2_000, 4_000, 8_000, ...Array<number>(22).fill(10_000)]
 // Longest possible gap per retry (+20% jitter); advancing the clock by these always fires the retry.
 const RETRY_GAPS_MAX = RETRY_GAPS.map((gap) => gap * 1.2)
 const RETRY_ATTEMPTS = RETRY_GAPS.map((_, index) => index + 2)

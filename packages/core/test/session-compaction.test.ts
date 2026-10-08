@@ -197,6 +197,8 @@ it.effect("auto compaction estimates current content against the buffered prompt
       },
     })
     // An automatic compaction that is not due is skipped.
+    // fork-aggressive: default preemptive 0.8, so pin to 1.0 for legacy ceiling numbers.
+    yield* compaction.transform((editor) => editor.configure({ preemptiveThreshold: 1.0 }))
     const due = (context: SessionContext.Loaded) =>
       compaction.compact({ reason: "auto", context }).pipe(Effect.map((outcome) => outcome.status !== "skipped"))
 

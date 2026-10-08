@@ -165,6 +165,17 @@ git rebase --onto v2.x.y v2.0.15
 - Visual check against v1: the QA harness in `C:\Users\fadhi\opencode-qa-uxdiff` (`start.ps1 -V2Source`,
   `bun pw.ts v2h <steps>.json`) with the v1 baseline shots in `shots/v1-*.png`.
 
+## Aggressive auto-continue (fork)
+
+Bounded-aggressive, not infinite. `runner/aggressive-policy.ts`
+classifies failures (network 25x, timeout 10x, provider_internal 15x,
+invalid_tool_call 15x+repair, tool_failed 20x+root-cause, overflow 1x+compact,
+interrupted 0x). `runner/retry.ts` schedule 10->25, timeout cap 3->10.
+`runner/loop-guard.ts` 3/5/2 -> 8/12/10 with soft rotate-strategy at 5.
+`runner/resume-token.ts` persists `resume-token/<sessionID>` in KV.
+`session/compaction.ts` preemptive 0.8 default. `memory/recall.ts` 4096/8 ->
+8192/12. `execution/restart.ts` per-turn 10->25.
+
 ## Known limits
 
 - PDF and HTML previews capture regions with `getDisplayMedia`, which asks for screen-share

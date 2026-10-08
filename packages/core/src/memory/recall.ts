@@ -4,9 +4,10 @@ import { Effect } from "effect"
 import { MemoryStore } from "./store.js"
 import { SessionSchema } from "../session/schema.js"
 
-// fork: recall block injected into the system prompt. Empty vault = empty string (zero behavior change).
-const MAX_BYTES = 4096
-const MAX_ENTRIES = 8
+// fork-aggressive: recall block injected into the system prompt. Empty vault = empty string (zero behavior change).
+// Aggressive 4096/8 -> 8192/12: long tasks need more cross-session memory without blowing prompt.
+const MAX_BYTES = 8192
+const MAX_ENTRIES = 12
 
 export const buildMemoryBlock = (entries: ReadonlyArray<MemoryStore.Entry>) => {
   if (entries.length === 0) return ""

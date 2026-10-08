@@ -30,7 +30,7 @@ export interface Options {
   readonly maxAttempts?: number
 }
 
-const DEFAULT_MAX_ATTEMPTS = 10
+const DEFAULT_MAX_ATTEMPTS = 25
 
 export interface Interface {
   /**

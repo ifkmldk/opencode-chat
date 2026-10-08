@@ -18,6 +18,7 @@ describe("memory recall", () => {
     const block = buildMemoryBlock(big)
     expect(block).toContain("## Remembered context (vault)")
     expect(block).toContain("memory:mem-0-ab")
-    expect(new TextEncoder().encode(block).byteLength).toBeLessThanOrEqual(4096)
+    // fork-aggressive: cap 4096 -> 8192 (see recall.ts MAX_BYTES).
+    expect(new TextEncoder().encode(block).byteLength).toBeLessThanOrEqual(8192)
   })
 })

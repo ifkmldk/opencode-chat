@@ -2,9 +2,10 @@ export * as SessionRunnerLLM from "./llm.js"
 
 import { Message } from "@opencode/ai"
 import { and, desc, eq, sql } from "drizzle-orm"
-import { Cause, Effect, Exit, FiberMap, Layer } from "effect"
+import { Cause, Clock, Effect, Exit, FiberMap, Layer } from "effect"
 import { Database } from "../../database/database.js"
 import { Bus } from "../../bus.js"
+import { KV } from "../../kv.js"
 import { LocationLifecycle } from "../../location-lifecycle.js"
 import { InstructionState } from "../instruction-state.js"
 import { SessionCompaction } from "../compaction.js"
@@ -31,6 +32,8 @@ import { SessionStep } from "./step.js"
 import { ToolOutput } from "../../tool-output.js"
 import { Plugin } from "../../plugin.js"
 import { MAX_STEPS_PROMPT } from "./max-steps.js"
+import { SessionLoopGuard } from "./loop-guard.js"
+import { failureOfSessionError, nextStrategy } from "./aggressive-policy.js"
 import { CONTINUE_AFTER_UNCONFIRMED_COMPLETION } from "./completion.js"
 import { allowNudge, REPEATED_NARRATION_STEER, repeatedNarration, workedSinceLastUser } from "./completion-policy.js"
 
@@ -50,6 +53,53 @@ const layer = Layer.effect(
     const plugins = yield* Plugin.Service
     const title = yield* SessionTitle.Service
     const steps = yield* SessionStep.make
+    // fork-aggressive: KV is optional here so minimal test graphs (without a
+    // KV layer) keep working; token writes become best-effort no-ops there.
+    const kvOption = yield* Effect.serviceOption(KV.Service)
+    const noteRotation = Effect.fn("SessionRunner.noteRotation")(function* (
+      sessionID: SessionSchema.ID,
+      step: number,
+      error: { readonly type: string; readonly message: string },
+      attempt: number,
+    ) {
+      const failure = failureOfSessionError(error)
+      const strategy = nextStrategy(failure, attempt)
+      // fork-aggressive: no extra bus message here; runner tests assert exact
+      // synthetic counts, so rotation is recorded only in the resume token.
+      if (kvOption._tag === "None") return
+      const kv = kvOption.value
+      const now = yield* Clock.currentTimeMillis.pipe(Effect.orElseSucceed(() => Date.now()))
+      yield* kv
+        .set(`resume-token/${sessionID}`, {
+          sessionID,
+          step,
+          updatedAt: now,
+          checklist: [],
+          completedFiles: [],
+          nextAction: `retry-step-${step} via ${strategy.action} for ${failure} (attempt ${attempt})`,
+        })
+        .pipe(Effect.catchAllCause(() => Effect.void))
+    })
+    const noteMilestone = Effect.fn("SessionRunner.noteMilestone")(function* (
+      sessionID: SessionSchema.ID,
+      step: number,
+      files: ReadonlyArray<string> | undefined,
+      nextAction: string,
+    ) {
+      if (kvOption._tag === "None") return
+      const kv = kvOption.value
+      const now = yield* Clock.currentTimeMillis.pipe(Effect.orElseSucceed(() => Date.now()))
+      yield* kv
+        .set(`resume-token/${sessionID}`, {
+          sessionID,
+          step,
+          updatedAt: now,
+          checklist: [],
+          completedFiles: files ?? [],
+          nextAction,
+        })
+        .pipe(Effect.catchAllCause(() => Effect.void))
+    })
     // Title generation starts once input is visible and must not delay model execution.
     const titles = yield* FiberMap.make<SessionSchema.ID, void, never>()
 
@@ -215,6 +265,9 @@ const layer = Layer.effect(
       // fork: cap unconfirmed-completion nudges; the completion marker is
       // advisory and must never hell-loop when the model forgets it.
       let completionNags = 0
+      // fork-aggressive: per-drain loop state. Retry/Continue without progress
+      // rotates strategy (repair/simplify/split/compact) instead of hard-stop.
+      let loop = SessionLoopGuard.initial()
       while (true) {
         // Reuse boundary preparation once; retries refresh context without delivering more input.
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
@@ -277,6 +330,7 @@ const layer = Layer.effect(
         })
         const completed = yield* SessionStep.Outcome.$match(outcome, {
           Completed: Effect.fnUntraced(function* (outcome) {
+            yield* noteMilestone(sessionID, step, undefined, `completed-step-${step}`)
             if (outcome.completionRequired) {
               // A plain answer to a question is complete as it is (see workedSinceLastUser).
               if (!workedSinceLastUser(loaded.messages)) return false
@@ -290,13 +344,18 @@ const layer = Layer.effect(
             }
             return outcome.needsContinuation
           }),
-          Retry: (outcome) =>
-            retry.wait({
+          Retry: Effect.fnUntraced(function* (outcome) {
+            loop = SessionLoopGuard.check(loop, undefined, false).state
+            yield* noteRotation(sessionID, step, outcome.error, outcome.decision.attempt)
+            yield* retry.wait({
               decision: outcome.decision,
               error: outcome.error,
               assistantMessageID,
-            }),
+            })
+          }),
           Continue: Effect.fnUntraced(function* (outcome) {
+            loop = SessionLoopGuard.check(loop, undefined, false).state
+            yield* noteRotation(sessionID, step, outcome.error, outcome.decision.attempt)
             yield* retry.wait({
               decision: outcome.decision,
               error: outcome.error,
@@ -392,5 +451,6 @@ export const node = makeLocationNode({
     Snapshot.node,
     ToolOutput.node,
     Database.node,
+    KV.node,
   ],
 })
