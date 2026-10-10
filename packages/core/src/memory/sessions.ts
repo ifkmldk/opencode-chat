@@ -6,6 +6,9 @@ import os from "node:os"
 import path from "node:path"
 import { MemoryVault } from "./obsidian-sync.js"
 import { Secrets } from "../secrets.js"
+import * as MemoryCline from "./cline.js"
+
+const AGENT_LABEL: Record<string, string> = { opencode: "OpenCode", gemini: "Gemini", cline: "Cline", codex: "Codex", antigravity: "Antigravity" }
 
 // fork: one big context for every agent the owner uses. Claude Code sessions (~/.claude/projects/*/*.jsonl), Claude Code
 // memory notes (~/.claude/projects/*/memory/*.md) and OpenCode sessions (the server database) are copied into the Obsidian
@@ -16,7 +19,7 @@ import { Secrets } from "../secrets.js"
 // The copy is incremental: a file is re-read only when its size or modification time changed.
 
 export type Turn = { role: "user" | "assistant"; text: string; tools: string[] }
-export type Parsed = { agent: "claude-code" | "opencode"; id: string; title: string; cwd: string; started: number; ended: number; turns: Turn[]; files: string[] }
+export type Parsed = { agent: "claude-code" | "opencode" | "gemini" | "cline" | "codex" | "antigravity";id: string; title: string; cwd: string; started: number; ended: number; turns: Turn[]; files: string[] }
 
 const MAX_TOOL_INPUT = 500
 const MAX_TOOL_RESULT = 2000
@@ -276,7 +279,7 @@ export function summary(session: Parsed, secrets: readonly string[]): MemoryVaul
     id: noteID(session),
     kind: "session",
     scope: project(session.cwd),
-    title: redact(`Sesi ${session.agent === "opencode" ? "OpenCode" : "Claude Code"}: ${session.title || "(tanpa judul)"}`, secrets),
+    title: redact(`Sesi ${AGENT_LABEL[session.agent] ?? "Claude Code"}:${session.title || "(tanpa judul)"}`, secrets),
     body: redact(body, secrets),
     updated: session.ended || Date.now(),
     source: session.agent,
@@ -313,7 +316,7 @@ const readState = (file: string): State => {
   }
 }
 
-const writeNote = (vault: string, session: Parsed, secrets: readonly string[]) => {
+export const writeNote = (vault: string, session: Parsed, secrets: readonly string[]) => {
   const entry = summary(session, secrets)
   const summaryFile = path.join(vault, "sessions", session.agent, project(session.cwd), `${entry.id}.md`)
   const transcriptFile = path.join(vault, "transcripts", session.agent, project(session.cwd), `${entry.id}.md`)
@@ -347,15 +350,15 @@ export function opencodeDatabases(dataDir = path.join(os.homedir(), ".local", "s
   }
 }
 
-export type Options = { vault: string; claudeDir?: string; opencodeDBs?: readonly string[]; secrets?: readonly string[]; limit?: number }
-export type Result = { claude: number; subagents: number; claudeMemory: number; opencode: number; skipped: number; errors: string[] }
+export type Options = { vault: string; claudeDir?: string; opencodeDBs?: readonly string[]; clineDir?: string; secrets?: readonly string[]; limit?: number }
+export type Result = { claude: number; subagents: number; claudeMemory: number; opencode: number; cline: number; skipped: number; errors: string[] }
 
 /** Copies new or changed sessions into the vault. Safe to run often: unchanged files are skipped. */
 export function sync(options: Options): Result {
   const secrets = options.secrets ?? knownSecrets()
   const stateFile = path.join(options.vault, ".sync", "sessions.json")
   const state = readState(stateFile)
-  const result: Result = { claude: 0, subagents: 0, claudeMemory: 0, opencode: 0, skipped: 0, errors: [] }
+  const result: Result = { claude: 0, subagents: 0, claudeMemory: 0, opencode: 0, cline: 0, skipped: 0, errors: [] }
   const claudeDir = options.claudeDir ?? path.join(os.homedir(), ".claude", "projects")
   const budget = { left: options.limit ?? Number.POSITIVE_INFINITY }
   const projects = fs.existsSync(claudeDir) ? fs.readdirSync(claudeDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()) : []
@@ -413,6 +416,27 @@ export function sync(options: Options): Result {
       fs.writeFileSync(target, MemoryVault.toMarkdown(entry))
       state.files[file] = signature
       result.claudeMemory++
+    }
+  }
+  // fork: Cline sessions, re-read only when their messages file changed.
+  const clineRoot = options.clineDir ?? path.join(os.homedir(), ".cline", "data", "sessions")
+  for (const { dir, id } of MemoryCline.sessionsUnder(clineRoot)) {
+    const file = path.join(dir, `${id}.messages.json`)
+    if (!fs.existsSync(file)) continue
+    const signature = signatureOf(file)
+    if (state.files[file] === signature) {
+      result.skipped++
+      continue
+    }
+    try {
+      const parsed = MemoryCline.parse(dir, id)
+      if (parsed) {
+        writeNote(options.vault, parsed, secrets)
+        result.cline++
+      }
+      state.files[file] = signature
+    } catch (error) {
+      result.errors.push(`cline ${id}: ${(error as Error).message}`.slice(0, 200))
     }
   }
   for (const db of options.opencodeDBs ?? []) {

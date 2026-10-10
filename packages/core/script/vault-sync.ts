@@ -10,6 +10,11 @@ import os from "node:os"
 import path from "node:path"
 import { MemorySessions } from "../src/memory/sessions"
 import { MemoryVaultFiles } from "../src/memory/vault"
+import { MemoryGemini } from "../src/memory/gemini"
+import { MemoryDigest } from "../src/memory/digest"
+import { MemoryIndex } from "../src/memory/index"
+import { MemoryCodex } from "../src/memory/codex"
+import { MemoryAntigravity } from "../src/memory/antigravity"
 
 const config = path.join(os.homedir(), ".config", "opencode")
 const vault = MemoryVaultFiles.settings(config).dir
@@ -37,7 +42,34 @@ try {
     opencodeDBs: MemorySessions.opencodeDatabases(),
     ...(limitArg > 0 ? { limit: Number(process.argv[limitArg + 1]) } : {}),
   })
-  const line = `${new Date().toISOString()} claude=${result.claude} subagents=${result.subagents} claudeMemory=${result.claudeMemory} opencode=${result.opencode} skipped=${result.skipped} errors=${result.errors.length} ms=${Date.now() - started}`
+  // fork: Gemini comes from Google Takeout zips in the folder below; re-imported each run (the zips are the source of truth).
+  const takeout = process.env.GEMINI_TAKEOUT_DIR ?? "D:/Documents/Default Project"
+  const gemini = fs.existsSync(takeout) ? MemoryGemini.importTo(vault, takeout) : { sessions: 0, errors: [] as string[] }
+  result.errors.push(...gemini.errors)
+  // fork: Codex threads and Antigravity conversations, copied from their own databases each run; each becomes a session note.
+  const secrets = MemorySessions.knownSecrets()
+  let apps = 0
+  for (const session of [...MemoryCodex.read(), ...MemoryAntigravity.read()]) {
+    try {
+      MemorySessions.writeNote(vault, session, secrets)
+      apps++
+    } catch (error) {
+      result.errors.push(`${session.agent} ${session.id}: ${(error as Error).message}`.slice(0, 200))
+    }
+  }
+  // fork: refresh the memory digest inside each agent's global instructions file, so every new session starts with it.
+  const digest = MemoryDigest.build(vault)
+  const written: string[] = []
+  for (const target of MemoryDigest.targets()) {
+    try {
+      if (MemoryDigest.write(target.file, digest)) written.push(target.agent)
+    } catch (error) {
+      result.errors.push(`digest ${target.agent}: ${(error as Error).message}`.slice(0, 200))
+    }
+  }
+  // fork: full-text index over sessions, transcripts and entries, used by the per-prompt recall hook.
+  const index = MemoryIndex.build(vault)
+  const line = `${new Date().toISOString()} claude=${result.claude} subagents=${result.subagents} claudeMemory=${result.claudeMemory} opencode=${result.opencode} cline=${result.cline} gemini=${gemini.sessions} codexAntigravity=${apps} skipped=${result.skipped} errors=${result.errors.length} ms=${Date.now() - started}`
   fs.appendFileSync(path.join(vault, ".sync", "log.txt"), `${line}\n${result.errors.map((error) => `  ${error}`).join("\n")}${result.errors.length ? "\n" : ""}`)
   console.log(line)
 } finally {
